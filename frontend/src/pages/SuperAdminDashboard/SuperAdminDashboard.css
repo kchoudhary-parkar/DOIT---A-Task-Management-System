@@ -1,0 +1,198 @@
+/* Super Admin Dashboard - Additional Styles */
+/* Inherits main dashboard styles from DashboardPage.css */
+
+/* Loader container for super admin */
+.super-admin-dashboard {
+  min-height: calc(100vh - 80px);
+  padding: 32px 40px;
+}
+
+/* Management Section */
+.management-section {
+  margin: 40px 0;
+}
+
+.management-section .section-header {
+  margin-bottom: 24px;
+}
+
+.management-section .section-header h2 {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--dash-text-primary);
+  margin: 0;
+}
+
+.management-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 24px;
+}
+
+.management-card {
+  background: var(--dash-bg-card);
+  border-radius: 14px;
+  padding: 28px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  border: 1px solid var(--dash-border-primary);
+  box-shadow: var(--dash-shadow-sm);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.management-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: linear-gradient(180deg, var(--dash-primary), transparent);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.management-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--dash-shadow-md);
+  border-color: var(--dash-border-hover);
+}
+
+.management-card:hover::before {
+  opacity: 1;
+}
+
+.management-card.user-management {
+  border-color: rgba(139, 92, 246, 0.3);
+}
+
+.management-card.system-info {
+  border-color: rgba(6, 182, 212, 0.3);
+}
+
+.card-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.05));
+  transition: transform 0.3s;
+}
+
+.management-card:hover .card-icon {
+  transform: scale(1.1) rotate(5deg);
+}
+
+.card-content {
+  flex: 1;
+}
+
+.card-content h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--dash-text-primary);
+  margin: 0 0 8px;
+}
+
+.card-content p {
+  font-size: 14px;
+  color: var(--dash-text-tertiary);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.card-stats {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+}
+
+.badge {
+  display: inline-flex;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--dash-primary);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+}
+
+.card-arrow {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--dash-primary);
+  color: white;
+  font-size: 20px;
+  font-weight: bold;
+  transition: all 0.3s;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+.management-card:hover .card-arrow {
+  opacity: 1;
+  transform: translateX(4px);
+}
+
+/* Info Section */
+.info-section {
+  margin-top: 40px;
+}
+
+.info-card {
+  background: var(--dash-bg-card);
+  border-radius: 14px;
+  padding: 24px;
+  display: flex;
+  gap: 20px;
+  border: 1px solid var(--dash-border-primary);
+  box-shadow: var(--dash-shadow-sm);
+  border-left: 4px solid var(--dash-info);
+}
+
+.info-icon {
+  font-size: 32px;
+  flex-shrink: 0;
+}
+
+.info-content h4 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--dash-text-primary);
+  margin: 0 0 8px;
+}
+
+.info-content p {
+  font-size: 14px;
+  color: var(--dash-text-secondary);
+  margin: 0;
+  line-height: 1.6;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .super-admin-dashboard {
+    padding: 24px 20px;
+  }
+
+  .management-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .management-card {
+    padding: 20px;
+  }
+}

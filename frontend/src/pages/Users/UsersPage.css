@@ -1,0 +1,190 @@
+/* Users Page - Additional Styles */
+/* Inherits main dashboard styles from DashboardPage.css */
+
+/* Table Container */
+.users-table-container {
+  background: var(--dash-bg-card);
+  border-radius: 14px;
+  box-shadow: var(--dash-shadow-sm);
+  overflow: hidden;
+  border: 1px solid var(--dash-border-primary);
+  margin-top: 32px;
+}
+
+.users-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.users-table thead {
+  background: var(--dash-bg-tertiary);
+  border-bottom: 2px solid var(--dash-border-primary);
+}
+
+.users-table th {
+  padding: 1rem 1.5rem;
+  text-align: left;
+  font-weight: 600;
+  color: var(--dash-text-secondary);
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.users-table td {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--dash-border-primary);
+  color: var(--dash-text-primary);
+}
+
+.users-table tbody tr {
+  transition: background 0.2s;
+}
+
+.users-table tbody tr:hover {
+  background: var(--dash-bg-tertiary);
+}
+
+.users-table tbody tr.current-user {
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.users-table tbody tr.current-user:hover {
+  background: rgba(59, 130, 246, 0.15);
+}
+
+.you-badge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  background: var(--dash-primary);
+  color: white;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.role-badge {
+  display: inline-block;
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.role-badge.super-admin {
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--dash-warning);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.role-badge.admin {
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--dash-primary);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.role-badge.member {
+  background: rgba(100, 116, 139, 0.1);
+  color: var(--dash-text-secondary);
+  border: 1px solid var(--dash-border-secondary);
+}
+
+.action-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-promote,
+.btn-demote {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-promote {
+  background: var(--dash-success);
+  color: white;
+}
+
+.btn-promote:hover {
+  background: #059669;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);
+}
+
+.btn-promote:disabled {
+  background: var(--dash-text-muted);
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-demote {
+  background: var(--dash-danger);
+  color: white;
+}
+
+.btn-demote:hover {
+  background: #dc2626;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(239, 68, 68, 0.3);
+}
+
+.btn-demote:disabled {
+  background: var(--dash-text-muted);
+  cursor: not-allowed;
+  transform: none;
+}
+
+.text-muted {
+  color: var(--dash-text-muted);
+  font-size: 0.875rem;
+  font-style: italic;
+}
+
+.no-users {
+  text-align: center;
+  padding: 3rem;
+  color: var(--dash-text-tertiary);
+  font-size: 1.1rem;
+  background: var(--dash-bg-card);
+  border-radius: 14px;
+  border: 1px solid var(--dash-border-primary);
+  margin-top: 32px;
+}
+
+.error-message {
+  color: var(--dash-danger);
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin: 2rem 0;
+  text-align: center;
+}
+
+@media (max-width: 768px) {
+  .users-table-container {
+    overflow-x: auto;
+    margin-top: 24px;
+  }
+
+  .users-table {
+    font-size: 0.875rem;
+  }
+
+  .users-table th,
+  .users-table td {
+    padding: 0.75rem 1rem;
+  }
+
+  .action-buttons {
+    flex-direction: column;
+  }
+}
+

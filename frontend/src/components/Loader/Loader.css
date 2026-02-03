@@ -1,0 +1,110 @@
+
+.kanban-loading-overlay {
+  position: absolute;
+  inset: 0;
+  background: var(--bg-primary);
+  backdrop-filter: blur(8px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  z-index: 100;
+  border-radius: 8px;
+  opacity: 0.98;
+} 
+
+
+.loader-container {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  perspective: 1000px;
+}
+/*
+.cube {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  animation: rotate 4s infinite ease-in-out;
+}
+
+.particles {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.face {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border: 2px solid #4facfe;
+  opacity: 0.8;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 20px;
+  color: #fff;
+  background: rgba(79, 172, 254, 0.1);
+} */
+ :root {
+  --color: #00ffff;
+  --size: 8px;
+  --time: 1.2s;
+}
+
+
+#cyber-loader {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background:var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.datastream {
+  display: flex;
+  gap: 8px;
+}
+
+.bar {
+  width: var(--size);
+  height: 60px;
+  background: var(--color);
+  filter: drop-shadow(0 0 10px var(--color));
+  animation: blink var(--time) infinite;
+}
+
+.bar-1 { animation-delay: 0s; }
+.bar-2 { animation-delay: 0.15s; }
+.bar-3 { animation-delay: 0.3s; }
+.bar-4 { animation-delay: 0.45s; }
+.bar-5 { animation-delay: 0.6s; }
+.bar-6 { animation-delay: 0.75s; }
+.bar-7 { animation-delay: 0.9s; }
+.bar-8 { animation-delay: 1.05s; }
+
+.loader-text {
+  margin-top: 20px;
+  color: var(--color);
+  font-family: monospace;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  font-size: 1.2rem;
+}
+
+@keyframes blink {
+  0% { opacity: 0.1; transform: scaleY(0.5); }
+  50% { opacity: 1; transform: scaleY(1.2); }
+  100% { opacity: 0.1; transform: scaleY(0.5); }
+}

@@ -1,0 +1,341 @@
+/* ============================================
+   JIRA-INSPIRED TASK CARD
+   Professional Design
+   ============================================ */
+
+.kanban-task-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  padding: 12px;
+  box-shadow: var(--shadow-sm);
+  cursor: grab;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  min-height: 80px;
+}
+
+.kanban-task-card:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.kanban-task-card:active,
+.kanban-task-card.dragging {
+  cursor: grabbing;
+  opacity: 0.8;
+  transform: rotate(1deg);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Locked State */
+.kanban-task-card.locked {
+  cursor: not-allowed;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.kanban-task-card.locked:hover {
+  transform: none;
+  box-shadow: var(--shadow-sm);
+}
+
+.locked-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 6px;
+  z-index: 10;
+}
+
+.lock-icon {
+  font-size: 24px;
+  opacity: 0.8;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+/* Hide lock during drag */
+.kanban-task-card.dragging .locked-overlay,
+.kanban-task-card:active .locked-overlay,
+.dragging .lock-icon,
+.drag-ghost .lock-icon,
+[draggable="true"]:active .lock-icon {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+.kanban-task-card.dragging * {
+  pointer-events: none;
+}
+
+/* Card Header */
+.task-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.task-header-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.task-header-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.task-ticket-id {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-blue);
+  background: rgba(59, 130, 246, 0.1);
+  padding: 2px 6px;
+  border-radius: 3px;
+  display: inline-block;
+  align-self: flex-start;
+  letter-spacing: 0.3px;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.task-card-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin: 0;
+  line-height: 1.4;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* Priority Badge - Jira Style */
+.task-card-priority {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: capitalize;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.task-card-priority::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+/* Priority Colors - Jira Theme */
+.task-card-priority.low {
+  background: rgba(54, 179, 126, 0.1);
+  color: var(--accent-green);
+  border: 1px solid var(--accent-green);
+}
+
+.task-card-priority.low::before {
+  background: var(--accent-green);
+}
+
+.task-card-priority.medium {
+  background: rgba(255, 171, 0, 0.1);
+  color: var(--accent-yellow);
+  border: 1px solid var(--accent-yellow);
+}
+
+.task-card-priority.medium::before {
+  background: var(--accent-yellow);
+}
+
+.task-card-priority.high {
+  background: rgba(255, 86, 48, 0.1);
+  color: var(--accent-red);
+  border: 1px solid var(--accent-red);
+}
+
+.task-card-priority.high::before {
+  background: var(--accent-red);
+}
+
+/* Card Description */
+.task-card-description {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 6px 0 8px 0;
+  line-height: 1.5;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Card Footer */
+.task-card-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-secondary);
+}
+
+/* Footer Top Row - Assignee and Creator side by side */
+.footer-top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Assignee */
+.task-card-assignee {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.assignee-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 11px;
+  flex-shrink: 0;
+  box-shadow: var(--shadow-sm);
+  border: 2px solid var(--bg-card);
+}
+
+.assignee-name {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.unassigned {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Created By */
+.task-card-creator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.creator-icon {
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.creator-name {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+}
+
+/* Due Date - Now in header */
+.task-card-due-date {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--bg-stat);
+  padding: 3px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border-secondary);
+  white-space: nowrap;
+}
+
+.due-date-icon {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* Task ID Badge (Jira-style) */
+.task-id-badge {
+  position: absolute;
+  top: -8px;
+  right: 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent-blue);
+  font-family: 'Monaco', 'Courier New', monospace;
+  box-shadow: var(--shadow-sm);
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .kanban-task-card {
+    padding: 10px;
+  }
+
+  .task-card-header {
+    flex-direction: column;
+    gap: 6px;
+    align-items: flex-start;
+  }
+
+  .task-card-title {
+    font-size: 13px;
+  }
+
+  .task-card-description {
+    font-size: 12px;
+    -webkit-line-clamp: 3;
+  }
+
+  .task-card-footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .task-card-due-date {
+    align-self: flex-end;
+  }
+}

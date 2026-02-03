@@ -1,0 +1,24 @@
+# Core FastAPI and dependencies
+fastapi>=0.115.0
+pydantic>=2.9.0
+pydantic[email]>=2.9.0
+email-validator>=2.2.0
+uvicorn[standard]>=0.30.0
+
+# Authentication and security
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+PyJWT>=2.9.0
+bcrypt>=4.2.0
+
+# Database
+pymongo>=4.8.0
+
+# Utilities
+python-dotenv>=1.0.1
+python-multipart>=0.0.9
+typing-extensions>=4.14.0
+requests>=2.32.0
+
+# AI Integration
+anthropic>=0.34.0
