@@ -1,5 +1,5 @@
 import Loader from "../Loader/Loader";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import {
@@ -7,7 +7,9 @@ import {
   FiCheckCircle,
   FiTrendingUp,
   FiArchive,
-  FiActivity
+  FiActivity,
+  FiWifi,
+  FiWifiOff
 } from "react-icons/fi";
 import {
   DndContext,
@@ -23,6 +25,7 @@ import KanbanColumn from "./KanbanColumn";
 import KanbanTaskCard from "./KanbanTaskCard";
 import TaskDetailModal from "../Tasks/TaskDetailModal";
 import { taskAPI } from "../../services/api";
+import useKanbanWebSocket from "../../utils/useKanbanWebSocket";
 import "./KanbanBoard.css";
 
 const COLUMNS = [
@@ -59,10 +62,84 @@ function KanbanBoard({ projectId, initialTasks, onTaskUpdate, user, isOwner }) {
   const [loading, setLoading] = useState(false);
   const [showClosedTasks, setShowClosedTasks] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
+  const [dragStartStatus, setDragStartStatus] = useState(null); // Store original status at drag start
 
-  useEffect(() => {
-    setTasks(initialTasks || []);
-  }, [initialTasks]);
+  // WebSocket message handler
+  const handleWebSocketMessage = useCallback((data) => {
+    console.log('[Kanban WS] Received:', data.type);
+
+    switch (data.type) {
+      case 'connection':
+        console.log('[Kanban WS] Connected to project:', data.project_id);
+        break;
+
+      case 'task_created':
+        // Add new task to the board
+        setTasks(prev => {
+          // Avoid duplicates
+          if (prev.some(t => t._id === data.task._id)) {
+            return prev;
+          }
+          const taskTitle = data.task.title || data.task.ticket_id || 'New task';
+          toast.info(`${data.user_name} created a new task: ${taskTitle}`);
+          const newTasks = [...prev, data.task];
+          // Update parent component's state
+          if (onTaskUpdate) {
+            onTaskUpdate(data.task._id, data.task);
+          }
+          return newTasks;
+        });
+        break;
+
+      case 'task_updated':
+        // Update existing task
+        setTasks(prev => prev.map(task =>
+          task._id === data.task._id ? data.task : task
+        ));
+        
+        // Update parent component's state to keep it in sync
+        if (onTaskUpdate) {
+          onTaskUpdate(data.task._id, data.task);
+        }
+        
+        // Show toast for status changes by other users
+        if (data.updated_fields.includes('status') && data.user_name) {
+          const currentUserId = localStorage.getItem('user_id');
+          // Only show notification if the update was made by a different user
+          if (data.user_id && data.user_id !== currentUserId) {
+            const taskTitle = data.task.title || data.task.ticket_id || 'a task';
+            toast.info(`${data.user_name} moved "${taskTitle}" to ${data.task.status}`);
+          }
+        }
+        break;
+
+      case 'task_deleted':
+        // Remove deleted task
+        setTasks(prev => prev.filter(task => task._id !== data.task_id));
+        if (data.user_name) {
+          toast.info(`${data.user_name} deleted a task`);
+        }
+        break;
+
+      case 'pong':
+        // Heartbeat response
+        break;
+
+      default:
+        console.log('[Kanban WS] Unknown message type:', data.type);
+    }
+  }, [onTaskUpdate]);
+
+  // WebSocket connection
+  const { connectionStatus, isConnected } = useKanbanWebSocket(
+    projectId,
+    handleWebSocketMessage,
+    {
+      enabled: Boolean(projectId),
+      reconnectAttempts: 10,
+      reconnectInterval: 2000
+    }
+  );
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -116,15 +193,11 @@ function KanbanBoard({ projectId, initialTasks, onTaskUpdate, user, isOwner }) {
     const { active } = event;
     const task = tasks.find((t) => t._id === active.id);
 
-    if (!isOwner && user) {
-      const isAssignedToUser =
-        task.assignee_id && String(task.assignee_id) === String(user.id);
-      if (!isAssignedToUser) {
-        return;
-      }
-    }
+    if (!task) return;
 
     setActiveTask(task);
+    // Capture the current status when drag starts (not from stale initialTasks)
+    setDragStartStatus(task?.status);
   };
 
   const handleDragOver = (event) => {
@@ -175,15 +248,22 @@ function KanbanBoard({ projectId, initialTasks, onTaskUpdate, user, isOwner }) {
     const { active, over } = event;
     setActiveTask(null);
 
-    if (!over) return;
+    if (!over) {
+      setDragStartStatus(null);
+      return;
+    }
 
     const activeId = active.id;
     const overId = over.id;
 
     const activeTask = tasks.find((t) => t._id === activeId);
-    if (!activeTask) return;
+    if (!activeTask) {
+      setDragStartStatus(null);
+      return;
+    }
 
-    const originalStatus = initialTasks.find((t) => t._id === activeId)?.status;
+    // Use the status captured at drag start, not stale initialTasks
+    const originalStatus = dragStartStatus || activeTask.status;
 
     // Cannot move tasks OUT of "Done" or "Closed"
     if (originalStatus === "Done" || originalStatus === "Closed") {
@@ -191,7 +271,11 @@ function KanbanBoard({ projectId, initialTasks, onTaskUpdate, user, isOwner }) {
         position: "top-right",
         autoClose: 4000,
       });
-      setTasks(initialTasks);
+      // Revert optimistic update - restore task to original status
+      setTasks((prev) =>
+        prev.map((t) => (t._id === activeId ? { ...t, status: originalStatus } : t))
+      );
+      setDragStartStatus(null);
       return;
     }
 
@@ -245,8 +329,11 @@ function KanbanBoard({ projectId, initialTasks, onTaskUpdate, user, isOwner }) {
         draggable: true,
       });
       
-      // Revert to original state
-      setTasks(initialTasks);
+      // Revert optimistic update - restore task to original status
+      setTasks((prev) =>
+        prev.map((t) => (t._id === activeId ? { ...t, status: originalStatus } : t))
+      );
+      setDragStartStatus(null);
       return;
     }
 
@@ -287,10 +374,13 @@ function KanbanBoard({ projectId, initialTasks, onTaskUpdate, user, isOwner }) {
         }
       );
       
-      // Revert to original state on error
-      setTasks(initialTasks || []);
+      // Revert optimistic update on error - restore task to original status
+      setTasks((prev) =>
+        prev.map((t) => (t._id === activeId ? { ...t, status: originalStatus } : t))
+      );
     } finally {
       setLoading(false);
+      setDragStartStatus(null); // Clean up drag state
     }
   };
 
@@ -309,11 +399,36 @@ function KanbanBoard({ projectId, initialTasks, onTaskUpdate, user, isOwner }) {
 
       {/* Board Header */}
       <div className="kanban-board-header">
-        <div>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
           <h2 className="board-title">
             <FiActivity size={24} style={{ marginRight: '10px', verticalAlign: 'middle' }} />
             Project Board
           </h2>
+          {/* Connection Status Indicator */}
+          <div style={{
+            marginLeft: '15px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '4px 10px',
+            borderRadius: '12px',
+            fontSize: '12px',
+            fontWeight: '500',
+            background: isConnected ? '#e3fcef' : '#ffebe6',
+            color: isConnected ? '#006644' : '#de350b'
+          }}>
+            {isConnected ? (
+              <>
+                <FiWifi size={14} />
+                <span>Live</span>
+              </>
+            ) : (
+              <>
+                <FiWifiOff size={14} />
+                <span>Offline</span>
+              </>
+            )}
+          </div>
         </div>
         <div className="board-actions">
           <button
@@ -424,15 +539,19 @@ function KanbanBoard({ projectId, initialTasks, onTaskUpdate, user, isOwner }) {
       )}
 
       {/* Task Detail Modal */}
-      {selectedTask && (
-        <TaskDetailModal
-          task={selectedTask}
-          onClose={() => setSelectedTask(null)}
-          onUpdate={handleTaskDetailUpdate}
-          isOwner={isOwner}
-          projectTasks={tasks}
-        />
-      )}
+      {selectedTask && (() => {
+        // Find the current task from tasks state to get latest WebSocket updates
+        const currentTask = tasks.find(t => t._id === selectedTask._id) || selectedTask;
+        return (
+          <TaskDetailModal
+            task={currentTask}
+            onClose={() => setSelectedTask(null)}
+            onUpdate={handleTaskDetailUpdate}
+            isOwner={isOwner}
+            projectTasks={tasks}
+          />
+        );
+      })()}
     </div>
   );
 }

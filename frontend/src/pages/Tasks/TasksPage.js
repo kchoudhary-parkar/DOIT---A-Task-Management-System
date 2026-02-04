@@ -156,11 +156,31 @@ function TasksPage() {
   };
 
   const handleKanbanTaskUpdate = (taskId, updateData) => {
-    setTasks((prevTasks) =>
-      prevTasks.map((task) =>
-        task._id === taskId ? { ...task, ...updateData } : task
-      )
-    );
+    if (updateData && updateData._id) {
+      // Full task object received (from WebSocket)
+      setTasks((prevTasks) =>
+        prevTasks.map((task) =>
+          task._id === taskId ? updateData : task
+        )
+      );
+      
+      // Update editingTask if it's the same task being edited
+      if (editingTask && editingTask._id === taskId) {
+        setEditingTask(updateData);
+      }
+    } else {
+      // Partial update (from drag and drop)
+      setTasks((prevTasks) =>
+        prevTasks.map((task) =>
+          task._id === taskId ? { ...task, ...updateData } : task
+        )
+      );
+      
+      // Update editingTask if it's the same task being edited
+      if (editingTask && editingTask._id === taskId) {
+        setEditingTask(prev => ({ ...prev, ...updateData }));
+      }
+    }
     
     // Notify sprint page about the change
     window.dispatchEvent(new CustomEvent('sprintDataChanged', { 

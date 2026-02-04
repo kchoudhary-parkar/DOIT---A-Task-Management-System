@@ -40,6 +40,11 @@ function TaskDetailModal({ task, onClose, onUpdate, isOwner, projectTasks = [] }
   // Local state for task data
   const [taskData, setTaskData] = useState(task);
 
+  // Update taskData when task prop changes (e.g., from WebSocket updates)
+  useEffect(() => {
+    setTaskData(task);
+  }, [task]);
+
   // Activity filtering and pagination state
   const [activityFilter, setActivityFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
@@ -660,10 +665,10 @@ useEffect(() => {
       <div className="modal-content task-detail-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div className="modal-header-content">
-            {task.ticket_id && (
-              <span className="task-detail-ticket-id">{task.ticket_id}</span>
+            {taskData.ticket_id && (
+              <span className="task-detail-ticket-id">{taskData.ticket_id}</span>
             )}
-            <h2>{task.title}</h2>
+            <h2>{taskData.title}</h2>
           </div>
           <button type="button" onClick={handleClose} className="btn-close">
             <FiX size={20} />
