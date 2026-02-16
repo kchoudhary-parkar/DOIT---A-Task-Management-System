@@ -1,5 +1,7 @@
 // Import caching utilities
 import { requestCache, cachedFetch, createCacheKey } from '../utils/requestCache';
+import { agentAPI } from './agentAPI';
+
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
 
 // Get token from localStorage
@@ -971,3 +973,4 @@ export const profileAPI = {
     return data;
   },
 };
+export { agentAPI };

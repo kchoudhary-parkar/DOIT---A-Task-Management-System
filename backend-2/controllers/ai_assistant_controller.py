@@ -1,7 +1,8 @@
+
 """
-AI Assistant Controller - ENHANCED WITH DATABASE INSIGHTS
+AI Assistant Controller - ENHANCED WITH DATABASE INSIGHTS & TASK AUTOMATION
 Handles ChatGPT-like AI interactions using Azure AI Foundry (GPT-5.2-chat + FLUX-1.1-pro)
-NOW with intelligent data-driven insights from MongoDB (like Gemini chat)
+NOW with intelligent data-driven insights from MongoDB AND task automation capabilities
 """
 
 from fastapi import HTTPException, UploadFile
@@ -19,12 +20,26 @@ from utils.ai_data_analyzer import (
     build_ai_system_prompt,
     extract_insights_from_data,
 )
+from controllers.agent_task_controller import agent_create_task, agent_assign_task
+from controllers.agent_sprint_controller import agent_create_sprint
+from controllers import task_controller, sprint_controller
+from models.user import User
+from models.project import Project
+from models.task import Task
+from models.sprint import Sprint
+from database import db
 from bson import ObjectId
 import json
 from typing import Optional, List
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from utils.file_parser import extract_file_content, summarize_file_content
+import re
+
+
+# ============================================================================
+# CONVERSATION MANAGEMENT
+# ============================================================================
 
 
 def create_conversation(user_id: str, title: str = "New Conversation"):
@@ -80,12 +95,750 @@ def get_conversation_messages(conversation_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ============================================================================
+# TASK AUTOMATION - COMMAND DETECTION
+# ============================================================================
+
+
+def detect_task_command(message: str) -> bool:
+    """
+    Detect if message contains a task automation command
+    """
+    command_keywords = [
+        "create task",
+        "create a task",
+        "make a task",
+        "add task",
+        "new task",
+        "assign task",
+        "assign to",
+        "give task to",
+        "update task",
+        "change status",
+        "mark as",
+        "set status",
+        "create sprint",
+        "start sprint",
+        "new sprint",
+        "make sprint",
+        "add to sprint",
+        "add task to sprint",
+        "put in sprint",
+        "list tasks",
+        "show tasks",
+        "my tasks",
+        "get tasks",
+        "find tasks",
+        "list all tasks",
+        "show all tasks",
+        "tasks in",
+        "tasks for",
+        "list projects",
+        "show projects",
+        "my projects",
+        "get projects",
+        "update priority",
+        "change priority",
+        "set priority",
+    ]
+
+    message_lower = message.lower()
+    return any(keyword in message_lower for keyword in command_keywords)
+
+
+# ============================================================================
+# TASK AUTOMATION - COMMAND PARSING
+# ============================================================================
+
+
+def parse_task_command(command: str, context: dict = None):
+    """
+    Use Azure OpenAI to parse natural language commands into structured actions
+    """
+    try:
+        system_prompt = """You are a task management command parser. Extract the action and parameters from user commands.
+
+Available actions:
+- create_task: Create a new task
+- assign_task: Assign a task to someone
+- update_task: Update task properties
+- create_sprint: Create a new sprint
+- add_task_to_sprint: Add task to a sprint
+- list_tasks: List tasks with filters
+- list_projects: List user's projects
+
+Return ONLY a JSON object with this structure:
+{
+    "action": "action_name",
+    "params": {
+        // relevant parameters
+    }
+}
+
+For create_task, extract:
+- title (required)
+- description (optional)
+- project_id or project_name (required)
+- assignee_email or assignee_name (optional)
+- priority (Low/Medium/High/Critical)
+- issue_type (task/bug/story/epic)
+- due_date (YYYY-MM-DD format)
+- labels (array of strings)
+
+For add_task_to_sprint, extract:
+- task_id or task_title or ticket_id (required)
+- sprint_id or sprint_name (optional - will use active sprint if not provided)
+- project_id or project_name (optional)
+
+For assign_task, extract:
+- task_id or task_title
+- assignee_email or assignee_name
+
+For update_task, extract:
+- task_id or task_title
+- Any fields to update (status, priority, description, etc.)
+
+For create_sprint, extract:
+- name
+- project_id or project_name
+- start_date (YYYY-MM-DD)
+- end_date (YYYY-MM-DD)
+- goal (optional)
+
+For list_tasks, extract:
+- project_id or project_name (optional)
+- status (optional)
+- priority (optional)
+- assignee (optional) - use "me" for current user
+
+Examples:
+"Create a high priority bug for payment gateway timeout in Project CDW, assign to kamlesh@gmail.com, due date 2026-03-15"
+→ {"action": "create_task", "params": {"title": "Payment gateway timeout issue", "priority": "High", "project_name": "CDW", "assignee_email": "kamlesh@gmail.com", "issue_type": "bug", "due_date": "2026-03-15"}}
+
+"Add this bug to the active sprint"
+→ {"action": "add_task_to_sprint", "params": {"task_title": "bug", "sprint_name": "active"}}
+
+"List all tasks in CDW for kamlesh@gmail.com"
+→ {"action": "list_tasks", "params": {"project_name": "CDW", "assignee": "kamlesh@gmail.com"}}
+
+"Show me all my overdue tasks"
+→ {"action": "list_tasks", "params": {"assignee": "me", "status": "overdue"}}
+"""
+
+        user_message = f"Command: {command}"
+        if context:
+            user_message += f"\nContext: {json.dumps(context)}"
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_message},
+        ]
+
+        response = chat_completion(messages=messages, max_tokens=500)
+
+        # Parse JSON response
+        content = response["content"].strip()
+        # Remove markdown code blocks if present
+        content = re.sub(r"```json\s*|\s*```", "", content).strip()
+
+        parsed = json.loads(content)
+
+        print(f"   📋 Parsed command: {parsed}")
+
+        return {"success": True, **parsed}
+
+    except Exception as e:
+        print(f"Error parsing command: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+        return {"success": False, "error": f"Failed to parse command: {str(e)}"}
+
+
+# ============================================================================
+# TASK AUTOMATION - COMMAND EXECUTION
+# ============================================================================
+
+
+def execute_task_command(user_id: str, command: str, context: dict = None):
+    """
+    Execute task-related commands from AI Assistant
+    """
+    print(f"\n{'=' * 60}")
+    print(f"🎯 EXECUTING TASK COMMAND")
+    print(f"{'=' * 60}")
+    print(f"User ID: {user_id}")
+    print(f"Command: {command}")
+    print(f"Context: {context}")
+
+    try:
+        # Get user info
+        user = User.find_by_id(user_id)
+        if not user:
+            return {"success": False, "error": "User not found"}
+
+        user_email = user.get("email")
+        user_role = user.get("role", "member").lower()
+
+        print(f"   👤 User: {user_email} (Role: {user_role})")
+
+        # Parse command using LLM to extract intent and parameters
+        parsed_command = parse_task_command(command, context)
+
+        if not parsed_command["success"]:
+            return parsed_command
+
+        action = parsed_command["action"]
+        params = parsed_command["params"]
+
+        print(f"   ⚡ Action: {action}")
+        print(f"   📝 Params: {params}")
+
+        # Execute based on action type
+        if action == "create_task":
+            return handle_create_task(user_email, user_id, params)
+
+        elif action == "assign_task":
+            return handle_assign_task(user_email, user_id, params)
+
+        elif action == "update_task":
+            return handle_update_task(user_email, user_id, params)
+
+        elif action == "create_sprint":
+            if user_role != "admin":
+                return {
+                    "success": False,
+                    "error": "Only Admin users can create sprints",
+                }
+            return handle_create_sprint(user_email, user_id, params)
+
+        elif action == "add_task_to_sprint":
+            return handle_add_task_to_sprint(user_email, user_id, params)
+
+        elif action == "list_tasks":
+            return handle_list_tasks(user_id, params)
+
+        elif action == "list_projects":
+            return handle_list_projects(user_id)
+
+        else:
+            return {"success": False, "error": f"Unknown action: {action}"}
+
+    except Exception as e:
+        print(f"❌ Error executing task command: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+        return {"success": False, "error": f"Failed to execute command: {str(e)}"}
+
+
+# ============================================================================
+# TASK AUTOMATION - ACTION HANDLERS
+# ============================================================================
+
+
+def handle_create_task(user_email: str, user_id: str, params: dict):
+    """Handle task creation"""
+    try:
+        print(f"   🔨 Creating task...")
+
+        # Resolve project_id
+        project_id = params.get("project_id")
+        if not project_id and params.get("project_name"):
+            project = db.projects.find_one(
+                {
+                    "$or": [{"user_id": user_id}, {"members.user_id": user_id}],
+                    "name": {"$regex": f"^{params['project_name']}$", "$options": "i"},
+                }
+            )
+            if project:
+                project_id = str(project["_id"])
+            else:
+                return {
+                    "success": False,
+                    "error": f"Project '{params['project_name']}' not found",
+                }
+
+        if not project_id:
+            return {"success": False, "error": "Project ID or name is required"}
+
+        print(f"   📁 Project ID: {project_id}")
+
+        # Create task using agent controller
+        result = agent_create_task(
+            requesting_user=user_email,
+            title=params.get("title"),
+            project_id=project_id,
+            user_id=user_id,
+            description=params.get("description", ""),
+            assignee_email=params.get("assignee_email"),
+            assignee_name=params.get("assignee_name"),
+            priority=params.get("priority", "Medium"),
+            status=params.get("status", "To Do"),
+            due_date=params.get("due_date"),
+            issue_type=params.get("issue_type", "task"),
+            labels=params.get("labels", []),
+        )
+
+        print(f"   ✅ Task created: {result}")
+
+        return {
+            "success": True,
+            "action": "create_task",
+            "result": result,
+            "message": f"✅ Task '{params.get('title')}' created successfully!",
+        }
+
+    except Exception as e:
+        print(f"   ❌ Error creating task: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+def handle_assign_task(user_email: str, user_id: str, params: dict):
+    """Handle task assignment"""
+    try:
+        task_id = params.get("task_id")
+
+        # If task_title provided, find task_id
+        if not task_id and params.get("task_title"):
+            projects = list(
+                db.projects.find(
+                    {"$or": [{"user_id": user_id}, {"members.user_id": user_id}]}
+                )
+            )
+            project_ids = [str(p["_id"]) for p in projects]
+
+            task = db.tasks.find_one(
+                {
+                    "project_id": {"$in": project_ids},
+                    "title": {"$regex": params["task_title"], "$options": "i"},
+                }
+            )
+
+            if task:
+                task_id = str(task["_id"])
+            else:
+                return {
+                    "success": False,
+                    "error": f"Task '{params['task_title']}' not found",
+                }
+
+        if not task_id:
+            return {"success": False, "error": "Task ID or title is required"}
+
+        assignee_identifier = params.get("assignee_email") or params.get(
+            "assignee_name"
+        )
+        if not assignee_identifier:
+            return {"success": False, "error": "Assignee email or name is required"}
+
+        result = agent_assign_task(
+            requesting_user=user_email,
+            task_id=task_id,
+            assignee_identifier=assignee_identifier,
+            user_id=user_id,
+        )
+
+        return {
+            "success": True,
+            "action": "assign_task",
+            "result": result,
+            "message": f"✅ Task assigned to {assignee_identifier}",
+        }
+
+    except Exception as e:
+        print(f"Error assigning task: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+def handle_update_task(user_email: str, user_id: str, params: dict):
+    """Handle task updates"""
+    try:
+        task_id = params.get("task_id")
+
+        # Find task by title if needed
+        if not task_id and params.get("task_title"):
+            projects = list(
+                db.projects.find(
+                    {"$or": [{"user_id": user_id}, {"members.user_id": user_id}]}
+                )
+            )
+            project_ids = [str(p["_id"]) for p in projects]
+
+            task = db.tasks.find_one(
+                {
+                    "project_id": {"$in": project_ids},
+                    "title": {"$regex": params["task_title"], "$options": "i"},
+                }
+            )
+
+            if task:
+                task_id = str(task["_id"])
+
+        if not task_id:
+            return {"success": False, "error": "Task ID or title is required"}
+
+        # Build update data
+        update_data = {}
+        for key in ["status", "priority", "description", "due_date", "labels"]:
+            if key in params:
+                update_data[key] = params[key]
+
+        if not update_data:
+            return {"success": False, "error": "No fields to update"}
+
+        body = json.dumps(update_data)
+        response = task_controller.update_task(body, task_id, user_id)
+
+        if response.get("statusCode", 200) >= 400:
+            error_body = (
+                json.loads(response["body"])
+                if isinstance(response["body"], str)
+                else response["body"]
+            )
+            return {"success": False, "error": error_body.get("error", "Update failed")}
+
+        result = (
+            json.loads(response["body"])
+            if isinstance(response["body"], str)
+            else response["body"]
+        )
+
+        return {
+            "success": True,
+            "action": "update_task",
+            "result": result,
+            "message": f"✅ Task updated successfully",
+        }
+
+    except Exception as e:
+        print(f"Error updating task: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+def handle_create_sprint(user_email: str, user_id: str, params: dict):
+    """Handle sprint creation (Admin only)"""
+    try:
+        # Resolve project_id
+        project_id = params.get("project_id")
+        if not project_id and params.get("project_name"):
+            project = db.projects.find_one(
+                {
+                    "user_id": user_id,
+                    "name": {"$regex": f"^{params['project_name']}$", "$options": "i"},
+                }
+            )
+            if project:
+                project_id = str(project["_id"])
+            else:
+                return {
+                    "success": False,
+                    "error": f"Project '{params['project_name']}' not found or you don't own it",
+                }
+
+        if not project_id:
+            return {"success": False, "error": "Project ID or name is required"}
+
+        result = agent_create_sprint(
+            requesting_user=user_email,
+            name=params.get("name"),
+            project_id=project_id,
+            start_date=params.get("start_date"),
+            end_date=params.get("end_date"),
+            user_id=user_id,
+            goal=params.get("goal", ""),
+            status=params.get("status", "Planning"),
+        )
+
+        return {
+            "success": True,
+            "action": "create_sprint",
+            "result": result,
+            "message": f"✅ Sprint '{params.get('name')}' created successfully!",
+        }
+
+    except Exception as e:
+        print(f"Error creating sprint: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+def handle_add_task_to_sprint(user_email: str, user_id: str, params: dict):
+    """Handle adding task to sprint"""
+    try:
+        print(f"   🏃 Adding task to sprint...")
+
+        task_id = params.get("task_id")
+        sprint_id = params.get("sprint_id")
+
+        # Find task by title or ticket_id if not provided
+        if not task_id and (params.get("task_title") or params.get("ticket_id")):
+            projects = list(
+                db.projects.find(
+                    {"$or": [{"user_id": user_id}, {"members.user_id": user_id}]}
+                )
+            )
+            project_ids = [str(p["_id"]) for p in projects]
+
+            search_term = params.get("task_title") or params.get("ticket_id")
+            task = db.tasks.find_one(
+                {
+                    "project_id": {"$in": project_ids},
+                    "$or": [
+                        {"title": {"$regex": search_term, "$options": "i"}},
+                        {"ticket_id": {"$regex": search_term, "$options": "i"}},
+                    ],
+                }
+            )
+
+            if task:
+                task_id = str(task["_id"])
+            else:
+                return {"success": False, "error": f"Task '{search_term}' not found"}
+
+        # Find sprint by name if not provided
+        if not sprint_id and params.get("sprint_name"):
+            project_id = params.get("project_id")
+            if not project_id and task_id:
+                task = Task.find_by_id(task_id)
+                if task:
+                    project_id = task["project_id"]
+
+            if project_id:
+                # Check if "active" sprint is requested
+                if params["sprint_name"].lower() == "active":
+                    sprint = db.sprints.find_one(
+                        {"project_id": project_id, "status": "active"}
+                    )
+                else:
+                    sprint = db.sprints.find_one(
+                        {
+                            "project_id": project_id,
+                            "name": {"$regex": params["sprint_name"], "$options": "i"},
+                        }
+                    )
+
+                if sprint:
+                    sprint_id = str(sprint["_id"])
+                else:
+                    return {
+                        "success": False,
+                        "error": f"Sprint '{params['sprint_name']}' not found",
+                    }
+
+        # If still no sprint_id, try to find active sprint
+        if not sprint_id and task_id:
+            task = Task.find_by_id(task_id)
+            if task:
+                active_sprint = db.sprints.find_one(
+                    {"project_id": task["project_id"], "status": "active"}
+                )
+                if active_sprint:
+                    sprint_id = str(active_sprint["_id"])
+                else:
+                    return {
+                        "success": False,
+                        "error": "No active sprint found. Please specify sprint name.",
+                    }
+
+        if not task_id or not sprint_id:
+            return {"success": False, "error": "Task ID and Sprint ID are required"}
+
+        print(f"   📌 Task ID: {task_id}, Sprint ID: {sprint_id}")
+
+        # Add task to sprint using sprint controller
+        body = json.dumps({"task_id": task_id})
+        response = sprint_controller.add_task_to_sprint(sprint_id, body, user_id)
+
+        if response.get("statusCode", 200) >= 400:
+            error_body = (
+                json.loads(response["body"])
+                if isinstance(response["body"], str)
+                else response["body"]
+            )
+            return {
+                "success": False,
+                "error": error_body.get("error", "Failed to add task to sprint"),
+            }
+
+        # Get task and sprint details for response
+        task = Task.find_by_id(task_id)
+        sprint = Sprint.find_by_id(sprint_id)
+
+        print(f"   ✅ Task added to sprint successfully")
+
+        return {
+            "success": True,
+            "action": "add_task_to_sprint",
+            "result": {
+                "task": {
+                    "ticket_id": task.get("ticket_id", ""),
+                    "title": task.get("title", ""),
+                    "status": task.get("status", ""),
+                },
+                "sprint": {
+                    "name": sprint.get("name", ""),
+                    "status": sprint.get("status", ""),
+                    "start_date": str(sprint.get("start_date", "")),
+                    "end_date": str(sprint.get("end_date", "")),
+                },
+            },
+            "message": f"✅ Task '{task.get('title', '')}' added to sprint '{sprint.get('name', '')}'",
+        }
+
+    except Exception as e:
+        print(f"❌ Error adding task to sprint: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+def handle_list_tasks(user_id: str, params: dict):
+    """Handle task listing"""
+    try:
+        print(f"   📋 Listing tasks with params: {params}")
+
+        # Build query
+        query = {}
+
+        # Filter by assignee
+        if params.get("assignee") == "me":
+            query["assignee_id"] = user_id
+        elif params.get("assignee"):
+            # Check if it's an email
+            if "@" in params["assignee"]:
+                assignee = User.find_by_email(params["assignee"])
+            else:
+                assignee = db.users.find_one(
+                    {"name": {"$regex": f"^{params['assignee']}$", "$options": "i"}}
+                )
+
+            if assignee:
+                query["assignee_id"] = str(assignee["_id"])
+            else:
+                return {
+                    "success": False,
+                    "error": f"User '{params['assignee']}' not found",
+                }
+
+        # Filter by status
+        if params.get("status"):
+            if params["status"] == "overdue":
+                query["due_date"] = {
+                    "$lt": datetime.now(timezone.utc).replace(tzinfo=None)
+                }
+                query["status"] = {"$nin": ["Done", "Closed"]}
+            else:
+                query["status"] = params["status"]
+
+        # Filter by priority
+        if params.get("priority"):
+            query["priority"] = params["priority"]
+
+        # Filter by project
+        if params.get("project_id"):
+            query["project_id"] = params["project_id"]
+        elif params.get("project_name"):
+            project = db.projects.find_one(
+                {
+                    "$or": [{"user_id": user_id}, {"members.user_id": user_id}],
+                    "name": {"$regex": f"^{params['project_name']}$", "$options": "i"},
+                }
+            )
+            if project:
+                query["project_id"] = str(project["_id"])
+            else:
+                return {
+                    "success": False,
+                    "error": f"Project '{params['project_name']}' not found",
+                }
+
+        print(f"   🔍 Query: {query}")
+
+        # Get tasks
+        tasks = list(db.tasks.find(query).limit(50))
+
+        print(f"   ✅ Found {len(tasks)} tasks")
+
+        # Format for display
+        formatted_tasks = []
+        for task in tasks:
+            formatted_tasks.append(
+                {
+                    "ticket_id": task.get("ticket_id", ""),
+                    "title": task.get("title", ""),
+                    "status": task.get("status", ""),
+                    "priority": task.get("priority", ""),
+                    "assignee": task.get("assignee_name", "Unassigned"),
+                    "due_date": str(task.get("due_date", "No due date")),
+                }
+            )
+
+        return {
+            "success": True,
+            "action": "list_tasks",
+            "tasks": formatted_tasks,
+            "count": len(formatted_tasks),
+            "message": f"Found {len(formatted_tasks)} task(s)",
+        }
+
+    except Exception as e:
+        print(f"Error listing tasks: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+def handle_list_projects(user_id: str):
+    """Handle project listing"""
+    try:
+        projects = list(
+            db.projects.find(
+                {"$or": [{"user_id": user_id}, {"members.user_id": user_id}]}
+            )
+        )
+
+        formatted_projects = []
+        for project in projects:
+            formatted_projects.append(
+                {
+                    "id": str(project["_id"]),
+                    "name": project.get("name", ""),
+                    "description": project.get("description", ""),
+                    "status": project.get("status", ""),
+                    "role": "Owner" if project.get("user_id") == user_id else "Member",
+                }
+            )
+
+        return {
+            "success": True,
+            "action": "list_projects",
+            "projects": formatted_projects,
+            "count": len(formatted_projects),
+            "message": f"Found {len(formatted_projects)} project(s)",
+        }
+
+    except Exception as e:
+        print(f"Error listing projects: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+# ============================================================================
+# MAIN MESSAGE HANDLER
+# ============================================================================
+
+
 def send_message(
     conversation_id: str, user_id: str, content: str, stream: bool = False
 ):
     """
     Send a message and get AI response with intelligent data-driven insights
     🆕 ENHANCED: Now analyzes user's MongoDB data to provide personalized responses
+    🤖 NEW: Supports task automation commands
     """
     try:
         print(f"\n🤖 Processing message for conversation {conversation_id}")
@@ -101,6 +854,105 @@ def send_message(
 
         print(f"   ✅ Conversation verified")
 
+        # 🤖 CHECK IF THIS IS A TASK AUTOMATION COMMAND
+        is_command = detect_task_command(content)
+
+        if is_command:
+            print(f"   🔧 Detected task automation command: {content}")
+
+            # Save user message
+            user_message_id = AIMessage.create(
+                conversation_id=conversation_id, role="user", content=content
+            )
+            print(f"   ✅ User message saved: {user_message_id}")
+
+            # 🚨 CRITICAL: Actually execute the command
+            print(f"   ⚡ Executing command...")
+            command_result = execute_task_command(user_id, content)
+            print(f"   📊 Command result: {command_result.get('success')}")
+
+            # Create AI response based on command result
+            if command_result.get("success"):
+                ai_content = command_result.get(
+                    "message", "Command executed successfully"
+                )
+
+                # Add detailed result information
+                if command_result.get("result"):
+                    result_data = command_result["result"]
+                    if isinstance(result_data, dict):
+                        # Format task result
+                        if "task" in result_data:
+                            task = result_data["task"]
+                            ai_content += f"\n\n**Task Details:**\n"
+                            ai_content += f"- **ID:** {task.get('ticket_id', 'N/A')}\n"
+                            ai_content += f"- **Title:** {task.get('title', 'N/A')}\n"
+                            ai_content += f"- **Status:** {task.get('status', 'N/A')}\n"
+                            ai_content += (
+                                f"- **Priority:** {task.get('priority', 'N/A')}\n"
+                            )
+                            if task.get("assignee_name"):
+                                ai_content += (
+                                    f"- **Assigned to:** {task['assignee_name']}\n"
+                                )
+
+                        # Format sprint result
+                        elif "sprint" in result_data:
+                            sprint = result_data["sprint"]
+                            ai_content += f"\n\n**Sprint Details:**\n"
+                            ai_content += f"- **Name:** {sprint.get('name', 'N/A')}\n"
+                            ai_content += (
+                                f"- **Status:** {sprint.get('status', 'N/A')}\n"
+                            )
+                            ai_content += f"- **Duration:** {sprint.get('start_date', 'N/A')} to {sprint.get('end_date', 'N/A')}\n"
+
+                # Add task list if present
+                if command_result.get("tasks"):
+                    ai_content += f"\n\n**Tasks ({command_result['count']}):**\n"
+                    for task in command_result["tasks"][:10]:
+                        ai_content += f"- **[{task['ticket_id']}]** {task['title']}\n"
+                        ai_content += f"  Status: {task['status']} | Priority: {task['priority']} | Assignee: {task.get('assignee', 'Unassigned')}\n"
+
+                    if command_result["count"] > 10:
+                        ai_content += (
+                            f"\n_...and {command_result['count'] - 10} more tasks_\n"
+                        )
+
+                # Add project list if present
+                if command_result.get("projects"):
+                    ai_content += f"\n\n**Projects ({command_result['count']}):**\n"
+                    for project in command_result["projects"]:
+                        ai_content += f"- **{project['name']}** ({project['role']})\n"
+                        if project.get("description"):
+                            ai_content += f"  _{project['description']}_\n"
+            else:
+                ai_content = f"❌ **Command failed:** {command_result.get('error', 'Unknown error')}\n\n"
+                ai_content += "Please check your command and try again. You can ask me for help with the correct format."
+
+            # Save AI response
+            ai_message_id = AIMessage.create(
+                conversation_id=conversation_id, role="assistant", content=ai_content
+            )
+            print(f"   ✅ AI response saved: {ai_message_id}")
+
+            # Update conversation title if it's the first message
+            if conversation.get("message_count", 0) <= 2:
+                title = content[:50] + ("..." if len(content) > 50 else "")
+                AIConversation.update_title(conversation_id, title)
+
+            return {
+                "success": True,
+                "message": {
+                    "_id": str(ai_message_id),
+                    "role": "assistant",
+                    "content": ai_content,
+                    "created_at": datetime.utcnow().isoformat(),
+                },
+                "command_executed": True,
+                "command_result": command_result,
+            }
+
+        # REGULAR AI CONVERSATION (No command detected)
         # Save user message
         user_message_id = AIMessage.create(
             conversation_id=conversation_id, role="user", content=content
@@ -197,6 +1049,7 @@ def send_message(
                 }
                 if user_data
                 else None,
+                "command_executed": False,
             }
 
     except HTTPException:
@@ -209,27 +1062,25 @@ def send_message(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ============================================================================
+# STREAMING & OTHER FEATURES
+# ============================================================================
+
+
 def stream_ai_response(conversation_id: str, api_messages: List[dict]):
     """Stream AI response chunks"""
 
     async def generate():
         try:
             full_content = ""
-
-            # Stream chunks
             for chunk in chat_completion_streaming(api_messages):
                 full_content += chunk
-                # Send chunk in SSE format
                 yield f"data: {json.dumps({'chunk': chunk})}\n\n"
 
-            # Save complete response to database
             ai_message_id = AIMessage.create(
                 conversation_id=conversation_id, role="assistant", content=full_content
             )
-
-            # Send completion message
             yield f"data: {json.dumps({'done': True, 'message_id': str(ai_message_id)})}\n\n"
-
         except Exception as e:
             print(f"Error in stream: {str(e)}")
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
@@ -237,43 +1088,34 @@ def stream_ai_response(conversation_id: str, api_messages: List[dict]):
     return StreamingResponse(
         generate(),
         media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-        },
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
     )
 
 
 def generate_ai_image(conversation_id: str, user_id: str, prompt: str):
     """Generate an image using FLUX-1.1-pro"""
     try:
-        # Verify conversation
         conversation = AIConversation.get_by_id(conversation_id)
         if not conversation:
             raise HTTPException(status_code=404, detail="Conversation not found")
-
         if conversation["user_id"] != user_id:
             raise HTTPException(status_code=403, detail="Unauthorized")
 
-        # Save user request
         user_message_id = AIMessage.create(
             conversation_id=conversation_id,
             role="user",
             content=f"Generate image: {prompt}",
         )
 
-        # Generate image
         result = generate_image(prompt)
 
         if result.get("success"):
-            # Save AI response with image
             ai_message_id = AIMessage.create(
                 conversation_id=conversation_id,
                 role="assistant",
                 content=f"I've generated an image based on your prompt: '{prompt}'",
                 image_url=result.get("image_url") or result.get("filepath"),
             )
-
             return {
                 "success": True,
                 "message": {
@@ -290,7 +1132,6 @@ def generate_ai_image(conversation_id: str, user_id: str, prompt: str):
                 status_code=500,
                 detail=f"Image generation failed: {result.get('error', 'Unknown error')}",
             )
-
     except HTTPException:
         raise
     except Exception as e:
@@ -306,19 +1147,15 @@ def upload_file_to_conversation(
         print(f"\n📎 Processing file upload for conversation {conversation_id}")
         print(f"   File: {file.filename}, Type: {file.content_type}")
 
-        # Verify conversation
         conversation = AIConversation.get_by_id(conversation_id)
         if not conversation:
             raise HTTPException(status_code=404, detail="Conversation not found")
-
         if conversation["user_id"] != user_id:
             raise HTTPException(status_code=403, detail="Unauthorized")
 
-        # Create upload directory
         upload_dir = "uploads/ai_attachments"
         os.makedirs(upload_dir, exist_ok=True)
 
-        # Save file
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"{timestamp}_{file.filename}"
         filepath = os.path.join(upload_dir, filename)
@@ -328,29 +1165,20 @@ def upload_file_to_conversation(
 
         print(f"   ✅ File saved: {filepath}")
 
-        # Extract file content
-        print(f"   📖 Extracting file content...")
         extraction_result = extract_file_content(filepath, file.content_type)
 
         if not extraction_result.get("success"):
             print(f"   ⚠️ Could not extract content: {extraction_result.get('error')}")
-            # Save message without extracted content
             content = (
                 message
                 or f"Uploaded file: {file.filename} (content extraction not supported)"
             )
         else:
             print(f"   ✅ Content extracted: {extraction_result.get('content_type')}")
-            # Include extracted content in message for AI context
             file_content = extraction_result.get("content", "")
-
-            # Truncate if too long
             file_content = summarize_file_content(file_content, max_tokens=3000)
-
-            # Create message with file content
             content = f"User uploaded file '{file.filename}'.\n\nFile Contents:\n{file_content}"
 
-        # Create message with attachment and extracted content
         message_id = AIMessage.create(
             conversation_id=conversation_id,
             role="user",
@@ -368,14 +1196,12 @@ def upload_file_to_conversation(
 
         print(f"   ✅ Message created with file content: {message_id}")
 
-        # Generate AI acknowledgment
         if extraction_result.get("success"):
             file_type = extraction_result.get("content_type", "file")
             ai_content = (
                 f"I've received and analyzed your {file_type} file '{file.filename}'. "
             )
 
-            # Add specific details based on file type
             if file_type == "csv":
                 rows = extraction_result.get("rows", 0)
                 columns = extraction_result.get("columns", 0)
@@ -386,7 +1212,6 @@ def upload_file_to_conversation(
 
             ai_content += "I can now answer questions about this file. What would you like to know?"
 
-            # Save AI acknowledgment
             ai_message_id = AIMessage.create(
                 conversation_id=conversation_id, role="assistant", content=ai_content
             )
@@ -437,19 +1262,14 @@ def upload_file_to_conversation(
 def delete_conversation(conversation_id: str, user_id: str):
     """Delete a conversation and all its messages"""
     try:
-        # Verify conversation
         conversation = AIConversation.get_by_id(conversation_id)
         if not conversation:
             raise HTTPException(status_code=404, detail="Conversation not found")
-
         if conversation["user_id"] != user_id:
             raise HTTPException(status_code=403, detail="Unauthorized")
 
-        # Delete conversation and messages
         AIConversation.delete(conversation_id)
-
         return {"success": True, "message": "Conversation deleted successfully"}
-
     except HTTPException:
         raise
     except Exception as e:
@@ -460,19 +1280,14 @@ def delete_conversation(conversation_id: str, user_id: str):
 def update_conversation_title(conversation_id: str, user_id: str, title: str):
     """Update conversation title"""
     try:
-        # Verify conversation
         conversation = AIConversation.get_by_id(conversation_id)
         if not conversation:
             raise HTTPException(status_code=404, detail="Conversation not found")
-
         if conversation["user_id"] != user_id:
             raise HTTPException(status_code=403, detail="Unauthorized")
 
-        # Update title
         AIConversation.update_title(conversation_id, title)
-
         return {"success": True, "message": "Title updated successfully"}
-
     except HTTPException:
         raise
     except Exception as e:
@@ -481,10 +1296,7 @@ def update_conversation_title(conversation_id: str, user_id: str, title: str):
 
 
 def get_user_insights(user_id: str):
-    """
-    🆕 NEW ENDPOINT: Get data-driven insights for user
-    Returns key metrics and recommendations based on their data
-    """
+    """Get data-driven insights for user"""
     try:
         user_data = analyze_user_data_for_ai(user_id)
 
@@ -508,7 +1320,6 @@ def get_user_insights(user_id: str):
             "recent_activity": user_data["recentTasks"][:5],
             "top_projects": user_data["topProjects"][:5],
         }
-
     except Exception as e:
         print(f"Error getting user insights: {str(e)}")
         import traceback
