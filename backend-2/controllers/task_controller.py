@@ -149,7 +149,7 @@ def create_task(body_str, user_id):
 
 
 def get_project_tasks(project_id, user_id):
-    """Get all tasks for a project"""
+    """Get all tasks for a project - OPTIMIZED"""
     if not user_id:
         return error_response("Unauthorized. Please login.", 401)
     
@@ -162,26 +162,63 @@ def get_project_tasks(project_id, user_id):
     if not Project.is_member(project_id, user_id):
         return error_response("Access denied. You are not a member of this project.", 403)
     
-    tasks_list = Task.find_by_project(project_id)
-    
-    # Batch fetch sprints and users to avoid N+1 queries
+    # ⚡ OPTIMIZED: Only fetch necessary fields, exclude large arrays
     from database import db
     from models.sprint import Sprint
     
+    # Projection: Exclude activities, attachments, and links arrays to reduce data transfer
+    task_projection = {
+        "_id": 1,
+        "ticket_id": 1,
+        "issue_type": 1,
+        "title": 1,
+        "description": 1,
+        "project_id": 1,
+        "sprint_id": 1,
+        "priority": 1,
+        "status": 1,
+        "assignee_id": 1,
+        "assignee_name": 1,
+        "assignee_email": 1,
+        "due_date": 1,
+        "created_by": 1,
+        "labels": 1,
+        "created_at": 1,
+        "updated_at": 1,
+        "moved_to_backlog_at": 1,
+        "in_backlog": 1,
+        # Exclude: activities, attachments, links (fetch these only when viewing task details)
+    }
+    
+    # Fetch tasks with projection
+    tasks_list = list(db.tasks.find(
+        {"project_id": project_id},
+        task_projection
+    ).sort("created_at", -1))
+    
+    print(f"[TASKS] Fetched {len(tasks_list)} tasks for project {project_id}")
+    
+    # Batch fetch sprints and users to avoid N+1 queries
     # Collect unique sprint IDs and creator IDs
     sprint_ids = list(set([task["sprint_id"] for task in tasks_list if task.get("sprint_id")]))
     creator_ids = list(set([task["created_by"] for task in tasks_list if task.get("created_by")]))
     
-    # Batch fetch sprints
+    # Batch fetch sprints with projection
     sprint_map = {}
     if sprint_ids:
-        sprints = list(db.sprints.find({"_id": {"$in": [ObjectId(sid) for sid in sprint_ids]}}))
+        sprints = list(db.sprints.find(
+            {"_id": {"$in": [ObjectId(sid) for sid in sprint_ids]}},
+            {"_id": 1, "name": 1}
+        ))
         sprint_map = {str(s["_id"]): s["name"] for s in sprints}
     
-    # Batch fetch users
+    # Batch fetch users with projection
     user_map = {}
     if creator_ids:
-        users = list(db.users.find({"_id": {"$in": [ObjectId(uid) for uid in creator_ids]}}))
+        users = list(db.users.find(
+            {"_id": {"$in": [ObjectId(uid) for uid in creator_ids]}},
+            {"_id": 1, "name": 1, "email": 1}
+        ))
         user_map = {str(u["_id"]): {"name": u.get("name", "Unknown"), "email": u.get("email", "")} for u in users}
     
     # Convert ObjectId and datetime to strings, add creator details
@@ -189,6 +226,7 @@ def get_project_tasks(project_id, user_id):
         task["_id"] = str(task["_id"])
         task["created_at"] = datetime_to_iso(task["created_at"])
         task["updated_at"] = datetime_to_iso(task["updated_at"])
+        
         # Convert moved_to_backlog_at if present
         if "moved_to_backlog_at" in task and task["moved_to_backlog_at"]:
             task["moved_to_backlog_at"] = datetime_to_iso(task["moved_to_backlog_at"])
@@ -209,6 +247,8 @@ def get_project_tasks(project_id, user_id):
         else:
             task["created_by_name"] = "Unknown"
             task["created_by_email"] = ""
+    
+    print(f"[TASKS] Processed tasks successfully")
     
     return success_response({
         "tasks": tasks_list,
@@ -1089,6 +1129,7 @@ def get_all_pending_approval_tasks(user_id):
     Get all tasks pending approval across all projects
     - For admins: Tasks with 'Done' status from projects they own
     - For members: Tasks with 'Done' status that are assigned to them
+    OPTIMIZED: Only fetches necessary fields
     """
     if not user_id:
         return error_response("Unauthorized. Please login.", 401)
@@ -1104,35 +1145,42 @@ def get_all_pending_approval_tasks(user_id):
     
     pending_tasks = []
     
+    # ⚡ OPTIMIZED: Only fetch necessary fields for performance
+    task_projection = {
+        "_id": 1, "ticket_id": 1, "title": 1, "description": 1, "status": 1,
+        "priority": 1, "project_id": 1, "assignee_id": 1, "assignee_name": 1,
+        "due_date": 1, "created_at": 1, "updated_at": 1, "approved_at": 1, "closed_at": 1
+    }
+    
     if user_role in ["admin", "super-admin"]:
         # Admin: Get all Done tasks from projects they own
         owned_projects = list(db.projects.find(
-            {"user_id": user_id},  # user_id is stored as string in projects
-            {"_id": 1, "name": 1}
+            {"user_id": user_id},
+            {"_id": 1, "name": 1}  # Only fetch needed fields
         ))
         
-        project_ids = [str(p["_id"]) for p in owned_projects]  # Convert to string
+        project_ids = [str(p["_id"]) for p in owned_projects]
         project_names = {str(p["_id"]): p["name"] for p in owned_projects}
         
-        # Get all Done tasks from owned projects (project_id is stored as string in tasks)
+        # Get all Done tasks from owned projects with projection
         tasks_cursor = db.tasks.find({
             "project_id": {"$in": project_ids},
             "status": "Done"
-        }).sort("updated_at", -1)
+        }, task_projection).sort("updated_at", -1)
         
         for task in tasks_cursor:
             task["_id"] = str(task["_id"])
             task["project_id"] = str(task["project_id"])
             task["project_name"] = project_names.get(task["project_id"], "Unknown")
-            task["can_approve"] = True  # Admin can approve
+            task["can_approve"] = True
             
-            # Convert ALL datetime fields to ISO format
+            # Convert datetime fields to ISO format
             for field in ["created_at", "updated_at", "due_date", "approved_at", "closed_at"]:
                 if field in task and task[field]:
                     task[field] = datetime_to_iso(task[field])
             
-            # Get assignee name if available
-            if task.get("assignee_id"):
+            # Get assignee name if not already present
+            if not task.get("assignee_name") and task.get("assignee_id"):
                 assignee = User.find_by_id(task["assignee_id"])
                 task["assignee_name"] = assignee["name"] if assignee else "Unknown"
             
@@ -1143,7 +1191,7 @@ def get_all_pending_approval_tasks(user_id):
         tasks_cursor = db.tasks.find({
             "assignee_id": user_id,
             "status": "Done"
-        }).sort("updated_at", -1)
+        }, task_projection).sort("updated_at", -1)
         
         for task in tasks_cursor:
             task["_id"] = str(task["_id"])
@@ -1152,9 +1200,9 @@ def get_all_pending_approval_tasks(user_id):
             # Get project name
             project = Project.find_by_id(task["project_id"])
             task["project_name"] = project["name"] if project else "Unknown"
-            task["can_approve"] = False  # Member cannot approve
+            task["can_approve"] = False
             
-            # Convert ALL datetime fields to ISO format
+            # Convert datetime fields to ISO format
             for field in ["created_at", "updated_at", "due_date", "approved_at", "closed_at"]:
                 if field in task and task[field]:
                     task[field] = datetime_to_iso(task[field])
@@ -1175,6 +1223,7 @@ def get_all_closed_tasks(user_id):
     Get all closed (approved) tasks
     - For admins: Closed tasks from projects they own
     - For members: Closed tasks assigned to them
+    OPTIMIZED: Only fetches necessary fields
     """
     if not user_id:
         return error_response("Unauthorized. Please login.", 401)
@@ -1190,34 +1239,42 @@ def get_all_closed_tasks(user_id):
     
     closed_tasks = []
     
+    # ⚡ OPTIMIZED: Only fetch necessary fields for performance
+    task_projection = {
+        "_id": 1, "ticket_id": 1, "title": 1, "description": 1, "status": 1,
+        "priority": 1, "project_id": 1, "assignee_id": 1, "assignee_name": 1,
+        "due_date": 1, "created_at": 1, "updated_at": 1, "closed_at": 1,
+        "approved_at": 1, "approved_by": 1
+    }
+    
     if user_role in ["admin", "super-admin"]:
         # Admin: Get all Closed tasks from projects they own
         owned_projects = list(db.projects.find(
-            {"user_id": user_id},  # user_id is stored as string in projects
-            {"_id": 1, "name": 1}
+            {"user_id": user_id},
+            {"_id": 1, "name": 1}  # Only fetch needed fields
         ))
         
-        project_ids = [str(p["_id"]) for p in owned_projects]  # Convert to string
+        project_ids = [str(p["_id"]) for p in owned_projects]
         project_names = {str(p["_id"]): p["name"] for p in owned_projects}
         
-        # Get all Closed tasks from owned projects (project_id is stored as string in tasks)
+        # Get all Closed tasks from owned projects with projection
         tasks_cursor = db.tasks.find({
             "project_id": {"$in": project_ids},
             "status": "Closed"
-        }).sort("closed_at", -1)
+        }, task_projection).sort("closed_at", -1)
         
         for task in tasks_cursor:
             task["_id"] = str(task["_id"])
             task["project_id"] = str(task["project_id"])
             task["project_name"] = project_names.get(task["project_id"], "Unknown")
             
-            # Convert ALL datetime fields to ISO format (including sprint-related fields)
-            for field in ["created_at", "updated_at", "due_date", "closed_at", "approved_at", "moved_to_backlog_at", "moved_to_sprint_at", "removed_from_sprint_at"]:
+            # Convert datetime fields to ISO format
+            for field in ["created_at", "updated_at", "due_date", "closed_at", "approved_at"]:
                 if field in task and task[field]:
                     task[field] = datetime_to_iso(task[field])
             
-            # Get assignee name if available
-            if task.get("assignee_id"):
+            # Get assignee name if not already present
+            if not task.get("assignee_name") and task.get("assignee_id"):
                 assignee = User.find_by_id(task["assignee_id"])
                 task["assignee_name"] = assignee["name"] if assignee else "Unknown"
             
@@ -1233,7 +1290,7 @@ def get_all_closed_tasks(user_id):
         tasks_cursor = db.tasks.find({
             "assignee_id": user_id,
             "status": "Closed"
-        }).sort("closed_at", -1)
+        }, task_projection).sort("closed_at", -1)
         
         for task in tasks_cursor:
             task["_id"] = str(task["_id"])
@@ -1243,8 +1300,8 @@ def get_all_closed_tasks(user_id):
             project = Project.find_by_id(task["project_id"])
             task["project_name"] = project["name"] if project else "Unknown"
             
-            # Convert ALL datetime fields to ISO format (including sprint-related fields)
-            for field in ["created_at", "updated_at", "due_date", "closed_at", "approved_at", "moved_to_backlog_at", "moved_to_sprint_at", "removed_from_sprint_at"]:
+            # Convert datetime fields to ISO format
+            for field in ["created_at", "updated_at", "due_date", "closed_at", "approved_at"]:
                 if field in task and task[field]:
                     task[field] = datetime_to_iso(task[field])
             

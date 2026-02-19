@@ -28,6 +28,7 @@ def get_dashboard_analytics(user_id):
     """
     Get comprehensive dashboard analytics for the logged-in user
     Returns: task stats, project stats, upcoming deadlines, recent activity
+    OPTIMIZED: Uses MongoDB aggregation and efficient queries
     """
     try:
         # Verify authentication
@@ -55,71 +56,95 @@ def get_dashboard_analytics(user_id):
         projects_collection = db["projects"]
         tasks_collection = db["tasks"]
         
-        # Find projects where user is owner or member
+        # ⚡ OPTIMIZED: Find projects where user is owner or member
         user_projects = list(projects_collection.find({
             "$or": [
                 {"user_id": user_id},
                 {"members": {"$elemMatch": {"user_id": user_id}}}
             ]
-        }))
+        }, {"_id": 1, "name": 1, "status": 1, "user_id": 1}))  # Only fetch needed fields
         
         project_ids = [p["_id"] for p in user_projects]
-        
-        # Get all tasks for these projects
-        # Convert ObjectId to string for comparison since tasks store project_id as string
         project_ids_str = [str(pid) for pid in project_ids]
-        all_project_tasks = list(tasks_collection.find({
-            "project_id": {"$in": project_ids_str}
-        }))
         
-        print(f"[DASHBOARD] Found {len(all_project_tasks)} tasks for {len(user_projects)} projects")
+        print(f"[DASHBOARD] Found {len(user_projects)} projects")
         
-        # Get tasks assigned to user
-        my_tasks = list(tasks_collection.find({
-            "assignee_id": user_id
-        }))
+        # ⚡ OPTIMIZED: Use aggregation for task statistics
+        # Get tasks assigned to user using aggregation pipeline
+        my_tasks_pipeline = [
+            {"$match": {"assignee_id": user_id}},
+            {"$project": {
+                "_id": 1,
+                "status": 1,
+                "priority": 1,
+                "due_date": 1,
+                "project_id": 1,
+                "title": 1,
+                "updated_at": 1
+            }}
+        ]
         
-        # Calculate task statistics
+        my_tasks = list(tasks_collection.aggregate(my_tasks_pipeline))
+        
+        print(f"[DASHBOARD] Found {len(my_tasks)} tasks assigned to user")
+        
+        # Calculate task statistics efficiently
+        now = datetime.now()
+        overdue_count = 0
+        pending_count = 0
+        in_progress_count = 0
+        done_count = 0
+        closed_count = 0
+        
+        for task in my_tasks:
+            status = task.get("status")
+            if status == "In Progress":
+                in_progress_count += 1
+            elif status == "Done":
+                done_count += 1
+            elif status == "Closed":
+                closed_count += 1
+            
+            # Count as pending if not done/closed
+            if status not in ["Done", "Closed"]:
+                pending_count += 1
+                
+                # Check if overdue
+                if task.get("due_date"):
+                    due_date = task.get("due_date")
+                    if isinstance(due_date, str):
+                        try:
+                            due_date = datetime.fromisoformat(due_date.replace('Z', '+00:00'))
+                        except:
+                            continue
+                    if due_date < now:
+                        overdue_count += 1
+        
         task_stats = {
             "total": len(my_tasks),
-            "pending": len([t for t in my_tasks if t.get("status") not in ["Done", "Closed"]]),
-            "in_progress": len([t for t in my_tasks if t.get("status") == "In Progress"]),
-            "done": len([t for t in my_tasks if t.get("status") == "Done"]),
-            "closed": len([t for t in my_tasks if t.get("status") == "Closed"]),
-            "overdue": 0
+            "pending": pending_count,
+            "in_progress": in_progress_count,
+            "done": done_count,
+            "closed": closed_count,
+            "overdue": overdue_count
         }
         
-        # Calculate overdue tasks
-        now = datetime.now()
-        for task in my_tasks:
-            if task.get("status") not in ["Done", "Closed"] and task.get("due_date"):
-                due_date = task.get("due_date")
-                if isinstance(due_date, str):
-                    try:
-                        due_date = datetime.fromisoformat(due_date.replace('Z', '+00:00'))
-                    except:
-                        continue
-                if due_date < now:
-                    task_stats["overdue"] += 1
-        
         # Calculate project statistics
-        owned_projects = [p for p in user_projects if p.get("user_id") == user_id]
-        member_projects = [p for p in user_projects if p.get("user_id") != user_id]
+        owned_count = sum(1 for p in user_projects if p.get("user_id") == user_id)
+        member_count = len(user_projects) - owned_count
+        active_count = sum(1 for p in user_projects if p.get("status") == "Active")
+        completed_count = sum(1 for p in user_projects if p.get("status") == "Completed")
         
         project_stats = {
             "total": len(user_projects),
-            "owned": len(owned_projects),
-            "member_of": len(member_projects),
-            "active": len([p for p in user_projects if p.get("status") == "Active"]),
-            "completed": len([p for p in user_projects if p.get("status") == "Completed"])
+            "owned": owned_count,
+            "member_of": member_count,
+            "active": active_count,
+            "completed": completed_count
         }
         
-        # Calculate task distribution by priority
-        priority_distribution = {
-            "High": 0,
-            "Medium": 0,
-            "Low": 0
-        }
+        # Calculate task distribution by priority (only non-completed tasks)
+        priority_distribution = {"High": 0, "Medium": 0, "Low": 0}
         for task in my_tasks:
             if task.get("status") not in ["Done", "Closed"]:
                 priority = task.get("priority", "Low")
@@ -138,9 +163,12 @@ def get_dashboard_analytics(user_id):
             if status in status_distribution:
                 status_distribution[status] += 1
         
-        # Get upcoming deadlines (next 7 days)
+        # Get upcoming deadlines (next 7 days) - limit to 15 tasks
         end_of_week = now + timedelta(days=7)
         upcoming_deadlines = []
+        
+        # Create a map for quick project lookup
+        project_map = {str(p["_id"]): p.get("name", "Unknown") for p in user_projects}
         
         for task in my_tasks:
             if task.get("status") not in ["Done", "Closed"] and task.get("due_date"):
@@ -152,12 +180,7 @@ def get_dashboard_analytics(user_id):
                         continue
                 
                 if due_date <= end_of_week:
-                    # Find project name - ensure both IDs are compared as ObjectId or string
-                    task_project_id = task.get("project_id")
-                    project = next((p for p in user_projects if str(p["_id"]) == str(task_project_id)), None)
-                    project_name = project.get("name", "Unknown") if project else "Unknown"
-                    
-                    # Convert due_date to string for JSON serialization
+                    project_name = project_map.get(str(task.get("project_id")), "Unknown")
                     due_date_str = due_date.isoformat() if isinstance(due_date, datetime) else str(due_date)
                     
                     upcoming_deadlines.append({
@@ -171,45 +194,62 @@ def get_dashboard_analytics(user_id):
                         "days_until": (due_date - now).days
                     })
         
-        # Sort by due date
+        # Sort by due date and limit to 15
         upcoming_deadlines.sort(key=lambda x: x["due_date"])
+        upcoming_deadlines = upcoming_deadlines[:15]
         
-        # Get project progress (tasks completed vs total)
+        # ⚡ OPTIMIZED: Get project progress using aggregation
         project_progress = []
-        for project in user_projects:
-            project_tasks = [t for t in all_project_tasks if str(t.get("project_id")) == str(project["_id"])]
-            total_tasks = len(project_tasks)
-            # Completed = Only Closed status (approved tickets)
-            completed_tasks = len([t for t in project_tasks if t.get("status") == "Closed"])
-            
-            print(f"[DASHBOARD] Project: {project.get('name')}, Total: {total_tasks}, Completed: {completed_tasks}")
-            
-            if total_tasks > 0:
-                progress_percentage = (completed_tasks / total_tasks) * 100
-            else:
-                progress_percentage = 0
-            
-            project_progress.append({
-                "project_id": str(project["_id"]),
-                "project_name": project.get("name", ""),
-                "total_tasks": total_tasks,
-                "completed_tasks": completed_tasks,
-                "progress_percentage": round(progress_percentage, 1)
-            })
         
-        print(f"[DASHBOARD] Project progress list: {project_progress}")
+        if project_ids_str:
+            # Use aggregation to count tasks per project efficiently
+            progress_pipeline = [
+                {"$match": {"project_id": {"$in": project_ids_str}}},
+                {"$group": {
+                    "_id": "$project_id",
+                    "total": {"$sum": 1},
+                    "closed": {
+                        "$sum": {"$cond": [{"$eq": ["$status", "Closed"]}, 1, 0]}
+                    }
+                }}
+            ]
+            
+            progress_results = list(tasks_collection.aggregate(progress_pipeline))
+            
+            # Build progress data
+            for result in progress_results:
+                project_id = result["_id"]
+                total = result["total"]
+                closed = result["closed"]
+                
+                project_name = project_map.get(project_id, "Unknown")
+                
+                if total > 0:
+                    progress_percentage = (closed / total) * 100
+                else:
+                    progress_percentage = 0
+                
+                project_progress.append({
+                    "project_id": project_id,
+                    "project_name": project_name,
+                    "total_tasks": total,
+                    "completed_tasks": closed,
+                    "progress_percentage": round(progress_percentage, 1)
+                })
         
         # Sort by progress percentage
         project_progress.sort(key=lambda x: x["progress_percentage"], reverse=True)
+        project_progress = project_progress[:10]  # Top 10 projects
         
-        # Get recent activity (last 10 activities)
+        print(f"[DASHBOARD] Project progress calculated for {len(project_progress)} projects")
+        
+        # Get recent activity (last 10 activities) - already have my_tasks sorted
         recent_activities = []
-        for task in sorted(my_tasks, key=lambda x: x.get("updated_at", ""), reverse=True)[:10]:
-            task_project_id = task.get("project_id")
-            project = next((p for p in user_projects if str(p["_id"]) == str(task_project_id)), None)
-            project_name = project.get("name", "Unknown") if project else "Unknown"
+        sorted_tasks = sorted(my_tasks, key=lambda x: x.get("updated_at", ""), reverse=True)[:10]
+        
+        for task in sorted_tasks:
+            project_name = project_map.get(str(task.get("project_id")), "Unknown")
             
-            # Convert updated_at to string
             updated_at = task.get("updated_at", "")
             if isinstance(updated_at, datetime):
                 updated_at = updated_at.isoformat()
@@ -230,8 +270,8 @@ def get_dashboard_analytics(user_id):
             "project_stats": project_stats,
             "priority_distribution": priority_distribution,
             "status_distribution": status_distribution,
-            "upcoming_deadlines": upcoming_deadlines[:15],  # Limit to 15
-            "project_progress": project_progress[:10],  # Top 10 projects
+            "upcoming_deadlines": upcoming_deadlines,
+            "project_progress": project_progress,
             "recent_activities": recent_activities
         }
         
@@ -239,6 +279,8 @@ def get_dashboard_analytics(user_id):
             "success": True,
             "analytics": analytics
         }
+        
+        print(f"[DASHBOARD] Analytics generated successfully")
         
         return {
             "success": True,
@@ -263,6 +305,7 @@ def get_downloadable_report(user_id):
     """
     Get detailed report data for download (CSV/PDF)
     Returns comprehensive data about user's tasks and projects
+    OPTIMIZED: Uses efficient queries and minimal data loading
     """
     try:
         # Verify authentication
@@ -287,29 +330,48 @@ def get_downloadable_report(user_id):
         # Get user's projects and tasks
         projects_collection = db["projects"]
         tasks_collection = db["tasks"]
-        users_collection = db["users"]
         
-        # Find projects where user is owner or member
+        # ⚡ OPTIMIZED: Find projects with only necessary fields
         user_projects = list(projects_collection.find({
             "$or": [
                 {"user_id": user_id},
                 {"members": {"$elemMatch": {"user_id": user_id}}}
             ]
-        }))
+        }, {"_id": 1, "name": 1, "description": 1, "status": 1, "created_at": 1, "user_id": 1}))
         
         project_ids = [p["_id"] for p in user_projects]
-        
-        # Get all tasks for these projects
-        # Convert ObjectId to string for comparison since tasks store project_id as string
         project_ids_str = [str(pid) for pid in project_ids]
-        all_project_tasks = list(tasks_collection.find({
-            "project_id": {"$in": project_ids_str}
-        }))
         
-        # Get tasks assigned to user
-        my_tasks = list(tasks_collection.find({
-            "assignee_id": user_id
-        }))
+        # ⚡ OPTIMIZED: Get task counts using aggregation instead of fetching all tasks
+        # Count all project tasks
+        if project_ids_str:
+            project_task_counts_pipeline = [
+                {"$match": {"project_id": {"$in": project_ids_str}}},
+                {"$group": {
+                    "_id": "$project_id",
+                    "total": {"$sum": 1},
+                    "completed": {
+                        "$sum": {"$cond": [{"$in": ["$status", ["Done", "Closed"]]}, 1, 0]}
+                    }
+                }}
+            ]
+            project_task_counts = {
+                r["_id"]: {"total": r["total"], "completed": r["completed"]}
+                for r in tasks_collection.aggregate(project_task_counts_pipeline)
+            }
+        else:
+            project_task_counts = {}
+        
+        # Get tasks assigned to user only
+        my_tasks = list(tasks_collection.find(
+            {"assignee_id": user_id},
+            {"_id": 1, "ticket_id": 1, "title": 1, "description": 1, "status": 1, 
+             "priority": 1, "due_date": 1, "project_id": 1, "created_at": 1, "updated_at": 1}
+        ))
+        
+        # Count task stats
+        pending_count = sum(1 for t in my_tasks if t.get("status") not in ["Done", "Closed"])
+        completed_count = len(my_tasks) - pending_count
         
         # Prepare detailed report data
         report_data = {
@@ -325,14 +387,18 @@ def get_downloadable_report(user_id):
             "summary": {
                 "total_projects": len(user_projects),
                 "total_tasks": len(my_tasks),
-                "pending_tasks": len([t for t in my_tasks if t.get("status") not in ["Done", "Closed"]]),
-                "completed_tasks": len([t for t in my_tasks if t.get("status") in ["Done", "Closed"]])
+                "pending_tasks": pending_count,
+                "completed_tasks": completed_count
             }
         }
         
+        # Create project map for quick lookup
+        project_map = {str(p["_id"]): p.get("name", "") for p in user_projects}
+        
         # Add project details
         for project in user_projects:
-            project_tasks = [t for t in all_project_tasks if t.get("project_id") == project["_id"]]
+            project_id_str = str(project["_id"])
+            counts = project_task_counts.get(project_id_str, {"total": 0, "completed": 0})
             
             # Convert datetime to string
             created_at = project.get("created_at", "")
@@ -340,19 +406,17 @@ def get_downloadable_report(user_id):
                 created_at = created_at.isoformat()
             
             report_data["projects"].append({
-                "project_id": str(project["_id"]),
+                "project_id": project_id_str,
                 "name": project.get("name", ""),
                 "description": project.get("description", ""),
                 "status": project.get("status", ""),
                 "created_at": created_at,
-                "total_tasks": len(project_tasks),
-                "completed_tasks": len([t for t in project_tasks if t.get("status") in ["Done", "Closed"]])
+                "total_tasks": counts["total"],
+                "completed_tasks": counts["completed"]
             })
         
         # Add task details
         for task in my_tasks:
-            project = next((p for p in user_projects if p["_id"] == task.get("project_id")), None)
-            
             # Convert datetime fields to strings
             created_at = task.get("created_at", "")
             if isinstance(created_at, datetime):
@@ -366,6 +430,8 @@ def get_downloadable_report(user_id):
             if isinstance(due_date, datetime):
                 due_date = due_date.isoformat()
             
+            project_name = project_map.get(str(task.get("project_id")), "")
+            
             report_data["my_tasks"].append({
                 "task_id": str(task["_id"]),
                 "ticket_id": task.get("ticket_id", ""),
@@ -374,7 +440,7 @@ def get_downloadable_report(user_id):
                 "status": task.get("status", ""),
                 "priority": task.get("priority", ""),
                 "due_date": due_date,
-                "project_name": project.get("name", "") if project else "",
+                "project_name": project_name,
                 "created_at": created_at,
                 "updated_at": updated_at
             })
