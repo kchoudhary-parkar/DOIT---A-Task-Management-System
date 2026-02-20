@@ -284,21 +284,34 @@ def search_pull_requests(repo_url, token, ticket_id):
             import re
             pattern = re.compile(r'\b' + re.escape(ticket_id) + r'\b')
             
-            # Fetch detailed PR info to get merge status
-            detailed_prs = []
+            # Filter PRs first
+            filtered_prs = []
             for pr in prs:
-                # Check if ticket ID appears in title or body with word boundary
                 title = pr.get('title', '')
                 body = pr.get('body', '') or ''
                 if pattern.search(title) or pattern.search(body):
-                    pr_url = f"{GITHUB_API_BASE}/repos/{owner}/{repo}/pulls/{pr['number']}"
-                    pr_response = requests.get(pr_url, headers=get_github_headers(token))
-                    if pr_response.status_code == 200:
-                        pr_data = pr_response.json()
-                        # Also check branch name
-                        branch_name = pr_data.get('head', {}).get('ref', '')
-                        if pattern.search(title) or pattern.search(body) or pattern.search(branch_name):
-                            detailed_prs.append(pr_data)
+                    filtered_prs.append(pr)
+            
+            # Fetch detailed PR info in parallel to get merge status
+            from concurrent.futures import ThreadPoolExecutor
+            
+            def fetch_pr_details(pr):
+                pr_url = f"{GITHUB_API_BASE}/repos/{owner}/{repo}/pulls/{pr['number']}"
+                pr_response = requests.get(pr_url, headers=get_github_headers(token))
+                if pr_response.status_code == 200:
+                    pr_data = pr_response.json()
+                    # Also check branch name
+                    branch_name = pr_data.get('head', {}).get('ref', '')
+                    title = pr_data.get('title', '')
+                    body = pr_data.get('body', '') or ''
+                    if pattern.search(title) or pattern.search(body) or pattern.search(branch_name):
+                        return pr_data
+                return None
+            
+            detailed_prs = []
+            with ThreadPoolExecutor(max_workers=5) as executor:
+                results = executor.map(fetch_pr_details, filtered_prs)
+                detailed_prs = [pr for pr in results if pr is not None]
             
             return detailed_prs
         else:

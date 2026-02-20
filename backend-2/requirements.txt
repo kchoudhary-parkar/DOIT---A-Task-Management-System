@@ -29,6 +29,12 @@ openai>=1.12.0  # For Azure OpenAI (GPT-5.2-chat)
 PyPDF2>=3.0.0  # PDF text extraction
 python-docx>=1.1.0  # Word document processing
 
+# Code Review & Security Scanning
+bandit>=1.7.5  # Python security linter
+GitPython>=3.1.40  # Git repository operations
+celery>=5.3.4  # Background task processing
+redis>=5.0.1  # Celery broker and result backend
+
 # Local AI Agent (Ollama + LlamaIndex + ChromaDB)
 # Python 3.14 compatible versions
 ollama>=0.3.0

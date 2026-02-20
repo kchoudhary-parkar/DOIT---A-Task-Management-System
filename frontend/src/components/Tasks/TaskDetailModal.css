@@ -133,6 +133,60 @@
   padding: 16px 24px 24px 24px;
 }
 
+/* Tab Navigation */
+.task-detail-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+  border-bottom: 2px solid var(--border-color, #2d3748);
+  padding-bottom: 0;
+}
+
+.task-detail-tab {
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  color: var(--text-muted, #94a3b8);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  margin-bottom: -2px;
+  position: relative;
+}
+
+.task-detail-tab:hover {
+  color: var(--text-primary, #f1f5f9);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.task-detail-tab.active {
+  color: var(--text-primary, #f1f5f9);
+  border-bottom-color: #3b82f6;
+  font-weight: 600;
+}
+
+[data-theme="light"] .task-detail-tabs {
+  border-bottom-color: #e2e8f0;
+}
+
+[data-theme="light"] .task-detail-tab {
+  color: #64748b;
+}
+
+[data-theme="light"] .task-detail-tab:hover {
+  color: #1e293b;
+  background: rgba(0, 0, 0, 0.03);
+}
+
+[data-theme="light"] .task-detail-tab.active {
+  color: #0f172a;
+  border-bottom-color: #3b82f6;
+}
+
 /* Task Info Section - Compact Grid */
 .task-info-section {
   display: grid;

@@ -54,6 +54,7 @@ from .team_chat_router import router as team_chat_router
 from .data_viz_router import router as data_viz_router
 from .ai_assistant_router import router as ai_assistant_router
 from .azure_agent_router import router as azure_agent_router  # ← NEW
+from .code_review_router import router as code_review_router  # ← NEW: AI Code Review
 
 
 __all__ = [
@@ -71,4 +72,5 @@ __all__ = [
     "data_viz_router",
     "ai_assistant_router",
     "azure_agent_router",  # ← NEW
+    "code_review_router",  # ← NEW: AI Code Review
 ]

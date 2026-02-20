@@ -22,6 +22,7 @@ from routers import (
     data_viz_router,
     ai_assistant_router,
     azure_agent_router,  # ← NEW: Azure AI Foundry Agent
+    code_review_router,  # ← NEW: AI Code Review Agent
 )
 from routers.local_agent_router import router as local_agent_router
 from routers.agent_data_router import router as agent_data_router
@@ -101,6 +102,7 @@ app.include_router(
     azure_agent_router, prefix="/api/foundry-agent", tags=["Azure AI Foundry Agent"]
 )  # ← NEW
 app.include_router(local_agent_router, prefix="/api/local-agent", tags=["Local Agent"])
+app.include_router(code_review_router)  # Code Review endpoints (prefix defined in router)
 
 
 # Static files

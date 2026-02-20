@@ -239,16 +239,30 @@ def get_task_git_activity(task_id, user_id):
         print(f"[GIT] Repo URL: {git_repo_url}")
         print(f"[GIT] Token exists: {bool(token)}")
         
-        # Get branches mentioning ticket ID
-        branches = get_branches(git_repo_url, token, ticket_id)
+        # Use ThreadPoolExecutor to fetch all data in parallel
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        import time
+        
+        start_time = time.time()
+        branches = []
+        commits = []
+        pull_requests = []
+        
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            # Submit all three API calls simultaneously
+            future_branches = executor.submit(get_branches, git_repo_url, token, ticket_id)
+            future_commits = executor.submit(search_commits, git_repo_url, token, ticket_id)
+            future_prs = executor.submit(search_pull_requests, git_repo_url, token, ticket_id)
+            
+            # Collect results as they complete
+            branches = future_branches.result()
+            commits = future_commits.result()
+            pull_requests = future_prs.result()
+        
+        elapsed_time = time.time() - start_time
+        print(f"[GIT] Parallel fetch completed in {elapsed_time:.2f}s")
         print(f"[GIT] Branches found: {len(branches)}")
-        
-        # Get commits mentioning ticket ID
-        commits = search_commits(git_repo_url, token, ticket_id)
         print(f"[GIT] Commits found: {len(commits)}")
-        
-        # Get pull requests mentioning ticket ID
-        pull_requests = search_pull_requests(git_repo_url, token, ticket_id)
         print(f"[GIT] Pull requests found: {len(pull_requests)}")
         
         # Format pull requests

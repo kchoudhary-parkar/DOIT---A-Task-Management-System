@@ -3,6 +3,7 @@ import { AuthContext } from "../../context/AuthContext";
 import { taskAPI } from "../../services/api";
 import { getProjectSprints, addTaskToSprint, removeTaskFromSprint } from "../../services/sprintAPI";
 import DevelopmentSection from "./DevelopmentSection";
+import CodeReviewPanel from "../CodeReview/CodeReviewPanel";
 import { 
   FiX, FiTag, FiPaperclip, FiLink, FiClock, FiUser, 
   FiCheckCircle, FiMessageSquare, FiTrash2, FiPlus, 
@@ -22,6 +23,7 @@ function TaskDetailModal({ task, onClose, onUpdate, isOwner, projectTasks = [] }
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [activeTab, setActiveTab] = useState("details"); // details, development, code-review
 
   // State for adding new items
   const [labelInput, setLabelInput] = useState("");
@@ -675,6 +677,32 @@ useEffect(() => {
           </button>
         </div>
         <div className="modal-body">
+          {/* Tab Navigation */}
+          {!showAcceptTicket && (
+            <div className="task-detail-tabs">
+              <button 
+                className={`task-detail-tab ${activeTab === 'details' ? 'active' : ''}`}
+                onClick={() => setActiveTab('details')}
+              >
+                <FiActivity size={16} style={{ marginRight: '6px' }} />
+                Details
+              </button>
+              <button 
+                className={`task-detail-tab ${activeTab === 'development' ? 'active' : ''}`}
+                onClick={() => setActiveTab('development')}
+              >
+                <FiFlag size={16} style={{ marginRight: '6px' }} />
+                Development
+              </button>
+              <button 
+                className={`task-detail-tab ${activeTab === 'code-review' ? 'active' : ''}`}
+                onClick={() => setActiveTab('code-review')}
+              >
+                <FiCheckCircle size={16} style={{ marginRight: '6px' }} />
+                Code Review
+              </button>
+            </div>
+          )}
           {showAcceptTicket ? (
             <div className="unassigned-task-view">
               <div className="task-info-section">
@@ -710,6 +738,9 @@ useEffect(() => {
             </div>
           ) : (
             <>
+              {/* Details Tab */}
+              {activeTab === 'details' && (
+              <>
               <div className="task-info-section">
                 <div className="info-row">
                   <span className="info-label">Issue Type:</span>
@@ -830,9 +861,6 @@ useEffect(() => {
                   isClosed && <p style={{ color: '#94a3b8', fontSize: '14px', margin: '10px 0' }}>No labels</p>
                 )}
               </div>
-
-          {/* Development Section - GitHub Integration */}
-          <DevelopmentSection taskId={taskData._id} />
 
           <div className="attachments-section">
             <h3><FiPaperclip size={16} /> Attachments</h3>
@@ -1242,6 +1270,21 @@ useEffect(() => {
                   </div>
                 )}
               </div>
+              </>
+            )}
+
+            {/* Development Tab - GitHub Integration */}
+            {activeTab === 'development' && (
+              <DevelopmentSection taskId={taskData._id} />
+            )}
+
+            {/* Code Review Tab - AI Code Analysis */}
+            {activeTab === 'code-review' && (
+              <CodeReviewPanel 
+                taskId={taskData._id} 
+                projectId={task.project_id || taskData.project_id}
+              />
+            )}
             </>
           )}
         </div>
