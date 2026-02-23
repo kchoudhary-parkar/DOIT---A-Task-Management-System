@@ -28,6 +28,8 @@ from routers.local_agent_router import router as local_agent_router
 from routers.agent_data_router import router as agent_data_router
 from init_db import initialize_super_admin, initialize_default_channels
 
+from routers.document_intelligence_router import router as document_intelligence_router
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -102,7 +104,10 @@ app.include_router(
     azure_agent_router, prefix="/api/foundry-agent", tags=["Azure AI Foundry Agent"]
 )  # ← NEW
 app.include_router(local_agent_router, prefix="/api/local-agent", tags=["Local Agent"])
-app.include_router(code_review_router)  # Code Review endpoints (prefix defined in router)
+app.include_router(
+    code_review_router
+)  # Code Review endpoints (prefix defined in router)
+app.include_router(document_intelligence_router, tags=["Document Intelligence"])
 
 
 # Static files
