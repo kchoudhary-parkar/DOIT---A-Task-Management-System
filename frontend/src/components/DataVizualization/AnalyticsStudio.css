@@ -1,0 +1,409 @@
+/******************************
+ * Analytics Studio - Enhanced CSS
+ ******************************/
+
+:root {
+  --bg-primary:       #0f172a;
+  --bg-secondary:     #1e293b;
+  --bg-tertiary:      #334155;
+  --text-primary:     #e2e8f0;
+  --text-secondary:   #94a3b8;
+  --text-muted:       #64748b;
+  --accent-blue:      #3b82f6;
+  --accent-green:     #10b981;
+  --accent-yellow:    #f59e0b;
+  --accent-red:       #ef4444;
+  --accent-purple:    #8b5cf6;
+  --accent-pink:      #ec4899;
+  --accent-cyan:      #06b6d4;
+  --border:           #334155;
+  --card-bg:          #1e293b;
+  --hover-bg:         #253549;
+  --active-bg:        #334155;
+  --radius-sm:        6px;
+  --radius:           10px;
+  --radius-lg:        14px;
+  --shadow-sm:        0 4px 6px -1px rgba(0,0,0,0.2), 0 2px 4px -1px rgba(0,0,0,0.1);
+  --shadow-md:        0 10px 15px -3px rgba(0,0,0,0.25), 0 4px 6px -2px rgba(0,0,0,0.15);
+  --transition:       all 0.18s ease;
+}
+
+.analytics-studio {
+  height: 100%;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Top Navigation ──────────────────────────────────────── */
+.as-top-nav {
+  height: 64px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 32px;
+  flex-shrink: 0;
+}
+
+.as-top-nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: white;
+}
+
+.as-brand-icon {
+  color: var(--accent-blue);
+}
+
+.as-top-nav-tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.as-top-nav-tabs button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: var(--radius);
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.as-top-nav-tabs button:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+.as-top-nav-tabs button.active {
+  background: var(--accent-blue);
+  color: white;
+}
+
+.as-ai-tag {
+  background: rgba(59,130,246,0.2);
+  color: var(--accent-blue);
+  font-size: 0.68rem;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+/* ── Tab Content ─────────────────────────────────────────── */
+.as-tab-content {
+  flex: 1;
+  overflow: auto;
+  padding: 20px;
+}
+
+/* ── Loading & Empty States ─────────────────────────────── */
+.as-loading-state, .as-empty-state {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  gap: 16px;
+}
+
+.as-loader-ring {
+  width: 48px;
+  height: 48px;
+  border: 4px solid var(--border);
+  border-top: 4px solid var(--accent-blue);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Stat Pill ───────────────────────────────────────────── */
+.as-stat-pill {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--border);
+  transition: var(--transition);
+}
+
+.as-stat-pill:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+  border-color: color-mix(in srgb, var(--pill-color) 30%, var(--border));
+}
+
+.as-stat-pill-icon {
+  color: var(--pill-color);
+  background: color-mix(in srgb, var(--pill-color) 12%, transparent);
+  padding: 8px;
+  border-radius: var(--radius-sm);
+}
+
+.as-stat-pill-value {
+  font-size: 1.48rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.as-stat-pill-label {
+  font-size: 0.84rem;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.as-stat-pill-sub {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
+/* ── KPI Strip ───────────────────────────────────────────── */
+.as-kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin: 20px 0 28px;
+}
+
+/* ── Chart Card ──────────────────────────────────────────── */
+.as-chart-card {
+  background: var(--card-bg);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+.as-chart-card-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: rgba(30,41,59,0.6);
+}
+
+.as-chart-card-body {
+  padding: 16px;
+  height: 100%;
+}
+
+/* ── Alert Badge ─────────────────────────────────────────── */
+.as-alert-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--badge-color) 18%, var(--card-bg));
+  color: var(--badge-color);
+  border: 1px solid color-mix(in srgb, var(--badge-color) 40%, transparent);
+}
+
+/* ── AI Panel ────────────────────────────────────────────── */
+.as-ai-panel {
+  background: linear-gradient(135deg, #1e293b 0%, #172033 100%);
+  border-radius: var(--radius-lg);
+  border: 1px solid color-mix(in srgb, #8b5cf6 30%, #334155);
+  padding: 1px;
+  margin: 28px 0;
+  box-shadow: 0 10px 30px -8px rgba(139,92,246,0.18);
+}
+
+.as-ai-panel-header {
+  background: var(--card-bg);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+}
+
+.as-ai-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+}
+
+.as-ai-badge, .as-flux-badge {
+  font-size: 0.68rem;
+  padding: 3px 8px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+.as-ai-badge {
+  background: rgba(139,92,246,0.25);
+  color: #c084fc;
+}
+
+.as-flux-badge {
+  background: rgba(236,72,153,0.22);
+  color: #f472b6;
+}
+
+.as-ai-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: var(--radius);
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+  border: none;
+}
+
+.as-ai-btn-primary {
+  background: var(--accent-blue);
+  color: white;
+}
+
+.as-ai-btn-primary:hover {
+  background: #2563eb;
+}
+
+.as-ai-btn-secondary {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+.as-ai-btn-secondary:hover {
+  background: #334155;
+}
+
+.as-ai-input {
+  flex: 1;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg-tertiary);
+  color: white;
+  font-size: 0.94rem;
+}
+
+.as-ai-input:focus {
+  outline: none;
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.2);
+}
+
+/* ── Markdown Renderer ───────────────────────────────────── */
+.as-markdown {
+  line-height: 1.6;
+  color: var(--text-primary);
+}
+
+.as-markdown h2, .as-markdown h3 {
+  margin: 1.2em 0 0.6em;
+  color: white;
+}
+
+.as-markdown strong {
+  color: #e2e8f0;
+}
+
+.as-markdown p {
+  margin: 0.8em 0;
+}
+
+/* ── Generated Image Panel ───────────────────────────────── */
+.as-generated-image {
+  position: relative;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: black;
+}
+
+.as-generated-image img {
+  width: 100%;
+  display: block;
+}
+
+.as-image-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, transparent 60%, rgba(0,0,0,0.85));
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 20px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.as-generated-image:hover .as-image-overlay {
+  opacity: 1;
+}
+
+/* ── Responsive Grid ─────────────────────────────────────── */
+.as-charts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.as-card-sm     { grid-column: span 1; }
+.as-card-md     { grid-column: span 2; }
+.as-card-wide   { grid-column: span 3; }
+
+@media (max-width: 1100px) {
+  .as-card-wide { grid-column: span 2; }
+}
+
+@media (max-width: 820px) {
+  .as-card-wide, .as-card-md { grid-column: span 1; }
+  .as-kpi-strip { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+}
+
+/* ── Upload & Analyze Layout ─────────────────────────────── */
+.as-upload-layout {
+  display: flex;
+  height: 100%;
+  gap: 16px;
+}
+
+.as-upload-sidebar {
+  width: 320px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.as-upload-main {
+  flex: 1;
+  background: var(--card-bg);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+/* more styles for upload tab can be added similarly... */
+    

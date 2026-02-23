@@ -26,6 +26,7 @@ import AIAssistantPage from "./pages/AIAssistant/AIAssistantPage";  // NEW: AI A
 import "./App.css";
 import TeamChat from "./components/TeamChat/TeamChat";
 import DataVisualization from "./components/DataVizualization/DataVisualization";
+// import AnalyticsStudio from "./components/DataVizualization/AnalyticsStudio";
 // Authenticated App Component (uses navigate hook)
 function AuthenticatedApp({ user, theme, toggleTheme, logout }) {
   const navigate = useNavigate();

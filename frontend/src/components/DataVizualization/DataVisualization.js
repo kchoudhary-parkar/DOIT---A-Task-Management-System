@@ -28,6 +28,8 @@ import {
   Maximize2
 } from 'lucide-react';
 import './DataVisualization.css';
+import DocumentIntelligence from './DocumentIntelligence';
+
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 
@@ -248,6 +250,13 @@ export default function DataVisualization() {
           <BarChart3 className="brand-icon" />
           <h1>Analytics Studio</h1>
         </div>
+        <button
+                  className={`tab-button ${activeTab === 'documents' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('documents')}
+                >
+                  <Sparkles size={18} />
+                  🧠 Insights
+                </button>
         
         <div className="navbar-actions">
           <input
@@ -566,6 +575,17 @@ export default function DataVisualization() {
                       </button>
                     </div>
                   </div>
+                </div>
+              )}
+              {activeTab === 'documents' && (
+                <div className="content-body">
+                  <DocumentIntelligence 
+                    dataset={selectedDataset}
+                    // You can pass more props if DocumentIntelligence needs them:
+                    // analysis={analysis}
+                    // token={localStorage.getItem('token')}
+                    // apiBase={API_BASE_URL}
+                  />
                 </div>
               )}
 
