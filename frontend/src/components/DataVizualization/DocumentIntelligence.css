@@ -393,6 +393,7 @@ body {
   animation: fadeUp 0.4s ease both;
   transition: var(--transition-smooth);
   backdrop-filter: blur(10px);
+  height: 100%;
 }
 
 .insight-title {

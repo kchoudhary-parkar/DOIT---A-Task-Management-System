@@ -1,5 +1,17 @@
+/* ==========================================================================
+   Power BI Inspired Modern Design System - Dark/Light Theme
+   ========================================================================== */
 
-/* Power BI Inspired Modern Design System */
+/* Reset */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* ==========================================================================
+   CSS CUSTOM PROPERTIES - LIGHT THEME (Default)
+   ========================================================================== */
 :root {
   /* Power BI Color Palette */
   --powerbi-primary: #0078d4;
@@ -10,7 +22,7 @@
   --powerbi-warning: #ffb900;
   --powerbi-danger: #d13438;
   
-  /* Neutral Colors */
+  /* Neutral Colors - LIGHT */
   --gray-50: #fafafa;
   --gray-100: #f5f5f5;
   --gray-200: #e5e5e5;
@@ -21,47 +33,108 @@
   --gray-700: #404040;
   --gray-800: #262626;
   --gray-900: #171717;
-  
+
+  /* Text Colors */
+  --text-primary: #171717;
+  --text-secondary: #525252;
+  --text-muted: #737373;
+
+  /* Backgrounds */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8fafc;
+  --bg-tertiary: #f1f5f9;
+
+  /* Borders */
+  --border-primary: #e2e8f0;
+  --border-secondary: #cbd5e1;
+
   /* Shadows */
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
-  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1);
-  
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+
   /* Transitions */
   --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+/* ==========================================================================
+   DARK THEME - Override Variables
+   ========================================================================== */
+[data-theme="dark"],
+html.dark {
+  /* Power BI Dark Colors */
+  --powerbi-primary: #4f9eff;
+  --powerbi-primary-dark: #339af0;
+  --powerbi-primary-light: #60a5fa;
+  --powerbi-accent: #a78bfa;
+  --powerbi-success: #22c55e;
+  --powerbi-warning: #facc15;
+  --powerbi-danger: #f87171;
+
+  /* Neutral Colors - DARK */
+  --gray-50: #0f0f23;
+  --gray-100: #15172a;
+  --gray-200: #1a1d37;
+  --gray-300: #252845;
+  --gray-400: #40446e;
+  --gray-500: #5b618f;
+  --gray-600: #7a80b8;
+  --gray-700: #a0a6c8;
+  --gray-800: #c5cadf;
+  --gray-900: #e2e8f0;
+
+  /* Text Colors */
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+
+  /* Backgrounds */
+  --bg-primary: #0f0f23;
+  --bg-secondary: #15172a;
+  --bg-tertiary: #1a1d37;
+
+  /* Borders */
+  --border-primary: #334155;
+  --border-secondary: #475569;
+
+  /* Dark Shadows */
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.4), 0 1px 2px -1px rgb(0 0 0 / 0.5);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.4);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5), 0 4px 6px -4px rgb(0 0 0 / 0.5);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.6), 0 8px 10px -6px rgb(0 0 0 / 0.5);
 }
 
-/* Main Container */
+/* ==========================================================================
+   BASE STYLES
+   ========================================================================== */
 .powerbi-container {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: var(--gray-100);
+  background: var(--bg-tertiary);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  color: var(--gray-900);
+  color: var(--text-primary);
   overflow: hidden;
+  transition: var(--transition-slow);
 }
 
-/* Top Navigation Bar */
+/* ==========================================================================
+   TOP NAVIGATION
+   ========================================================================== */
 .powerbi-navbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 24px;
   height: 60px;
-  background: white;
-  border-bottom: 1px solid var(--gray-200);
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-primary);
   box-shadow: var(--shadow-sm);
   z-index: 100;
+  backdrop-filter: blur(20px);
 }
 
 .navbar-brand {
@@ -79,7 +152,7 @@
 .navbar-brand h1 {
   font-size: 20px;
   font-weight: 600;
-  color: var(--gray-900);
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -88,7 +161,9 @@
   gap: 12px;
 }
 
-/* Workspace Layout */
+/* ==========================================================================
+   WORKSPACE LAYOUT
+   ========================================================================== */
 .powerbi-workspace {
   display: flex;
   flex: 1;
@@ -98,11 +173,12 @@
 /* Left Sidebar */
 .powerbi-sidebar {
   width: 320px;
-  background: white;
-  border-right: 1px solid var(--gray-200);
+  background: var(--bg-primary);
+  border-right: 1px solid var(--border-primary);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  transition: var(--transition-base);
 }
 
 .sidebar-header {
@@ -110,7 +186,8 @@
   align-items: center;
   gap: 12px;
   padding: 20px 24px;
-  border-bottom: 1px solid var(--gray-200);
+  border-bottom: 1px solid var(--border-primary);
+  backdrop-filter: blur(10px);
 }
 
 .sidebar-header svg {
@@ -120,30 +197,31 @@
 .sidebar-header h2 {
   font-size: 16px;
   font-weight: 600;
-  color: var(--gray-900);
+  color: var(--text-primary);
 }
 
 .sidebar-search {
   position: relative;
   padding: 16px 24px;
-  border-bottom: 1px solid var(--gray-200);
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .sidebar-search input {
   width: 100%;
   padding: 10px 36px 10px 36px;
-  border: 1px solid var(--gray-300);
+  border: 1px solid var(--border-secondary);
   border-radius: 6px;
   font-size: 14px;
   transition: var(--transition-fast);
-  background: var(--gray-50);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
 }
 
 .sidebar-search input:focus {
   outline: none;
   border-color: var(--powerbi-primary);
-  background: white;
-  box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.1);
+  background: var(--bg-primary);
+  box-shadow: 0 0 0 3px rgba(0,120,212,0.15);
 }
 
 .search-icon {
@@ -151,7 +229,7 @@
   left: 36px;
   top: 50%;
   transform: translateY(-50%);
-  color: var(--gray-400);
+  color: var(--text-muted);
   pointer-events: none;
 }
 
@@ -160,13 +238,13 @@
   right: 36px;
   top: 50%;
   transform: translateY(-50%);
-  color: var(--gray-400);
+  color: var(--text-muted);
   cursor: pointer;
   transition: var(--transition-fast);
 }
 
 .search-clear:hover {
-  color: var(--gray-600);
+  color: var(--powerbi-primary);
 }
 
 .sidebar-content {
@@ -175,7 +253,9 @@
   padding: 12px;
 }
 
-/* Datasets List */
+/* ==========================================================================
+   DATASETS LIST
+   ========================================================================== */
 .datasets-list-modern {
   display: flex;
   flex-direction: column;
@@ -187,8 +267,8 @@
   align-items: center;
   gap: 12px;
   padding: 12px;
-  background: white;
-  border: 1px solid var(--gray-200);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-secondary);
   border-radius: 8px;
   cursor: pointer;
   transition: var(--transition-fast);
@@ -196,15 +276,16 @@
 }
 
 .dataset-item:hover {
-  background: var(--gray-50);
+  background: var(--bg-secondary);
   border-color: var(--powerbi-primary);
   transform: translateX(4px);
+  box-shadow: var(--shadow-sm);
 }
 
 .dataset-item.active {
-  background: linear-gradient(to right, rgba(0, 120, 212, 0.08), rgba(0, 120, 212, 0.02));
+  background: linear-gradient(to right, rgba(0,120,212,0.12), rgba(0,120,212,0.06));
   border-color: var(--powerbi-primary);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-md);
 }
 
 .dataset-item-icon {
@@ -213,7 +294,7 @@
   justify-content: center;
   width: 40px;
   height: 40px;
-  background: var(--gray-100);
+  background: var(--bg-secondary);
   border-radius: 8px;
   color: var(--powerbi-primary);
   flex-shrink: 0;
@@ -232,7 +313,7 @@
 .dataset-item-title {
   font-size: 14px;
   font-weight: 500;
-  color: var(--gray-900);
+  color: var(--text-primary);
   margin-bottom: 4px;
   white-space: nowrap;
   overflow: hidden;
@@ -244,7 +325,7 @@
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  color: var(--gray-500);
+  color: var(--text-secondary);
   margin-bottom: 4px;
 }
 
@@ -253,11 +334,11 @@
   align-items: center;
   gap: 4px;
   font-size: 11px;
-  color: var(--gray-400);
+  color: var(--text-muted);
 }
 
 .dataset-item-arrow {
-  color: var(--gray-300);
+  color: var(--text-muted);
   transition: var(--transition-fast);
   flex-shrink: 0;
 }
@@ -267,7 +348,9 @@
   transform: translateX(2px);
 }
 
-/* Empty States */
+/* ==========================================================================
+   EMPTY STATES
+   ========================================================================== */
 .empty-state-sidebar {
   display: flex;
   flex-direction: column;
@@ -275,24 +358,24 @@
   justify-content: center;
   padding: 40px 20px;
   text-align: center;
-  color: var(--gray-400);
+  color: var(--text-muted);
 }
 
 .empty-state-sidebar svg {
-  color: var(--gray-300);
+  color: var(--text-secondary);
   margin-bottom: 16px;
 }
 
 .empty-state-sidebar p {
   font-size: 14px;
   font-weight: 500;
-  color: var(--gray-600);
+  color: var(--text-secondary);
   margin-bottom: 4px;
 }
 
 .empty-state-sidebar small {
   font-size: 12px;
-  color: var(--gray-400);
+  color: var(--text-muted);
 }
 
 .empty-state-main {
@@ -306,31 +389,33 @@
 }
 
 .empty-state-main svg {
-  color: var(--gray-300);
+  color: var(--text-secondary);
   margin-bottom: 24px;
 }
 
 .empty-state-main h3 {
   font-size: 24px;
   font-weight: 600;
-  color: var(--gray-900);
+  color: var(--text-primary);
   margin-bottom: 8px;
 }
 
 .empty-state-main p {
   font-size: 16px;
-  color: var(--gray-500);
+  color: var(--text-secondary);
   margin-bottom: 24px;
   max-width: 400px;
 }
 
-/* Main Content Area */
+/* ==========================================================================
+   MAIN CONTENT
+   ========================================================================== */
 .powerbi-main {
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--gray-100);
+  background: var(--bg-tertiary);
 }
 
 /* Content Tabs */
@@ -338,8 +423,8 @@
   display: flex;
   gap: 4px;
   padding: 16px 24px 0 24px;
-  background: white;
-  border-bottom: 1px solid var(--gray-200);
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .tab-button {
@@ -349,7 +434,7 @@
   padding: 12px 20px;
   border: none;
   background: none;
-  color: var(--gray-600);
+  color: var(--text-secondary);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -359,13 +444,14 @@
 }
 
 .tab-button:hover {
-  color: var(--gray-900);
-  background: var(--gray-50);
+  color: var(--text-primary);
+  background: var(--bg-secondary);
 }
 
 .tab-button.active {
   color: var(--powerbi-primary);
   border-bottom-color: var(--powerbi-primary);
+  background: rgba(0,120,212,0.08);
 }
 
 .badge {
@@ -387,23 +473,26 @@
   flex: 1;
   overflow-y: auto;
   padding: 24px;
-  background: var(--gray-100);
+  background: var(--bg-tertiary);
 }
 
-/* Cards */
+/* ==========================================================================
+   CARDS & TABLES
+   ========================================================================== */
 .powerbi-card {
-  background: white;
+  background: var(--bg-primary);
   border-radius: 12px;
   box-shadow: var(--shadow-sm);
   margin-bottom: 24px;
   overflow: hidden;
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--border-primary);
+  transition: var(--transition-base);
 }
 
 .card-header {
   padding: 20px 24px;
-  border-bottom: 1px solid var(--gray-200);
-  background: linear-gradient(to bottom, white, var(--gray-50));
+  border-bottom: 1px solid var(--border-primary);
+  background: linear-gradient(to bottom, var(--bg-primary), var(--bg-secondary));
 }
 
 .card-title {
@@ -420,12 +509,12 @@
 .card-title h3 {
   font-size: 18px;
   font-weight: 600;
-  color: var(--gray-900);
+  color: var(--text-primary);
 }
 
 .card-subtitle {
   font-size: 13px;
-  color: var(--gray-500);
+  color: var(--text-secondary);
   margin-left: 32px;
 }
 
@@ -433,11 +522,10 @@
   padding: 24px;
 }
 
-/* Table */
 .table-wrapper {
   overflow-x: auto;
   border-radius: 8px;
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--border-primary);
 }
 
 .modern-table {
@@ -447,33 +535,35 @@
 }
 
 .modern-table thead {
-  background: var(--gray-50);
+  background: var(--bg-secondary);
 }
 
 .modern-table th {
   padding: 12px 16px;
   text-align: left;
   font-weight: 600;
-  color: var(--gray-700);
-  border-bottom: 2px solid var(--gray-200);
+  color: var(--text-primary);
+  border-bottom: 2px solid var(--border-primary);
   white-space: nowrap;
 }
 
 .modern-table td {
   padding: 12px 16px;
-  color: var(--gray-600);
-  border-bottom: 1px solid var(--gray-200);
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-secondary);
 }
 
 .modern-table tbody tr:hover {
-  background: var(--gray-50);
+  background: var(--bg-secondary);
 }
 
 .modern-table tbody tr:last-child td {
   border-bottom: none;
 }
 
-/* Insights */
+/* ==========================================================================
+   INSIGHTS & CONFIG
+   ========================================================================== */
 .insights-grid {
   display: grid;
   gap: 20px;
@@ -488,7 +578,7 @@
 .insight-label {
   font-size: 13px;
   font-weight: 600;
-  color: var(--gray-700);
+  color: var(--text-primary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -507,18 +597,17 @@
 }
 
 .insight-tag.numeric {
-  background: #e0f2fe;
-  color: #0369a1;
-  border: 1px solid #bae6fd;
+  background: rgba(0,120,212,0.12);
+  color: var(--powerbi-primary);
+  border: 1px solid rgba(0,120,212,0.3);
 }
 
 .insight-tag.categorical {
-  background: #fce7f3;
-  color: #9f1239;
-  border: 1px solid #fbcfe8;
+  background: rgba(135,100,184,0.12);
+  color: var(--powerbi-accent);
+  border: 1px solid rgba(135,100,184,0.3);
 }
 
-/* Configuration Grid */
 .config-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -538,10 +627,12 @@
 .config-label {
   font-size: 13px;
   font-weight: 600;
-  color: var(--gray-700);
+  color: var(--text-primary);
 }
 
-/* Chart Type Grid */
+/* ==========================================================================
+   CHART TYPES
+   ========================================================================== */
 .chart-type-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -554,33 +645,35 @@
   align-items: center;
   gap: 8px;
   padding: 16px 12px;
-  background: white;
-  border: 2px solid var(--gray-200);
+  background: var(--bg-primary);
+  border: 2px solid var(--border-secondary);
   border-radius: 8px;
   cursor: pointer;
   transition: var(--transition-fast);
   position: relative;
   font-size: 13px;
   font-weight: 500;
-  color: var(--gray-700);
+  color: var(--text-secondary);
 }
 
 .chart-type-button:hover {
   border-color: var(--powerbi-primary);
-  background: var(--gray-50);
+  background: var(--bg-secondary);
   transform: translateY(-2px);
   box-shadow: var(--shadow-md);
 }
 
 .chart-type-button.active {
   border-color: var(--powerbi-primary);
-  background: linear-gradient(135deg, rgba(0, 120, 212, 0.05), rgba(0, 120, 212, 0.02));
+  background: rgba(0,120,212,0.08);
   color: var(--powerbi-primary);
+  box-shadow: var(--shadow-sm);
 }
 
 .chart-type-button svg {
   width: 24px;
   height: 24px;
+  color: currentColor;
 }
 
 .check-icon {
@@ -590,32 +683,36 @@
   color: var(--powerbi-primary);
 }
 
-/* Form Controls */
+/* ==========================================================================
+   FORM CONTROLS
+   ========================================================================== */
 .modern-select,
 .modern-input {
   width: 100%;
   padding: 10px 14px;
-  border: 1px solid var(--gray-300);
+  border: 1px solid var(--border-secondary);
   border-radius: 6px;
   font-size: 14px;
-  color: var(--gray-900);
-  background: white;
+  color: var(--text-primary);
+  background: var(--bg-primary);
   transition: var(--transition-fast);
 }
 
 .modern-select:hover,
 .modern-input:hover {
-  border-color: var(--gray-400);
+  border-color: var(--border-primary);
 }
 
 .modern-select:focus,
 .modern-input:focus {
   outline: none;
   border-color: var(--powerbi-primary);
-  box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.1);
+  box-shadow: 0 0 0 3px rgba(0,120,212,0.15);
 }
 
-/* Buttons */
+/* ==========================================================================
+   BUTTONS
+   ========================================================================== */
 .btn-primary {
   display: inline-flex;
   align-items: center;
@@ -630,6 +727,7 @@
   cursor: pointer;
   transition: var(--transition-fast);
   text-decoration: none;
+  box-shadow: var(--shadow-sm);
 }
 
 .btn-primary:hover {
@@ -658,16 +756,18 @@
   cursor: pointer;
   transition: var(--transition-base);
   margin-top: 20px;
+  box-shadow: var(--shadow-lg);
 }
 
 .btn-generate:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-xl);
 }
 
 .btn-generate:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+  transform: none;
 }
 
 .btn-icon {
@@ -676,21 +776,24 @@
   justify-content: center;
   width: 36px;
   height: 36px;
-  background: white;
-  border: 1px solid var(--gray-300);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-secondary);
   border-radius: 6px;
   cursor: pointer;
   transition: var(--transition-fast);
-  color: var(--gray-600);
+  color: var(--text-secondary);
 }
 
 .btn-icon:hover {
-  background: var(--gray-50);
+  background: var(--bg-secondary);
   border-color: var(--powerbi-primary);
   color: var(--powerbi-primary);
+  box-shadow: var(--shadow-sm);
 }
 
-/* View Controls */
+/* ==========================================================================
+   VIEW CONTROLS & GRID
+   ========================================================================== */
 .view-controls {
   display: flex;
   justify-content: flex-end;
@@ -699,24 +802,24 @@
 
 .view-toggle {
   display: flex;
-  background: white;
-  border: 1px solid var(--gray-200);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
   border-radius: 6px;
   overflow: hidden;
 }
 
 .view-toggle button {
   padding: 8px 12px;
-  background: white;
+  background: none;
   border: none;
-  color: var(--gray-600);
+  color: var(--text-secondary);
   cursor: pointer;
   transition: var(--transition-fast);
 }
 
 .view-toggle button:hover {
-  background: var(--gray-50);
-  color: var(--gray-900);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
 }
 
 .view-toggle button.active {
@@ -724,7 +827,6 @@
   color: white;
 }
 
-/* Visualizations Grid */
 .viz-grid {
   display: grid;
   gap: 24px;
@@ -739,21 +841,21 @@
 }
 
 .viz-card {
-  background: white;
+  background: var(--bg-primary);
   border-radius: 12px;
   overflow: hidden;
-  border: 1px solid var(--gray-200);
-  transition: var(--transition-base);
+  border: 1px solid var(--border-primary);
+  transition: var(--transition-slow);
 }
 
 .viz-card:hover {
   border-color: var(--powerbi-primary);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-xl);
   transform: translateY(-4px);
 }
 
 .viz-card-preview {
-  background: var(--gray-50);
+  background: var(--bg-secondary);
   min-height: 350px;
   display: flex;
   align-items: center;
@@ -778,8 +880,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  border-top: 1px solid var(--gray-200);
-  background: white;
+  border-top: 1px solid var(--border-primary);
+  background: var(--bg-primary);
 }
 
 .viz-card-info {
@@ -794,7 +896,7 @@
   gap: 8px;
   font-size: 14px;
   font-weight: 600;
-  color: var(--gray-900);
+  color: var(--text-primary);
 }
 
 .chart-icon {
@@ -805,7 +907,7 @@
 
 .viz-card-library {
   font-size: 12px;
-  color: var(--gray-500);
+  color: var(--text-secondary);
 }
 
 .viz-card-actions {
@@ -813,21 +915,21 @@
   gap: 8px;
 }
 
-/* Animations */
+/* ==========================================================================
+   ANIMATIONS & UTILITIES
+   ========================================================================== */
 @keyframes spinning {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .spinning {
   animation: spinning 1s linear infinite;
 }
 
-/* Scrollbar Styling */
+/* ==========================================================================
+   SCROLLBARS
+   ========================================================================== */
 .sidebar-content::-webkit-scrollbar,
 .content-body::-webkit-scrollbar {
   width: 8px;
@@ -835,30 +937,30 @@
 
 .sidebar-content::-webkit-scrollbar-track,
 .content-body::-webkit-scrollbar-track {
-  background: var(--gray-100);
+  background: var(--bg-secondary);
 }
 
 .sidebar-content::-webkit-scrollbar-thumb,
 .content-body::-webkit-scrollbar-thumb {
-  background: var(--gray-300);
+  background: var(--border-secondary);
   border-radius: 4px;
 }
 
 .sidebar-content::-webkit-scrollbar-thumb:hover,
 .content-body::-webkit-scrollbar-thumb:hover {
-  background: var(--gray-400);
+  background: var(--border-primary);
 }
 
-/* Responsive Design */
+/* ==========================================================================
+   RESPONSIVE DESIGN
+   ========================================================================== */
 @media (max-width: 1200px) {
   .powerbi-sidebar {
     width: 280px;
   }
-
   .config-grid {
     grid-template-columns: 1fr;
   }
-
   .viz-grid.grid {
     grid-template-columns: 1fr;
   }
@@ -868,11 +970,9 @@
   .powerbi-navbar {
     padding: 0 16px;
   }
-
   .navbar-brand h1 {
     font-size: 18px;
   }
-
   .powerbi-sidebar {
     position: absolute;
     left: 0;
@@ -882,19 +982,15 @@
     transform: translateX(-100%);
     transition: transform var(--transition-base);
   }
-
   .powerbi-sidebar.open {
     transform: translateX(0);
   }
-
   .content-body {
     padding: 16px;
   }
-
   .powerbi-card {
     margin-bottom: 16px;
   }
-
   .chart-type-grid {
     grid-template-columns: repeat(2, 1fr);
   }
