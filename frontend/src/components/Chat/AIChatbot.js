@@ -289,6 +289,7 @@ const AIChatbot = ({ user }) => {
   const [transcript,  setTranscript]  = useState('');
   const [botText,     setBotText]     = useState('');
   const [turns,       setTurns]       = useState([]);
+  const [convId,      setConvId]      = useState(null);
   const [errorMsg,    setErrorMsg]    = useState('');
   const [hasUnread,   setHasUnread]   = useState(false);
 
@@ -311,7 +312,31 @@ const AIChatbot = ({ user }) => {
     setExpression(expr);
     if (ttl) exprTimer.current = setTimeout(() => setExpression('idle'), ttl);
   }, []);
-
+  /* ── Ensure AI Assistant conversation exists ─────────────────────── */
+  const ensureConversation = useCallback(async () => {
+    if (convId) return convId;
+    try {
+      const tabKey = sessionStorage.getItem('tab_session_key');
+      const res = await fetch('http://localhost:8000/api/ai-assistant/conversations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          'X-Tab-Session-Key': tabKey || '',
+        },
+        body: JSON.stringify({ title: `Voice Session — ${new Date().toLocaleTimeString()}` }),
+      });
+      const data = await res.json();
+      if (data.success && data.conversation?._id) {
+        const id = data.conversation._id;
+        setConvId(id);
+        return id;
+      }
+    } catch (e) {
+      console.error('[DOIT-AI] Failed to create conversation:', e);
+    }
+    return null;
+  }, [convId]);
   /* ── TTS: speak the agent reply ─────────────────────────────────── */
   const speakReply = useCallback((text) => {
     window.speechSynthesis?.cancel();
@@ -349,15 +374,19 @@ const AIChatbot = ({ user }) => {
     window.speechSynthesis.speak(utter);
   }, [isOpen, setExpr]);
 
-  /* ── Send transcript to GPT-5.2-chat ────────────────────────────── */
+  /* ── Send transcript to DOIT-AI Assistant (GPT-5.2) ───────────── */
   const sendToAgent = useCallback(async (text) => {
     setMode('processing');
     setExpr('thinking');
     setStatusLabel('Thinking…');
 
     try {
+      // Ensure we have a conversation
+      const id = await ensureConversation();
+      if (!id) throw new Error('Could not create conversation');
+
       const tabKey = sessionStorage.getItem('tab_session_key');
-      const res = await fetch('http://localhost:8000/api/chat/ask', {
+      const res = await fetch(`http://localhost:8000/api/ai-assistant/conversations/${id}/messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -365,24 +394,26 @@ const AIChatbot = ({ user }) => {
           'X-Tab-Session-Key': tabKey || '',
         },
         body: JSON.stringify({
-          message: text,
-          conversationHistory: turns.slice(-10).map(t => ({
-            role: t.role === 'bot' ? 'assistant' : 'user',
-            content: t.text,
-          })),
-          persona: 'friendly',
+          content: text,
+          stream: false,
+          include_user_context: true,
         }),
       });
 
-      if (!res.ok) throw new Error(`Chat API returned ${res.status}`);
+      if (!res.ok) throw new Error(`AI Assistant returned ${res.status}`);
       const data = await res.json();
-      const reply = data.response || 'I encountered an issue. Please try again.';
+      
+      if (!data.success || !data.message) {
+        throw new Error('Invalid response from AI Assistant');
+      }
+
+      const reply = data.message.content || 'I encountered an issue. Please try again.';
 
       setTurns(prev => [...prev, { role: 'bot', text: reply }]);
       speakReply(reply);
     } catch (err) {
-      console.error('[DOIT-AI] Chat error:', err);
-      setErrorMsg(err.message || 'Chat unreachable');
+      console.error('[DOIT-AI] Assistant error:', err);
+      setErrorMsg(err.message || 'Assistant unreachable');
       setMode('error');
       setExpr('error', 3500);
       setStatusLabel('Error — tap to retry');
@@ -392,7 +423,7 @@ const AIChatbot = ({ user }) => {
         setErrorMsg('');
       }, 4500);
     }
-  }, [turns, speakReply, setExpr]);
+  }, [ensureConversation, speakReply, setExpr]);
 
   /* ── STT: start recognition ─────────────────────────────────────── */
   const startListening = useCallback(() => {
@@ -814,7 +845,7 @@ const AIChatbot = ({ user }) => {
             {/* ── Reset conversation ── */}
             {turns.length > 0 && (
               <button
-                onClick={() => { stopAll(); setTurns([]); setErrorMsg(''); }}
+                onClick={() => { stopAll(); setTurns([]); setConvId(null); setErrorMsg(''); }}
                 style={{
                   background: 'none', border: 'none',
                   color: '#1e3a5f', fontSize: '10.5px',
