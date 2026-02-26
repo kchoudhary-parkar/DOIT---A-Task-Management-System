@@ -8,7 +8,7 @@ import {
   useNavigate,
 } from "react-router-dom";
 import { FiActivity } from 'react-icons/fi';
-import { BsStars } from 'react-icons/bs';  // For AI Assistant icon
+import { BsStars, BsBriefcase } from 'react-icons/bs';  // For AI Assistant and PM icons
 import { AuthContext } from "./context/AuthContext";
 import { SignIn, SignUp, useAuth } from "@clerk/clerk-react";
 import { DashboardPage } from "./pages/Dashboard";

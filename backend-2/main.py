@@ -101,8 +101,8 @@ app.include_router(
 )
 app.include_router(agent_automation_router, tags=["Agent Automation"])
 app.include_router(
-    azure_agent_router, prefix="/api/foundry-agent", tags=["Azure AI Foundry Agent"]
-)  # ← NEW
+    azure_agent_router, prefix="/api/agent", tags=["Azure AI Foundry Agent"]
+)  # ← Voice Assistant Agent
 app.include_router(local_agent_router, prefix="/api/local-agent", tags=["Local Agent"])
 app.include_router(
     code_review_router

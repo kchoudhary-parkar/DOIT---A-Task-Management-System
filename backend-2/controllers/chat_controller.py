@@ -1,460 +1,647 @@
+"""
+chat_controller.py
+──────────────────
+DOIT Unified AI Assistant Controller
+Combines General Chat + AI PM capabilities powered by Azure OpenAI GPT-5.2
+
+Features:
+- General productivity chat with full user context
+- AI PM mode with project/sprint/team analysis
+- Automatic intent detection (chat vs PM queries)
+- Voice + text interface support
+- Persona-based responses (professional, friendly, direct)
+"""
+
 import json
-import os
-import requests
 from datetime import datetime, timedelta, timezone
 from bson import ObjectId
+from typing import Dict, Any, List, Optional
+
 from database import db
 from utils.response import success_response, error_response
+from utils.azure_ai_utils import (
+    chat_completion,
+    get_context_with_system_prompt,
+    truncate_context,
+    azure_client,
+    AZURE_OPENAI_DEPLOYMENT,
+)
 
 
-# GEMINI_API_KEY = os.getenv("GOOGLE_GEMINI_API_KEY")
-# GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
-# GEMINI_MODEL = "gemini-2.5-flash"  # or "gemini-2.5-flash-preview-*" if you want latest preview
+# ══════════════════════════════════════════════════════════════════════════════
+# PERSONAS (for AI PM mode)
+# ══════════════════════════════════════════════════════════════════════════════
 
-GEMINI_API_KEY = os.getenv("GOOGLE_GEMINI_API_KEY")
-# The v1beta endpoint remains standard for preview features
-GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent"
-GEMINI_MODEL = "gemini-3-flash-preview"  # Current top-tier fast model
+PM_PERSONAS = {
+    "professional": {
+        "name": "Professional",
+        "tone": "formal, data-driven, executive-ready",
+        "system_prompt": """You are a senior AI Project Manager with 15+ years of experience.
+You communicate with precision, back every statement with data, and provide executive-level insights.
+Your recommendations are actionable, prioritized, and risk-aware."""
+    },
+    "friendly": {
+        "name": "Friendly",
+        "tone": "casual, supportive, encouraging",
+        "system_prompt": """You are a friendly AI Project Manager who balances professionalism with warmth.
+You celebrate wins, empathize with challenges, and make complex data feel approachable.
+Your goal is to motivate teams while keeping projects on track."""
+    },
+    "direct": {
+        "name": "Direct",
+        "tone": "concise, action-focused, no-nonsense",
+        "system_prompt": """You are a direct, results-oriented AI Project Manager.
+You cut through noise, highlight what matters most, and give clear next steps.
+No fluff—just facts, priorities, and actions."""
+    }
+}
 
 
-def chat_ask(body_str, user_id):
+# ══════════════════════════════════════════════════════════════════════════════
+# GUARD: Azure Client Check
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _azure_ready():
+    return azure_client is not None
+
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PUBLIC API: Chat Ask (General + PM Combined)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def chat_ask(body_str: str, user_id: str):
     """
-    Handle AI chat requests using Google Gemini API with real API calls
-    COMPLETELY FREE with $300 credit
+    Unified AI chat endpoint supporting:
+    - General productivity queries (tasks, project overview, etc.)
+    - AI PM queries (risk analysis, workload, sprint health, etc.)
+    
+    Automatically detects intent and switches context.
     """
     if not user_id:
         return error_response("Unauthorized. Please login.", 401)
-
-    if not GEMINI_API_KEY:
+    
+    if not _azure_ready():
         return error_response(
-            "Gemini API key not configured. Get free $300 credit at https://ai.google.dev/",
-            500,
+            "Azure OpenAI client not initialized. Check environment variables.",
+            500
         )
-
+    
     try:
         data = json.loads(body_str)
         user_message = data.get("message", "").strip()
         conversation_history = data.get("conversationHistory", [])
-
+        persona = data.get("persona", "friendly")  # For PM mode
+        project_id = data.get("project_id")  # Optional project context
+        
         if not user_message:
             return error_response("Message is required", 400)
-
-        # Analyze user's data
-        user_data = analyze_user_data(user_id)
-        if not user_data:
-            return error_response("Failed to analyze user data", 500)
-
-        # Build enhanced context for Gemini
-        system_prompt = build_system_prompt(user_data)
-
-        # Build conversation history for Gemini
-        messages = build_messages(conversation_history, user_message)
-
-        # Call Gemini API
-        response_data = call_gemini_api(system_prompt, messages)
-
-        if not response_data:
-            return error_response("Failed to get AI response from Gemini", 500)
-
+        
+        print(f"💬 [Chat] User: {user_id}, Message: {user_message[:60]}...")
+        
+        # ── 1. Detect intent: General Chat vs PM Query ────────────────────
+        intent = detect_intent(user_message)
+        is_pm_query = intent in [
+            "risk_analysis", "assignment_suggestion", "team_inquiry",
+            "sprint_status", "workload_check", "blocker_analysis",
+            "velocity_check", "recommendation"
+        ]
+        
+        print(f"🎯 Intent: {intent} | PM Query: {is_pm_query}")
+        
+        # ── 2. Gather Context ──────────────────────────────────────────────
+        if is_pm_query:
+            # PM mode: Get project context + team data
+            context = gather_pm_context(user_id, project_id, intent)
+            system_prompt = build_pm_system_prompt(persona, context)
+        else:
+            # General mode: Get personal task/project data
+            user_data = analyze_user_data(user_id)
+            if not user_data:
+                return error_response("Failed to analyze user data", 500)
+            system_prompt = build_general_system_prompt(user_data)
+            context = user_data
+        
+        # ── 3. Build Message List ──────────────────────────────────────────
+        prior_messages = build_messages(conversation_history, user_message)
+        messages = get_context_with_system_prompt(
+            prior_messages[:-1],
+            system_prompt=system_prompt
+        )
+        messages.append({"role": "user", "content": user_message})
+        
+        # ── 4. Truncate to Fit Context Window ─────────────────────────────
+        messages = truncate_context(messages, max_tokens=8000)
+        
+        # ── 5. Call Azure OpenAI GPT-5.2 ───────────────────────────────────
+        print(f"📤 Sending {len(messages)} messages to {AZURE_OPENAI_DEPLOYMENT}")
+        response_data = chat_completion(messages, max_tokens=1500)
+        
         ai_response = response_data.get("content", "")
-
-        # Extract insights if available
-        insights = extract_insights(user_data, user_message.lower())
-
-        return success_response(
-            {
-                "response": ai_response,
-                "insights": insights,
-                "data": user_data,
-                "success": True,
-                "model": "Google Gemini 1.5 Flash (FREE)",
-            }
-        )
-
+        tokens = response_data.get("tokens", {})
+        
+        print(f"✅ Reply received ({tokens.get('total', '?')} tokens)")
+        
+        # ── 6. Extract Insights ────────────────────────────────────────────
+        insights = extract_insights(context, user_message.lower(), is_pm_query)
+        
+        return success_response({
+            "response": ai_response,
+            "insights": insights,
+            "data": context,
+            "success": True,
+            "mode": "pm" if is_pm_query else "general",
+            "intent": intent,
+            "model": f"Azure OpenAI {AZURE_OPENAI_DEPLOYMENT}",
+            "tokens": tokens,
+        })
+    
     except json.JSONDecodeError:
-        return error_response("Invalid JSON", 400)
+        return error_response("Invalid JSON body", 400)
     except Exception as e:
-        print(f"Chat error: {str(e)}")
+        print(f"❌ [Chat] Error: {e}")
         import traceback
-
         traceback.print_exc()
-        return error_response(f"Failed to process chat: {str(e)}", 500)
+        return error_response(f"Chat failed: {str(e)}", 500)
 
 
-def call_gemini_api(system_prompt, messages):
+# ══════════════════════════════════════════════════════════════════════════════
+# PUBLIC API: Get Suggestions
+# ══════════════════════════════════════════════════════════════════════════════
+
+def get_chat_suggestions(user_id: str):
     """
-    Make actual API call to Google Gemini with error handling
-    Uses completely FREE tier with $300 credit
-    """
-    try:
-        # Build the full prompt with system context
-        full_prompt = f"{system_prompt}\n\n---CONVERSATION---\n"
-
-        # Add conversation history
-        for msg in messages[:-1]:  # All except the last (current) message
-            role = "User" if msg["role"] == "user" else "Assistant"
-            full_prompt += f"\n{role}: {msg['content']}\n"
-
-        # Add current message
-        full_prompt += f"\nUser: {messages[-1]['content']}\n\nAssistant:"
-
-        # Prepare request with correct API format
-        url = f"{GEMINI_API_URL}?key={GEMINI_API_KEY}"
-
-        headers = {
-            "Content-Type": "application/json",
-        }
-
-        # Use the correct v1 API request format
-        payload = {
-            "contents": [{"parts": [{"text": full_prompt}]}],
-            "generationConfig": {
-                "temperature": 0.7,
-                "topP": 0.95,
-                "topK": 40,
-                "maxOutputTokens": 1024,
-            },
-        }
-
-        response = requests.post(url, headers=headers, json=payload, timeout=30)
-        response.raise_for_status()
-
-        data = response.json()
-
-        # Extract response text
-        if "candidates" in data and len(data["candidates"]) > 0:
-            candidate = data["candidates"][0]
-            if "content" in candidate and "parts" in candidate["content"]:
-                if len(candidate["content"]["parts"]) > 0:
-                    response_text = candidate["content"]["parts"][0]["text"]
-                    return {
-                        "content": response_text,
-                        "model": "Gemini 1.5 Flash",
-                        "free": True,
-                    }
-
-        return None
-
-    except requests.exceptions.Timeout:
-        print("[ERROR] Gemini API timeout")
-        return None
-    except requests.exceptions.RequestException as e:
-        print(f"[ERROR] Gemini API request failed: {str(e)}")
-        return None
-    except Exception as e:
-        print(f"[ERROR] Failed to call Gemini API: {str(e)}")
-        return None
-
-
-def build_system_prompt(user_data):
-    """
-    Build comprehensive system prompt with context for Gemini
-    """
-    tasks = user_data["stats"]["tasks"]
-    projects = user_data["stats"]["projects"]
-    sprints = user_data["stats"]["sprints"]
-
-    return f"""You are an intelligent AI assistant for DOIT, a powerful task management system. Your role is to provide deep insights, actionable recommendations, and motivational feedback to help users maximize their productivity.
-
-## USER PROFILE
-- **Name:** {user_data["user"]["name"]}
-- **Role:** {user_data["user"]["role"]}
-- **Email:** {user_data["user"]["email"]}
-
-## TASK ANALYTICS
-- **Total Tasks Assigned:** {tasks["total"]}
-- **Status Distribution:** Done: {tasks["statusBreakdown"].get("Done", 0)}, In Progress: {tasks["statusBreakdown"].get("In Progress", 0)}, To Do: {tasks["statusBreakdown"].get("To Do", 0)}, Closed: {tasks["statusBreakdown"].get("Closed", 0)}
-- **Priority Distribution:** High: {tasks["priorityBreakdown"].get("High", 0)}, Medium: {tasks["priorityBreakdown"].get("Medium", 0)}, Low: {tasks["priorityBreakdown"].get("Low", 0)}
-- **Critical Metrics:**
-  - Overdue Tasks: {tasks["overdue"]}
-  - Due Within 7 Days: {tasks["dueSoon"]}
-  - Completed This Week: {tasks["completedWeek"]}
-  - Completed This Month: {tasks["completedMonth"]}
-
-## PROJECT OVERVIEW
-- **Total Projects:** {projects["total"]}
-- **Owned Projects:** {projects["owned"]}
-- **Member In:** {projects["memberOf"]}
-- **Active Projects:** {projects["withTasks"]}
-
-## SPRINT STATUS
-- **Total Sprints:** {sprints["total"]}
-- **Active Sprints:** {sprints["active"]}
-- **Completed Sprints:** {sprints["completed"]}
-
-## RECENT ACTIVITY (Last 8 Tasks)
-{format_recent_tasks(user_data["recentTasks"])}
-
-## TOP PROJECTS
-{format_top_projects(user_data["topProjects"])}
-
-## RESPONSE GUIDELINES
-1. Be Specific: Reference actual task and project names when possible
-2. Provide Metrics: Include numbers, percentages, and trends in your analysis
-3. Actionable Insights: Offer concrete recommendations they can implement immediately
-4. Celebrate Progress: Acknowledge completed tasks and completed sprints with genuine enthusiasm
-5. Flag Issues: Highlight overdue tasks, bottlenecks, or concerning patterns
-6. Suggest Improvements: Recommend priority adjustments, sprint planning changes, or workflow optimizations
-7. Use Emojis: Make responses engaging and friendly (📊 📈 ⚠️ ✅ 🚀 etc.)
-8. Concise But Rich: Keep responses to 3-4 paragraphs but pack them with valuable insights
-9. Personalize: Address the user by name and acknowledge their specific situation
-10. Format Clearly: Use bullet points and line breaks for readability
-
-You have access to their complete task and project ecosystem. Use this to provide holistic advice that considers their entire workload and project portfolio.
-
-Start with insights, then answer their specific question. Be proactive in identifying risks and opportunities."""
-
-
-def format_recent_tasks(tasks):
-    """Format recent tasks for prompt"""
-    if not tasks:
-        return "No recent tasks"
-
-    formatted = []
-    for task in tasks:
-        due_date = task["dueDate"] if task["dueDate"] else "No due date"
-        formatted.append(
-            f"- {task['title']} ({task['status']}) - Priority: {task['priority']} - Due: {due_date}"
-        )
-
-    return "\n".join(formatted[:8])
-
-
-def format_top_projects(projects):
-    """Format top projects for prompt"""
-    if not projects:
-        return "No projects"
-
-    formatted = []
-    for proj in projects:
-        formatted.append(f"- {proj['name']} - {proj['taskCount']} tasks")
-
-    return "\n".join(formatted)
-
-
-def build_messages(conversation_history, user_message):
-    """
-    Build message array for Gemini API with context
-    """
-    messages = []
-
-    # Add last 10 messages from conversation history
-    for msg in conversation_history[-10:]:
-        if msg.get("role") in ["user", "assistant"]:
-            messages.append(
-                {"role": msg.get("role"), "content": msg.get("content", "")}
-            )
-
-    # Add current user message
-    messages.append({"role": "user", "content": user_message})
-
-    return messages
-
-
-def extract_insights(user_data, query_lower):
-    """
-    Extract and generate insights based on user data and query
-    """
-    insights = []
-    tasks = user_data["stats"]["tasks"]
-    projects = user_data["stats"]["projects"]
-
-    # Check for overdue tasks
-    if tasks["overdue"] > 0:
-        insights.append(
-            {
-                "type": "warning",
-                "icon": "⚠️",
-                "title": f"{tasks['overdue']} Overdue Task(s)",
-                "description": "You have tasks past their due date that need immediate attention",
-            }
-        )
-
-    # Check for upcoming deadlines
-    if tasks["dueSoon"] > 0:
-        insights.append(
-            {
-                "type": "info",
-                "icon": "📅",
-                "title": f"{tasks['dueSoon']} Task(s) Due Soon",
-                "description": "Multiple tasks coming due within the next week",
-            }
-        )
-
-    # Completion rate
-    if tasks["total"] > 0:
-        completion_rate = (
-            (
-                tasks["statusBreakdown"].get("Done", 0)
-                + tasks["statusBreakdown"].get("Closed", 0)
-            )
-            / tasks["total"]
-        ) * 100
-
-        if completion_rate >= 80:
-            insights.append(
-                {
-                    "type": "success",
-                    "icon": "🎉",
-                    "title": f"{int(completion_rate)}% Completion Rate",
-                    "description": "Excellent task completion! Keep up this momentum.",
-                }
-            )
-        elif completion_rate >= 50:
-            insights.append(
-                {
-                    "type": "info",
-                    "icon": "📈",
-                    "title": f"{int(completion_rate)}% Completion Rate",
-                    "description": "Good progress on your tasks. Keep pushing!",
-                }
-            )
-
-    # Workload analysis
-    high_priority_count = tasks["priorityBreakdown"].get("High", 0)
-    if high_priority_count > 3:
-        insights.append(
-            {
-                "type": "warning",
-                "icon": "🔴",
-                "title": f"{high_priority_count} High Priority Tasks",
-                "description": "You have many high-priority items. Consider prioritization.",
-            }
-        )
-
-    # Project portfolio
-    if projects["total"] > 5:
-        insights.append(
-            {
-                "type": "info",
-                "icon": "📊",
-                "title": f"Managing {projects['total']} Projects",
-                "description": "Diverse project portfolio. Stay organized with sprints and milestones.",
-            }
-        )
-
-    # Weekly productivity
-    if tasks["completedWeek"] > 0:
-        insights.append(
-            {
-                "type": "success",
-                "icon": "✅",
-                "title": f"{tasks['completedWeek']} Tasks Completed This Week",
-                "description": f"Great weekly performance!",
-            }
-        )
-
-    return insights
-
-
-def get_chat_suggestions(user_id):
-    """
-    Get AI-powered suggestions for the user
+    Rule-based productivity suggestions from MongoDB data.
+    No LLM call required.
     """
     if not user_id:
         return error_response("Unauthorized. Please login.", 401)
-
+    
     try:
         user_data = analyze_user_data(user_id)
         if not user_data:
             return error_response("Failed to analyze user data", 500)
-
+        
         suggestions = []
         tasks = user_data["stats"]["tasks"]
         projects = user_data["stats"]["projects"]
         sprints = user_data["stats"]["sprints"]
-
+        
         # Critical: Overdue tasks
         if tasks["overdue"] > 0:
-            suggestions.append(
-                {
-                    "type": "critical",
-                    "icon": "🚨",
-                    "title": f"{tasks['overdue']} Overdue Task(s)",
-                    "message": "Immediate action required. Review and update overdue items.",
-                    "action": "View Overdue Tasks",
-                    "priority": 1,
-                }
-            )
-
-        # High priority: Due soon
+            suggestions.append({
+                "type": "critical",
+                "icon": "🚨",
+                "title": f"{tasks['overdue']} Overdue Task(s)",
+                "message": "Immediate action required. Review and update overdue items.",
+                "action": "View Overdue Tasks",
+                "priority": 1,
+            })
+        
+        # Warning: Due soon
         if tasks["dueSoon"] > 0:
-            suggestions.append(
-                {
-                    "type": "warning",
-                    "icon": "⏰",
-                    "title": f"{tasks['dueSoon']} Task(s) Due This Week",
-                    "message": "Plan your time wisely for upcoming deadlines.",
-                    "action": "View Upcoming",
-                    "priority": 2,
-                }
-            )
-
-        # Positive: Great progress
+            suggestions.append({
+                "type": "warning",
+                "icon": "⏰",
+                "title": f"{tasks['dueSoon']} Task(s) Due This Week",
+                "message": "Plan your time wisely for upcoming deadlines.",
+                "action": "View Upcoming",
+                "priority": 2,
+            })
+        
+        # Success: Weekly wins
         if tasks["completedWeek"] >= 3:
-            suggestions.append(
-                {
-                    "type": "success",
-                    "icon": "🌟",
-                    "title": "Excellent Weekly Performance!",
-                    "message": f"You've completed {tasks['completedWeek']} tasks this week. Keep it up!",
-                    "action": None,
-                    "priority": 3,
-                }
-            )
-
-        # Info: Project status
+            suggestions.append({
+                "type": "success",
+                "icon": "🌟",
+                "title": "Excellent Weekly Performance!",
+                "message": f"You've completed {tasks['completedWeek']} tasks this week. Keep it up!",
+                "action": None,
+                "priority": 3,
+            })
+        
+        # Info: Idle projects
         idle_projects = projects["total"] - projects["withTasks"]
         if idle_projects > 0:
-            suggestions.append(
-                {
-                    "type": "info",
-                    "icon": "📌",
-                    "title": f"{idle_projects} Project(s) Inactive",
-                    "message": "Some projects have no active tasks. Consider planning next steps.",
-                    "action": "View Projects",
-                    "priority": 4,
-                }
-            )
-
-        # Info: Sprint status
+            suggestions.append({
+                "type": "info",
+                "icon": "📌",
+                "title": f"{idle_projects} Project(s) Inactive",
+                "message": "Some projects have no active tasks. Consider planning next steps.",
+                "action": "View Projects",
+                "priority": 4,
+            })
+        
+        # Tip: No active sprints
         if sprints["active"] == 0 and sprints["total"] > 0:
-            suggestions.append(
-                {
-                    "type": "tip",
-                    "icon": "🏃",
-                    "title": "No Active Sprints",
-                    "message": "Consider starting a new sprint to organize your work.",
-                    "action": "View Sprints",
-                    "priority": 5,
-                }
-            )
-
-        # Sort by priority
+            suggestions.append({
+                "type": "tip",
+                "icon": "🏃",
+                "title": "No Active Sprints",
+                "message": "Consider starting a new sprint to organize your work.",
+                "action": "View Sprints",
+                "priority": 5,
+            })
+        
         suggestions.sort(key=lambda x: x["priority"])
-
-        return success_response(
-            {
-                "suggestions": suggestions,
-                "summary": {
-                    "totalTasks": tasks["total"],
-                    "completedTasks": tasks["statusBreakdown"].get("Done", 0)
-                    + tasks["statusBreakdown"].get("Closed", 0),
-                    "totalProjects": projects["total"],
-                    "activeSprints": sprints["active"],
-                },
-                "note": "Powered by Google Gemini - Completely FREE with $300 credit!",
-            }
-        )
-
+        
+        return success_response({
+            "suggestions": suggestions,
+            "summary": {
+                "totalTasks": tasks["total"],
+                "completedTasks": tasks["statusBreakdown"].get("Done", 0) + tasks["statusBreakdown"].get("Closed", 0),
+                "totalProjects": projects["total"],
+                "activeSprints": sprints["active"],
+            },
+            "note": f"Powered by Azure OpenAI {AZURE_OPENAI_DEPLOYMENT}",
+        })
+    
     except Exception as e:
-        print(f"Error getting suggestions: {str(e)}")
+        print(f"❌ [Suggestions] Error: {e}")
         return error_response(f"Failed to get suggestions: {str(e)}", 500)
 
 
-from datetime import datetime, timedelta
-from bson import ObjectId
+# ══════════════════════════════════════════════════════════════════════════════
+# HELPER: Intent Detection
+# ══════════════════════════════════════════════════════════════════════════════
 
+def detect_intent(message: str) -> str:
+    """
+    Detect user intent from message text.
+    Returns: general, risk_analysis, assignment_suggestion, team_inquiry, etc.
+    """
+    msg_lower = message.lower()
+    
+    # PM-specific intents
+    if any(word in msg_lower for word in ["risk", "delay", "sprint health", "on track", "miss deadline"]):
+        return "risk_analysis"
+    
+    if any(word in msg_lower for word in ["assign", "who should", "best person", "recommend assignee"]):
+        return "assignment_suggestion"
+    
+    if any(word in msg_lower for word in ["workload", "team capacity", "distribution", "overloaded", "bandwidth"]):
+        return "team_inquiry"
+    
+    if any(word in msg_lower for word in ["sprint status", "sprint progress", "how's sprint", "sprint looking"]):
+        return "sprint_status"
+    
+    if any(word in msg_lower for word in ["blocked", "blocker", "dependency", "waiting on"]):
+        return "blocker_analysis"
+    
+    if any(word in msg_lower for word in ["velocity", "burn", "completion rate", "throughput"]):
+        return "velocity_check"
+    
+    if any(word in msg_lower for word in ["overdue", "late", "past due"]):
+        return "overdue_check"
+    
+    if any(word in msg_lower for word in ["recommend", "suggest", "what should", "action plan"]):
+        return "recommendation"
+    
+    # General intents
+    if any(word in msg_lower for word in ["task", "todo", "assignment"]):
+        return "task_inquiry"
+    
+    if any(word in msg_lower for word in ["project", "initiative"]):
+        return "project_inquiry"
+    
+    return "general"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CONTEXT GATHERING: PM Mode (Project/Team Focus)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def gather_pm_context(user_id: str, project_id: Optional[str], intent: str) -> Dict[str, Any]:
+    """
+    Gather comprehensive PM context: projects, sprints, tasks, team workload.
+    Similar to ai_pm_controller's gather_comprehensive_context but adapted for chat.
+    """
+    context = {}
+    
+    try:
+        # Auto-select project if not provided
+        if not project_id:
+            user_projects = list(db.projects.find({
+                "$or": [
+                    {"user_id": user_id},
+                    {"members.user_id": user_id}
+                ]
+            }).sort("updated_at", -1).limit(1))
+            
+            if user_projects:
+                project_id = str(user_projects[0]['_id'])
+                print(f"📊 Auto-selected project: {project_id}")
+        
+        if not project_id:
+            return {"error": "No project found for user"}
+        
+        # Get project details
+        project = db.projects.find_one({"_id": ObjectId(project_id)})
+        if project:
+            context['project_name'] = project.get('name', 'Unknown')
+            context['project_description'] = project.get('description', '')
+            context['project_status'] = project.get('status', 'active')
+            
+            # Get team members
+            members = project.get('members', [])
+            context['team_size'] = len(members)
+            context['team_members'] = [m.get('name', 'Unknown') for m in members[:5]]
+        
+        # Get sprints (last 3)
+        sprints = list(db.sprints.find({"project_id": project_id}).sort("created_at", -1).limit(3))
+        if sprints:
+            sprint_info = []
+            for sprint in sprints:
+                sprint_tasks = list(db.tasks.find({"sprint_id": str(sprint['_id'])}))
+                completed = len([t for t in sprint_tasks if t.get('status') in ['completed', 'Done', 'Closed']])
+                total = len(sprint_tasks)
+                sprint_info.append({
+                    "name": sprint.get('name', 'Unknown'),
+                    "status": sprint.get('status', 'active'),
+                    "progress": f"{completed}/{total} tasks",
+                    "start_date": str(sprint.get('start_date', ''))[:10],
+                    "end_date": str(sprint.get('end_date', ''))[:10]
+                })
+            context['sprints'] = sprint_info
+        
+        # Get all tasks for project
+        all_tasks = list(db.tasks.find({"project_id": project_id}))
+        if all_tasks:
+            context['total_tasks'] = len(all_tasks)
+            context['completed_tasks'] = len([t for t in all_tasks if t.get('status') in ['completed', 'Done', 'Closed']])
+            context['in_progress_tasks'] = len([t for t in all_tasks if t.get('status') in ['in_progress', 'In Progress']])
+            context['pending_tasks'] = len([t for t in all_tasks if t.get('status') in ['pending', 'To Do']])
+            context['blocked_tasks'] = len([t for t in all_tasks if t.get('status') == 'blocked'])
+            
+            # Overdue tasks
+            now = datetime.utcnow()
+            overdue = [t for t in all_tasks 
+                      if t.get('due_date') and isinstance(t['due_date'], datetime) 
+                      and t['due_date'] < now 
+                      and t.get('status') not in ['completed', 'Done', 'Closed']]
+            context['overdue_tasks'] = len(overdue)
+            
+            # Priority distribution
+            context['high_priority'] = len([t for t in all_tasks if t.get('priority') in ['high', 'High']])
+            context['medium_priority'] = len([t for t in all_tasks if t.get('priority') in ['medium', 'Medium']])
+            context['low_priority'] = len([t for t in all_tasks if t.get('priority') in ['low', 'Low']])
+            
+            # Recent tasks
+            recent_tasks = sorted(all_tasks, key=lambda x: x.get('created_at', datetime.min), reverse=True)[:5]
+            context['recent_tasks'] = [
+                {
+                    "title": t.get('title', 'Untitled'),
+                    "status": t.get('status', 'pending'),
+                    "priority": t.get('priority', 'medium'),
+                    "assignee": t.get('assignee_name', 'Unassigned')
+                }
+                for t in recent_tasks
+            ]
+        
+        # Get team workload
+        if project and members:
+            member_ids = []
+            for m in members:
+                if 'user_id' in m:
+                    try:
+                        member_ids.append(ObjectId(m['user_id']))
+                    except:
+                        pass
+            
+            team_members = list(db.users.find({"_id": {"$in": member_ids}}))
+            workload_data = []
+            
+            for member in team_members[:5]:
+                member_id_str = str(member['_id'])
+                member_tasks = [
+                    t for t in all_tasks
+                    if str(t.get('assignee_id')) == member_id_str
+                ]
+                
+                active_tasks = len([t for t in member_tasks if t.get('status') in ['in_progress', 'In Progress', 'pending', 'To Do']])
+                completed_tasks = len([t for t in member_tasks if t.get('status') in ['completed', 'Done', 'Closed']])
+                
+                workload_data.append({
+                    "name": member.get('name', 'Unknown'),
+                    "active_tasks": active_tasks,
+                    "completed_tasks": completed_tasks,
+                    "total_tasks": len(member_tasks)
+                })
+            
+            context['team_workload'] = workload_data
+        
+        return context
+    
+    except Exception as e:
+        print(f"❌ [PM Context] Error: {e}")
+        import traceback
+        traceback.print_exc()
+        return {}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SYSTEM PROMPTS
+# ══════════════════════════════════════════════════════════════════════════════
+
+def build_pm_system_prompt(persona: str, context: Dict[str, Any]) -> str:
+    """Build AI PM system prompt with project context."""
+    persona_data = PM_PERSONAS.get(persona, PM_PERSONAS['friendly'])
+    
+    base_prompt = persona_data["system_prompt"] + "\n\n"
+    base_prompt += """Your core capabilities as DOIT AI PM:
+- Analyze sprint risks and predict delays
+- Recommend task assignments based on team workload and skills
+- Identify bottlenecks and workload imbalances
+- Provide sprint health insights and recommendations
+- Answer questions about project status and team performance
+
+When analyzing data:
+1. Reference specific numbers from the context
+2. Explain your reasoning clearly
+3. Provide actionable recommendations with priorities
+4. Highlight risks early and suggest mitigation
+"""
+    
+    # Add project context
+    if context:
+        base_prompt += "\n\n**Current Project Context:**\n"
+        base_prompt += format_pm_context(context)
+    
+    return base_prompt
+
+
+def build_general_system_prompt(user_data: dict) -> str:
+    """Build general chat system prompt with user's personal data."""
+    tasks = user_data["stats"]["tasks"]
+    projects = user_data["stats"]["projects"]
+    sprints = user_data["stats"]["sprints"]
+    
+    return f"""You are DOIT-AI, an intelligent productivity assistant for {user_data["user"]["name"]}.
+
+## USER PROFILE
+- Name: {user_data["user"]["name"]}
+- Role: {user_data["user"]["role"]}
+- Email: {user_data["user"]["email"]}
+
+## TASK SNAPSHOT
+- Total: {tasks["total"]}  |  Overdue: {tasks["overdue"]}  |  Due Soon: {tasks["dueSoon"]}
+- Completed This Week: {tasks["completedWeek"]}  |  This Month: {tasks["completedMonth"]}
+- Status: Done={tasks["statusBreakdown"].get("Done", 0)}, In Progress={tasks["statusBreakdown"].get("In Progress", 0)}, To Do={tasks["statusBreakdown"].get("To Do", 0)}
+- Priority: High={tasks["priorityBreakdown"].get("High", 0)}, Medium={tasks["priorityBreakdown"].get("Medium", 0)}, Low={tasks["priorityBreakdown"].get("Low", 0)}
+
+## PROJECTS
+- Total: {projects["total"]}  |  Owned: {projects["owned"]}  |  Member: {projects["memberOf"]}  |  Active: {projects["withTasks"]}
+
+## SPRINTS
+- Total: {sprints["total"]}  |  Active: {sprints["active"]}  |  Completed: {sprints["completed"]}
+
+## RECENT TASKS
+{format_recent_tasks(user_data["recentTasks"])}
+
+## HOW TO RESPOND
+- Lead with the most important insight
+- Reference specific task titles and numbers
+- Use emojis sparingly (✅ ⚠️ 🚀 📊 🔴)
+- Keep answers to 3-4 focused paragraphs
+- Always suggest a concrete next action
+- If overdue tasks exist, mention them early
+- Speak directly to {user_data["user"]["name"]} - be helpful, not robotic
+"""
+
+
+def format_pm_context(context: Dict[str, Any]) -> str:
+    """Format PM context for GPT."""
+    lines = []
+    
+    if 'project_name' in context:
+        lines.append(f"📊 **Project:** {context['project_name']}")
+        if 'project_description' in context:
+            lines.append(f"   {context['project_description'][:100]}")
+    
+    if 'team_size' in context:
+        lines.append(f"\n👥 **Team:** {context['team_size']} members")
+        if 'team_members' in context:
+            lines.append(f"   {', '.join(context['team_members'])}")
+    
+    if 'sprints' in context:
+        lines.append("\n🏃 **Sprints:**")
+        for sprint in context['sprints']:
+            lines.append(f"   • {sprint['name']} ({sprint['status']}): {sprint['progress']}")
+            lines.append(f"     {sprint['start_date']} → {sprint['end_date']}")
+    
+    if 'total_tasks' in context:
+        lines.append("\n✅ **Tasks:**")
+        lines.append(f"   Total: {context['total_tasks']}, Completed: {context['completed_tasks']}, In Progress: {context['in_progress_tasks']}, Pending: {context['pending_tasks']}")
+        if context.get('blocked_tasks', 0) > 0:
+            lines.append(f"   ⚠️ Blocked: {context['blocked_tasks']}")
+        if context.get('overdue_tasks', 0) > 0:
+            lines.append(f"   🚨 Overdue: {context['overdue_tasks']}")
+    
+    if 'team_workload' in context:
+        lines.append("\n⚡ **Team Workload:**")
+        for member in context['team_workload']:
+            lines.append(f"   • {member['name']}: {member['total_tasks']} tasks ({member['active_tasks']} active)")
+    
+    return '\n'.join(lines) if lines else "No project context available."
+
+
+def format_recent_tasks(tasks: list) -> str:
+    """Format recent tasks list."""
+    if not tasks:
+        return "  (none)"
+    lines = []
+    for t in tasks[:8]:
+        due = t.get("dueDate") or "no due date"
+        lines.append(f"  • {t['title']} [{t['status']}] priority={t['priority']} due={due}")
+    return "\n".join(lines)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# INSIGHTS EXTRACTION
+# ══════════════════════════════════════════════════════════════════════════════
+
+def extract_insights(context: dict, query_lower: str, is_pm_query: bool) -> list:
+    """Generate insight cards based on context."""
+    insights = []
+    
+    if is_pm_query:
+        # PM insights
+        if 'overdue_tasks' in context and context['overdue_tasks'] > 0:
+            insights.append({
+                "type": "warning",
+                "icon": "⚠️",
+                "title": f"{context['overdue_tasks']} Overdue Task(s)",
+                "description": "Tasks past due date need immediate attention.",
+            })
+        
+        if 'blocked_tasks' in context and context['blocked_tasks'] > 0:
+            insights.append({
+                "type": "warning",
+                "icon": "🚧",
+                "title": f"{context['blocked_tasks']} Blocked Task(s)",
+                "description": "Resolve dependencies to keep velocity up.",
+            })
+        
+        if 'team_workload' in context:
+            max_load = max((m['total_tasks'] for m in context['team_workload']), default=0)
+            if max_load > 5:
+                insights.append({
+                    "type": "info",
+                    "icon": "⚖️",
+                    "title": "Workload Imbalance Detected",
+                    "description": f"Some team members have {max_load}+ tasks assigned.",
+                })
+    else:
+        # General insights
+        tasks = context.get("stats", {}).get("tasks", {})
+        
+        if tasks.get("overdue", 0) > 0:
+            insights.append({
+                "type": "warning",
+                "icon": "⚠️",
+                "title": f"{tasks['overdue']} Overdue Task(s)",
+                "description": "Immediate action required.",
+            })
+        
+        if tasks.get("dueSoon", 0) > 0:
+            insights.append({
+                "type": "info",
+                "icon": "📅",
+                "title": f"{tasks['dueSoon']} Task(s) Due Soon",
+                "description": "Coming due within 7 days.",
+            })
+        
+        if tasks.get("completedWeek", 0) > 0:
+            insights.append({
+                "type": "success",
+                "icon": "✅",
+                "title": f"{tasks['completedWeek']} Tasks Completed This Week",
+                "description": "Great progress!",
+            })
+    
+    return insights
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# MESSAGE BUILDING
+# ══════════════════════════════════════════════════════════════════════════════
+
+def build_messages(conversation_history: list, user_message: str) -> list:
+    """Convert conversation history to OpenAI message format."""
+    messages = []
+    for msg in conversation_history[-10:]:
+        role = msg.get("role")
+        if role in ("user", "assistant"):
+            messages.append({"role": role, "content": msg.get("content", "")})
+    messages.append({"role": "user", "content": user_message})
+    return messages
+
+
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ANALYZE USER DATA (Comprehensive MongoDB Aggregation)
+# ══════════════════════════════════════════════════════════════════════════════
 
 def analyze_user_data(user_id):
     """
