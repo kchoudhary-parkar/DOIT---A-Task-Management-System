@@ -21,11 +21,14 @@ from database import db
 from utils.response import success_response, error_response
 from utils.azure_ai_utils import (
     chat_completion,
+    chat_completion_streaming,
     get_context_with_system_prompt,
     truncate_context,
     azure_client,
     AZURE_OPENAI_DEPLOYMENT,
 )
+from fastapi.responses import StreamingResponse
+import asyncio
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -163,6 +166,129 @@ def chat_ask(body_str: str, user_id: str):
         import traceback
         traceback.print_exc()
         return error_response(f"Chat failed: {str(e)}", 500)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PUBLIC API: Streaming Chat (for Voice)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def chat_ask_streaming(body_str: str, user_id: str):
+    """
+    Streaming version of chat_ask for voice interface.
+    Returns SSE stream with word-by-word generation for immediate TTS playback.
+    """
+    if not user_id:
+        return error_response("Unauthorized. Please login.", 401)
+    
+    if not _azure_ready():
+        return error_response("Azure OpenAI not initialized", 500)
+    
+    try:
+        data = json.loads(body_str)
+        user_message = data.get("message", "").strip()
+        conversation_history = data.get("conversationHistory", [])
+        persona = data.get("persona", "friendly")
+        project_id = data.get("project_id")
+        
+        if not user_message:
+            return error_response("Message is required", 400)
+        
+        print(f"💬 [Streaming Chat] User: {user_id}, Message: {user_message[:60]}...")
+        
+        # ── 1. Detect intent ────────────────────────────────────────────
+        intent = detect_intent(user_message)
+        is_pm_query = intent in [
+            "risk_analysis", "assignment_suggestion", "team_inquiry",
+            "sprint_status", "workload_check", "blocker_analysis",
+            "velocity_check", "recommendation"
+        ]
+        
+        # ── 2. Gather Context ───────────────────────────────────────────
+        if is_pm_query:
+            context = gather_pm_context(user_id, project_id, intent)
+            system_prompt = build_pm_system_prompt(persona, context)
+        else:
+            user_data = analyze_user_data(user_id)
+            if not user_data:
+                return error_response("Failed to analyze user data", 500)
+            system_prompt = build_general_system_prompt(user_data)
+            context = user_data
+        
+        # ── 3. Build Messages ───────────────────────────────────────────
+        prior_messages = build_messages(conversation_history, user_message)
+        messages = get_context_with_system_prompt(
+            prior_messages[:-1],
+            system_prompt=system_prompt
+        )
+        messages.append({"role": "user", "content": user_message})
+        messages = truncate_context(messages, max_tokens=8000)
+        
+        # ── 4. Return Streaming Response ───────────────────────────────
+        return StreamingResponse(
+            stream_chat_response(messages, context, is_pm_query, user_message),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",  # Disable nginx buffering
+            }
+        )
+    
+    except json.JSONDecodeError:
+        return error_response("Invalid JSON body", 400)
+    except Exception as e:
+        print(f"❌ [Streaming Chat] Error: {e}")
+        import traceback
+        traceback.print_exc()
+        return error_response(f"Chat failed: {str(e)}", 500)
+
+
+async def stream_chat_response(messages, context, is_pm_query, user_message):
+    """
+    Stream GPT-5.2 response word-by-word for immediate TTS playback.
+    Yields SSE-formatted chunks.
+    """
+    try:
+        print(f"📤 [Streaming] Starting stream with {len(messages)} messages")
+        
+        # Send initial metadata
+        yield f"data: {json.dumps({'type': 'start', 'mode': 'pm' if is_pm_query else 'general'})}\n\n"
+        
+        # Stream GPT-5.2 response
+        full_response = ""
+        word_buffer = ""
+        
+        for chunk in chat_completion_streaming(messages, max_tokens=1500):
+            full_response += chunk
+            word_buffer += chunk
+            
+            # Send word-by-word when we hit spaces/punctuation
+            if ' ' in word_buffer or any(p in word_buffer for p in ['.', '!', '?', ',', '\n']):
+                words = word_buffer.split()
+                for i, word in enumerate(words[:-1]):  # Keep last word in buffer
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': word + ' '})}\n\n"
+                    await asyncio.sleep(0.01)  # Tiny delay for smoother streaming
+                
+                # Keep last incomplete word in buffer
+                word_buffer = words[-1] if words else ""
+        
+        # Send remaining buffer
+        if word_buffer:
+            yield f"data: {json.dumps({'type': 'chunk', 'content': word_buffer})}\n\n"
+        
+        # Extract insights
+        insights = extract_insights(context, user_message.lower(), is_pm_query)
+        
+        # Send completion event
+        yield f"data: {json.dumps({'type': 'done', 'full_response': full_response, 'insights': insights})}\n\n"
+        
+        print(f"✅ [Streaming] Completed ({len(full_response)} chars)")
+    
+    except Exception as e:
+        print(f"❌ [Streaming] Error: {e}")
+        import traceback
+        traceback.print_exc()
+        yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
 
 
 # ══════════════════════════════════════════════════════════════════════════════

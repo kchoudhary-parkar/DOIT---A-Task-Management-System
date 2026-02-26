@@ -256,6 +256,232 @@ function TranscriptBubble({ text, role }) {
   );
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   INCREMENTAL TTS - Speak as words arrive
+   ═══════════════════════════════════════════════════════════════════════════ */
+class IncrementalSpeaker {
+  constructor(onAllSpeechEnd = null) {
+    this.utteranceQueue = [];
+    this.speaking = false;
+    this.fullText = "";
+    this.spokenText = "";
+    this.minSentenceLength = 5;  // Lower threshold for faster response
+    this.onAllSpeechEnd = onAllSpeechEnd;
+    this.streamComplete = false;
+  }
+
+  // Add text chunk and speak immediately
+  addChunk(text) {
+    this.fullText += text;
+    console.log('[Speaker] Chunk received:', text);
+    
+    // More aggressive sentence splitting - split on punctuation even without space
+    const sentences = this.fullText.split(/([.!?:;]+)/);
+    
+    // Reconstruct complete sentences with their punctuation
+    const completeParts = [];
+    for (let i = 0; i < sentences.length - 2; i += 2) {
+      if (sentences[i]) {
+        completeParts.push(sentences[i] + (sentences[i + 1] || ''));
+      }
+    }
+    
+    // Keep the last incomplete part
+    this.fullText = sentences[sentences.length - 1] || "";
+    
+    for (const sentence of completeParts) {
+      const clean = sentence.trim();
+      if (clean.length >= this.minSentenceLength) {
+        console.log('[Speaker] Queuing sentence:', clean);
+        this.spokenText += clean + " ";
+        this.queueSpeech(clean);
+      }
+    }
+  }
+
+  // Queue speech utterance
+  queueSpeech(text) {
+    if (!text.trim()) return;
+    
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.rate = 1.0;  // Normal speed for clarity
+    utter.pitch = 1.05;
+    
+    // CRITICAL: Select fastest voice
+    const voices = window.speechSynthesis.getVoices();
+    const fast = voices.find(v => 
+      v.lang.startsWith('en') && v.localService  // Local voices are faster
+    ) || voices[0];
+    if (fast) utter.voice = fast;
+    
+    utter.onend = () => {
+      console.log('[Speaker] Utterance ended');
+      this.speaking = false;
+      this.processQueue();
+    };
+    
+    utter.onerror = (e) => {
+      console.warn('[TTS] Error:', e);
+      this.speaking = false;
+      this.processQueue();
+    };
+    
+    this.utteranceQueue.push(utter);
+    console.log('[Speaker] Queue size:', this.utteranceQueue.length);
+    
+    // Start speaking if not already
+    if (!this.speaking) {
+      this.processQueue();
+    }
+  }
+
+  // Process speech queue
+  processQueue() {
+    if (this.utteranceQueue.length === 0) {
+      this.speaking = false;
+      console.log('[Speaker] Queue empty, stream complete:', this.streamComplete);
+      
+      // If stream is complete and queue is empty, we're done
+      if (this.streamComplete && this.onAllSpeechEnd) {
+        console.log('[Speaker] All speech finished!');
+        this.onAllSpeechEnd();
+      }
+      return;
+    }
+    
+    this.speaking = true;
+    const utter = this.utteranceQueue.shift();
+    console.log('[Speaker] Speaking utterance, remaining:', this.utteranceQueue.length);
+    window.speechSynthesis.speak(utter);
+  }
+
+  // Flush remaining text
+  flush() {
+    console.log('[Speaker] Flushing remaining text:', this.fullText);
+    this.streamComplete = true;
+    
+    if (this.fullText.trim()) {
+      this.spokenText += this.fullText;
+      this.queueSpeech(this.fullText);
+      this.fullText = "";
+    } else if (this.utteranceQueue.length === 0 && !this.speaking) {
+      // Nothing to flush and nothing playing, we're done
+      if (this.onAllSpeechEnd) {
+        console.log('[Speaker] No remaining text, calling onAllSpeechEnd');
+        this.onAllSpeechEnd();
+      }
+    }
+  }
+
+  // Stop all speech
+  stop() {
+    window.speechSynthesis.cancel();
+    this.utteranceQueue = [];
+    this.speaking = false;
+    this.fullText = "";
+    this.spokenText = "";
+  }
+
+  // Get all spoken text
+  getSpokenText() {
+    return this.spokenText;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   STREAMING API CALL
+   ═══════════════════════════════════════════════════════════════════════════ */
+const useStreamingChat = (onChunk, onComplete, onError, onSpeechEnd) => {
+  const sendStreamingMessage = useCallback(async (message, conversationHistory = []) => {
+    const speaker = new IncrementalSpeaker(() => {
+      // Called when ALL speech has finished
+      console.log('[Stream] Speech completely finished');
+      if (onSpeechEnd) onSpeechEnd();
+    });
+    let fullResponse = "";
+    
+    try {
+      const token = localStorage.getItem('token');
+      const tabKey = sessionStorage.getItem('tab_session_key');
+      
+      const response = await fetch('http://localhost:8000/api/chat/ask/stream', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'X-Tab-Session-Key': tabKey || '',
+        },
+        body: JSON.stringify({
+          message,
+          conversationHistory,
+          persona: 'friendly',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+
+          try {
+            const data = JSON.parse(line.slice(6));
+
+            if (data.type === 'start') {
+              console.log('[Stream] Started:', data.mode);
+            }
+            else if (data.type === 'chunk') {
+              const text = data.content;
+              fullResponse += text;
+              
+              console.log('[Stream] Chunk:', text);
+              
+              // Speak immediately
+              speaker.addChunk(text);
+              
+              // Update UI
+              if (onChunk) onChunk(text);
+            }
+            else if (data.type === 'done') {
+              console.log('[Stream] Complete');
+              
+              // Flush remaining text to speech
+              speaker.flush();
+              
+              if (onComplete) {
+                onComplete(data.full_response || fullResponse, data.insights);
+              }
+            }
+            else if (data.type === 'error') {
+              throw new Error(data.message);
+            }
+          } catch (parseErr) {
+            console.warn('[Stream] Parse error:', parseErr);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[Stream] Error:', err);
+      speaker.stop();
+      if (onError) onError(err);
+    }
+
+    return speaker;
+  }, [onChunk, onComplete, onError, onSpeechEnd]);
+  return { sendStreamingMessage };
+};
+
 /* ─── Conversation scroll log ────────────────────────────────────────────── */
 function ConversationLog({ turns }) {
   const logRef = useRef(null);
@@ -296,6 +522,7 @@ const AIChatbot = ({ user }) => {
   const sttRef       = useRef(null);
   const exprTimer    = useRef(null);
   const listeningRef = useRef(false);
+  const speakerRef   = useRef(null);  // For incremental TTS control
 
   /* ── Color per mode ──────────────────────────────────────────────── */
   const modeColor = {
@@ -312,6 +539,42 @@ const AIChatbot = ({ user }) => {
     setExpression(expr);
     if (ttl) exprTimer.current = setTimeout(() => setExpression('idle'), ttl);
   }, []);
+
+  /* ── Streaming chat hook ──────────────────────────────────────────── */
+  const { sendStreamingMessage } = useStreamingChat(
+    // onChunk
+    (chunk) => {
+      setBotText(prev => prev + chunk);
+    },
+    // onComplete (streaming finished, but speech may still be playing)
+    (fullText, insights) => {
+      console.log('[Chat] Stream complete, saving to conversation history');
+      setTurns(prev => [...prev, { role: 'bot', text: fullText }]);
+      // Don't set mode to idle yet - let onSpeechEnd handle it
+    },
+    // onError
+    (err) => {
+      setErrorMsg(err.message || 'Stream failed');
+      setMode('error');
+      setExpr('error', 3500);
+      setStatusLabel('Error — tap to retry');
+      setTimeout(() => {
+        setMode('idle');
+        setStatusLabel('Tap mic to speak');
+        setErrorMsg('');
+      }, 4500);
+    },
+    // onSpeechEnd (ALL speech finished)
+    () => {
+      console.log('[Chat] All speech finished, returning to idle');
+      setMode('idle');
+      setExpr('happy', 2500);
+      setStatusLabel('Tap mic to speak');
+      setBotText('');
+      if (!isOpen) setHasUnread(true);
+    }
+  );
+
   /* ── Ensure AI Assistant conversation exists ─────────────────────── */
   const ensureConversation = useCallback(async () => {
     if (convId) return convId;
@@ -375,45 +638,20 @@ const AIChatbot = ({ user }) => {
   }, [isOpen, setExpr]);
 
   /* ── Send transcript to DOIT-AI Assistant (GPT-5.2) ───────────── */
+  /* ── Send to agent (STREAMING VERSION) ────────────────────────────── */
   const sendToAgent = useCallback(async (text) => {
-    setMode('processing');
-    setExpr('thinking');
-    setStatusLabel('Thinking…');
+    setMode('speaking');  // Start speaking mode immediately
+    setExpr('speaking');
+    setStatusLabel('Speaking…');
+    setBotText('');  // Clear previous text
 
     try {
-      // Ensure we have a conversation
-      const id = await ensureConversation();
-      if (!id) throw new Error('Could not create conversation');
-
-      const tabKey = sessionStorage.getItem('tab_session_key');
-      const res = await fetch(`http://localhost:8000/api/ai-assistant/conversations/${id}/messages`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-          'X-Tab-Session-Key': tabKey || '',
-        },
-        body: JSON.stringify({
-          content: text,
-          stream: false,
-          include_user_context: true,
-        }),
-      });
-
-      if (!res.ok) throw new Error(`AI Assistant returned ${res.status}`);
-      const data = await res.json();
-      
-      if (!data.success || !data.message) {
-        throw new Error('Invalid response from AI Assistant');
-      }
-
-      const reply = data.message.content || 'I encountered an issue. Please try again.';
-
-      setTurns(prev => [...prev, { role: 'bot', text: reply }]);
-      speakReply(reply);
+      // Start streaming request
+      const speaker = await sendStreamingMessage(text, turns);
+      speakerRef.current = speaker;
     } catch (err) {
-      console.error('[DOIT-AI] Assistant error:', err);
-      setErrorMsg(err.message || 'Assistant unreachable');
+      console.error('[DOIT-AI] Stream error:', err);
+      setErrorMsg(err.message || 'Agent unreachable');
       setMode('error');
       setExpr('error', 3500);
       setStatusLabel('Error — tap to retry');
@@ -423,7 +661,7 @@ const AIChatbot = ({ user }) => {
         setErrorMsg('');
       }, 4500);
     }
-  }, [ensureConversation, speakReply, setExpr]);
+  }, [sendStreamingMessage, turns, setExpr]);
 
   /* ── STT: start recognition ─────────────────────────────────────── */
   const startListening = useCallback(() => {
@@ -509,7 +747,12 @@ const AIChatbot = ({ user }) => {
   }, []);
 
   /* ── Stop everything ─────────────────────────────────────────────── */
+  /* ── Stop everything ─────────────────────────────────────────────── */
   const stopAll = useCallback(() => {
+    if (speakerRef.current) {
+      speakerRef.current.stop();
+      speakerRef.current = null;
+    }
     window.speechSynthesis?.cancel();
     if (sttRef.current) { try { sttRef.current.abort(); } catch(e){} sttRef.current = null; }
     listeningRef.current = false;
