@@ -16,7 +16,7 @@ celery_app = Celery(
     "doit_worker",
     broker=REDIS_URL,
     backend=REDIS_URL,
-    include=["tasks.code_review_tasks", "tasks.ai_pm_tasks"]
+    include=["tasks.code_review_tasks"]
 )
 
 # Celery configuration
@@ -51,16 +51,8 @@ celery_app.conf.task_routes = {
         "queue": "code_review",
         "routing_key": "code_review.analyze",
     },
-    "tasks.ai_pm_tasks.scan_projects_for_risks": {
-        "queue": "ai_pm",
-        "routing_key": "ai_pm.scan_risks",
-    },
-    "tasks.ai_pm_tasks.update_team_insights": {
-        "queue": "ai_pm",
-        "routing_key": "ai_pm.insights",
-    },
 }
 
 print("✅ Celery app initialized")
 print(f"   Broker: {REDIS_URL}")
-print(f"   Tasks included: tasks.code_review_tasks, tasks.ai_pm_tasks")
+print(f"   Tasks included: tasks.code_review_tasks")
