@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from "react";
 import './DocumentIntelligence.css';
+import Loader from "../Loader/Loader";
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://localhost:8000";
 
@@ -164,8 +165,7 @@ export default function DocumentIntelligence() {
             >
               {exportLoading ? (
                 <>
-                  <span className="spinner"></span>
-                  Generating PDF…
+                  <Loader />
                 </>
               ) : exportDone ? (
                 "✓ PDF Downloaded!"

@@ -21,7 +21,7 @@ async def chat_ask_stream(data: ChatAskRequest, user_id: str = Depends(get_curre
     """Ask AI chat (streaming for voice) - Returns SSE stream"""
     body = json.dumps(data.model_dump())
     return chat_controller.chat_ask_streaming(body, user_id)
-
+    
 
 @router.get("/suggestions")
 async def get_suggestions(user_id: str = Depends(get_current_user)):
