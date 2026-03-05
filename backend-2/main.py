@@ -27,6 +27,7 @@ from routers import (
 from routers.local_agent_router import router as local_agent_router
 from routers.agent_data_router import router as agent_data_router
 from init_db import initialize_super_admin, initialize_default_channels
+from routers.langgraph_agent_router import router as langgraph_agent_router
 
 from routers.document_intelligence_router import router as document_intelligence_router
 
@@ -108,7 +109,9 @@ app.include_router(
     code_review_router
 )  # Code Review endpoints (prefix defined in router)
 app.include_router(document_intelligence_router, tags=["Document Intelligence"])
-
+app.include_router(
+    langgraph_agent_router, prefix="/api/langgraph-agent", tags=["LangGraph Agent"]
+)
 
 # Static files
 uploads_dir = Path("uploads")
@@ -138,7 +141,8 @@ async def health_check():
             "Team Chat",
             "Data Visualization",
             "AI Assistant (GPT-5.2 + FLUX)",
-            "Azure AI Foundry Agent (asst_0uvId9Fz7NLJfxIwIzD0uN9b)",  # ← NEW
+            "Azure AI Foundry Agent (asst_0uvId9Fz7NLJfxIwIzD0uN9b)",
+            "LangGraph AI Agent (Azure OpenAI + Tools)",
         ],
     }
 
@@ -183,7 +187,8 @@ if __name__ == "__main__":
     print("  ✓ Team Collaboration Chat")
     print("  ✓ Data Visualization & Analytics")
     print("  ✓ AI Assistant (GPT-5.2-chat + FLUX-1.1-pro)")
-    print("  ✓ Azure AI Foundry Agent (asst_0uvId9Fz7NLJfxIwIzD0uN9b)")  # ← NEW
+    print("  ✓ Azure AI Foundry Agent (asst_0uvId9Fz7NLJfxIwIzD0uN9b)")
+    print("  ✓ LangGraph AI Agent (Azure OpenAI + LangChain Tools)")
     print("=" * 60)
     print("🌐 Server starting on http://0.0.0.0:8000")
     print("📖 API Docs: http://localhost:8000/docs")

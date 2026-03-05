@@ -12,6 +12,8 @@ import { AuthContext } from '../../context/AuthContext';
 import { foundryAgentAPI } from '../../services/foundryAgentAPI';
 import { localAgentAPI }   from '../../services/localAgentAPI';
 import './AIAssistantPage.css';
+import { langgraphAgentAPI } from '../../services/langgraphAgentAPI';
+
 
 const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
@@ -231,6 +233,8 @@ const AIAssistantPage = () => {
   const [activeTab, setActiveTab] = useState('doit');
   const isFoundry = activeTab === 'foundry';
   const isLocal   = activeTab === 'local';
+  const isLangGraph = activeTab === 'langgraph'; // NEW
+
 
   // ── DOIT-AI state ────────────────────────────────────────────────────────
   const [conversations,     setConversations]     = useState([]);
@@ -247,6 +251,10 @@ const AIAssistantPage = () => {
   const [localActiveConv,setLocalActiveConv] = useState(null);
   const [localMessages,  setLocalMessages]   = useState([]);
   const [localHealth,    setLocalHealth]     = useState(null); // {healthy, model, error}
+  const [langgraphConvs,     setLanggraphConvs]     = useState([]);
+  const [langgraphActiveConv,setLanggraphActiveConv] = useState(null);
+  const [langgraphMessages,  setLanggraphMessages]   = useState([]);
+  const [langgraphHealth,    setLanggraphHealth]     = useState(null);
 
   // ── Shared UI state ──────────────────────────────────────────────────────
   const [inputText,    setInputText]    = useState('');
@@ -280,6 +288,49 @@ const AIAssistantPage = () => {
       if (data.success) setLocalConvs(data.conversations || []);
     } catch (e) { console.error('Local convs:', e); }
   }, []);
+  const loadLanggraphConversations = useCallback(async () => {
+    try {
+      const data = await langgraphAgentAPI.listConversations();
+      if (data.success) setLanggraphConvs(data.conversations || []);
+    } catch (e) { console.error('LangGraph convs:', e); }
+  }, []);
+  const checkLanggraphHealth = useCallback(async () => {
+    if (langgraphHealth !== null) return;
+    try {
+      const data = await langgraphAgentAPI.health();
+      setLanggraphHealth(data);
+    } catch (e) {
+      setLanggraphHealth({ healthy: false, error: 'Cannot reach backend' });
+    }
+  }, [langgraphHealth]);
+
+  useEffect(() => {
+    loadDoitConversations();
+    loadFoundryConversations();
+    loadLocalConversations();
+    loadLanggraphConversations(); // ADD THIS
+  }, [loadDoitConversations, loadFoundryConversations, loadLocalConversations, loadLanggraphConversations]);
+
+  // Check health when LangGraph tab is opened
+  useEffect(() => {
+    if (isLangGraph) checkLanggraphHealth();
+  }, [isLangGraph, checkLanggraphHealth]);
+
+  // ── Load LangGraph messages ───────────────────────────────────────────────
+  useEffect(() => {
+    if (langgraphActiveConv) { 
+      setLanggraphMessages([]); 
+      loadLanggraphMessages(langgraphActiveConv._id); 
+    }
+    else setLanggraphMessages([]);
+  }, [langgraphActiveConv?._id]); // eslint-disable-line
+
+  const loadLanggraphMessages = async (id) => {
+    try {
+      const d = await langgraphAgentAPI.getMessages(id);
+      if (d.success) setLanggraphMessages(d.messages || []);
+    } catch (e) { console.error(e); }
+  };
 
   // Health-check local agent when tab is first opened
   const checkLocalHealth = useCallback(async () => {
@@ -352,6 +403,7 @@ const AIAssistantPage = () => {
     } catch (e) { console.error(e); }
   };
 
+  
   // ─────────────────────────────────────────────────────────────────────────
   // DOIT-AI actions
   // ─────────────────────────────────────────────────────────────────────────
@@ -535,7 +587,80 @@ const AIAssistantPage = () => {
     try { await foundryAgentAPI.resetThread(); setFoundryMessages([]); }
     catch (e) { console.error(e); }
   };
+    // ─────────────────────────────────────────────────────────────────────────
+  // LangGraph Agent actions
+  // ─────────────────────────────────────────────────────────────────────────
+  const createNewLanggraphConversation = async () => {
+    try {
+      const d = await langgraphAgentAPI.createConversation('LangGraph AI Chat');
+      if (d.success && d.conversation) {
+        setLanggraphConvs(p => [d.conversation, ...p]);
+        setLanggraphActiveConv(d.conversation);
+        setLanggraphMessages([]);
+        return d.conversation;
+      }
+    } catch (e) { console.error(e); return null; }
+  };
 
+  const sendLanggraphMessage = async () => {
+    if (!inputText.trim() || isLoading) return;
+    const messageContent = inputText;
+    let conv = langgraphActiveConv || await createNewLanggraphConversation();
+    if (!conv) return;
+    
+    const opt = { 
+      _id: `opt-${Date.now()}`, 
+      role: 'user', 
+      content: messageContent, 
+      created_at: new Date().toISOString() 
+    };
+    setLanggraphMessages(p => [...p, opt]);
+    setInputText(''); 
+    setIsLoading(true); 
+    setIsTyping(true);
+    
+    try {
+      const d = await langgraphAgentAPI.sendMessage(conv._id, messageContent, true);
+      setIsTyping(false);
+      if (d.success && d.message) {
+        setLanggraphMessages(p => [...p, {
+          ...d.message,
+          tool_calls: d.tool_calls || [],
+          model: d.model,
+        }]);
+        loadLanggraphConversations();
+      } else throw new Error(d.detail || d.error || 'No response');
+    } catch (e) {
+      setIsTyping(false);
+      setLanggraphMessages(p => p.filter(m => m._id !== opt._id));
+      setLanggraphMessages(p => [...p, { 
+        role: 'assistant', 
+        content: `❌ LangGraph agent error: ${e.message}`, 
+        created_at: new Date().toISOString() 
+      }]);
+    } finally { setIsLoading(false); }
+  };
+
+  const deleteLanggraphConversation = async (id, e) => {
+    e.stopPropagation();
+    try {
+      await langgraphAgentAPI.deleteConversation(id);
+      setLanggraphConvs(p => p.filter(c => c._id !== id));
+      if (langgraphActiveConv?._id === id) { 
+        setLanggraphActiveConv(null); 
+        setLanggraphMessages([]); 
+      }
+    } catch (e) { console.error(e); }
+  };
+
+  const resetLanggraphHistory = async () => {
+    if (!langgraphActiveConv) return;
+    try { 
+      await langgraphAgentAPI.resetHistory(langgraphActiveConv._id); 
+      setLanggraphMessages([]); 
+    }
+    catch (e) { console.error(e); }
+  };
   // ─────────────────────────────────────────────────────────────────────────
   // Local Agent actions
   // ─────────────────────────────────────────────────────────────────────────
@@ -597,6 +722,7 @@ const AIAssistantPage = () => {
   const sendMessage = () => {
     if (isFoundry) return sendFoundryMessage();
     if (isLocal)   return sendLocalMessage();
+    if (isLangGraph) return sendLanggraphMessage(); 
     return sendDoitMessage();
   };
 
@@ -613,12 +739,12 @@ const AIAssistantPage = () => {
   };
 
   // ── Derived tab values ───────────────────────────────────────────────────
-  const activeConvList  = isFoundry ? foundryConvs  : isLocal ? localConvs  : conversations;
-  const selectedConv    = isFoundry ? foundryActiveConv : isLocal ? localActiveConv : activeConversation;
-  const activeMessages  = isFoundry ? foundryMessages : isLocal ? localMessages : messages;
-  const setSelectedConv = isFoundry ? setFoundryActiveConv : isLocal ? setLocalActiveConv : setActiveConversation;
-  const handleNewChat   = isFoundry ? createNewFoundryConversation : isLocal ? createNewLocalConversation : createNewDoitConversation;
-  const handleDeleteConv = isFoundry ? deleteFoundryConversation : isLocal ? deleteLocalConversation : deleteDoitConversation;
+  const activeConvList  = isFoundry ? foundryConvs  : isLocal ? localConvs  : isLangGraph ? langgraphConvs : conversations;
+  const selectedConv    = isFoundry ? foundryActiveConv : isLocal ? localActiveConv : isLangGraph ? langgraphActiveConv : activeConversation;
+  const activeMessages  = isFoundry ? foundryMessages : isLocal ? localMessages : isLangGraph ? langgraphMessages : messages;
+  const setSelectedConv = isFoundry ? setFoundryActiveConv : isLocal ? setLocalActiveConv : isLangGraph ? setLanggraphActiveConv : setActiveConversation;
+  const handleNewChat   = isFoundry ? createNewFoundryConversation : isLocal ? createNewLocalConversation : isLangGraph ? createNewLanggraphConversation : createNewDoitConversation;
+  const handleDeleteConv = isFoundry ? deleteFoundryConversation : isLocal ? deleteLocalConversation : isLangGraph ? deleteLanggraphConversation : deleteDoitConversation;
 
   const suggestions = isFoundry ? [
     "What's the status of my projects?",
@@ -630,7 +756,12 @@ const AIAssistantPage = () => {
     "What are my overdue items?",
     "Which project needs attention?",
     "What should I work on next?",
-  ] : [
+  ] : isLangGraph ? [  // ADD THIS
+    "Create a task called 'Fix login bug' in CDW project with high priority",
+    "Show me all tasks in the Authentication project",
+    "Add all high priority tasks to Q1 Sprint",
+    "List all team members in my projects",
+  ]: [
     "Show me my task overview and priorities",
     "Create a high priority task for login bug fix",
     "List all my overdue tasks",
@@ -643,12 +774,16 @@ const AIAssistantPage = () => {
   const tabIcon = (tab) => {
     if (tab === 'foundry') return <Zap   size={20} />;
     if (tab === 'local')   return <Shield size={20} />;
+    if (tab === 'langgraph') return <Zap size={20} style={{color: '#7C3AED'}} />;  // ADD THIS
+
     return <Bot size={20} />;
   };
 
   const tabLabel = () => {
     if (isFoundry) return 'Azure AI Foundry Agent';
     if (isLocal)   return 'Local AI (On-Premise)';
+    if (isLangGraph) return 'LangGraph AI Agent';  // ADD THIS
+
     return 'DOIT AI Assistant';
   };
 
@@ -656,6 +791,8 @@ const AIAssistantPage = () => {
     if (msgRole !== 'assistant') return '';
     if (isFoundry) return 'foundry';
     if (isLocal)   return 'local';
+    if (isLangGraph) return 'langgraph';  // ADD THIS
+
     return '';
   };
 
@@ -663,12 +800,14 @@ const AIAssistantPage = () => {
     if (msgRole === 'user') return <User size={20} />;
     if (isFoundry) return <Zap    size={20} />;
     if (isLocal)   return <Shield size={20} />;
+    if (isLangGraph) return <Zap size={20} style={{color: '#7C3AED'}} />;  // ADD THIS
+
     return <Bot size={20} />;
   };
 
   const renderBubbleContent = (msg) => {
     let contentElem;
-    if (isFoundry || isLocal) {
+    if (isFoundry || isLocal || isLangGraph) {
       contentElem = <MarkdownMessage content={msg.content} />;
     } else {
       contentElem = <FormattedMessage content={msg.content} insights={msg.insights} userDataSummary={msg.user_data_summary} commandResult={msg.command_result} />;
@@ -710,14 +849,25 @@ const AIAssistantPage = () => {
             <button className={`ai-tab-btn local ${activeTab === 'local' ? 'active' : ''}`} onClick={() => setActiveTab('local')}>
               <Shield size={13} />Local
             </button>
+            <button 
+              className={`ai-tab-btn langgraph ${activeTab === 'langgraph' ? 'active' : ''}`} 
+              onClick={() => setActiveTab('langgraph')}
+            >
+              <Zap size={13} style={{color: '#7C3AED'}} />LangGraph
+            </button>
           </div>
 
           <button
-            className={`new-chat-btn ${isFoundry ? 'foundry' : isLocal ? 'local' : ''}`}
+            className={`new-chat-btn ${
+              isFoundry ? 'foundry' 
+              : isLocal ? 'local' 
+              : isLangGraph ? 'langgraph'  // ADD THIS
+              : ''
+            }`}
             onClick={handleNewChat}
           >
             <Plus size={18} />
-            New {isLocal ? 'Private' : isFoundry ? 'Agent' : ''} Chat
+            New {isLocal ? 'Private' : isFoundry ? 'Agent' : isLangGraph ? 'LangGraph' : ''} Chat
           </button>
         </div>
 
@@ -726,7 +876,7 @@ const AIAssistantPage = () => {
           {activeConvList.map(conv => (
             <div
               key={conv._id}
-              className={`conversation-item ${selectedConv?._id === conv._id ? 'active' : ''} ${isFoundry ? 'foundry' : isLocal ? 'local' : ''}`}
+              className={`conversation-item ${selectedConv?._id === conv._id ? 'active' : ''} ${isFoundry ? 'foundry' : isLocal ? 'local' : isLangGraph ? 'langgraph' : ''}`}
               onClick={() => setSelectedConv(conv)}
             >
               <div className="conversation-title">{conv.title}</div>
@@ -743,7 +893,11 @@ const AIAssistantPage = () => {
             <span className="ai-engine-badge foundry"><Zap size={11} /> Azure AI Foundry</span>
           ) : isLocal ? (
             <span className="ai-engine-badge local"><Shield size={11} /> On-Premise · Ollama</span>
-          ) : (
+          ) :isLangGraph ? (  // ADD THIS
+            <span className="ai-engine-badge langgraph">
+              <Zap size={11} style={{color: '#7C3AED'}} /> LangGraph · Multi-Agent
+            </span>
+          ) :(
             <span className="ai-engine-badge"><Bot size={11} /> GPT-powered DOIT-AI</span>
           )}
         </div>
@@ -751,7 +905,7 @@ const AIAssistantPage = () => {
 
       {/* ── Main Chat Area ──────────────────────────────────────────────────── */}
       <div className="ai-chat-area">
-        <div className={`ai-chat-header ${isFoundry ? 'foundry' : isLocal ? 'local' : ''}`}>
+        <div className={`ai-chat-header ${isFoundry ? 'foundry' : isLocal ? 'local' : isLangGraph ? 'langgraph': ''}`}>
           <div className="ai-chat-title">
             {tabIcon(activeTab)}
             {tabLabel()}
@@ -768,6 +922,17 @@ const AIAssistantPage = () => {
               <div className={`ai-status-badge ${localHealth.healthy ? '' : 'offline'}`}>
                 <div className={`ai-status-dot ${localHealth.healthy ? 'local' : 'offline'}`}></div>
                 {localHealth.healthy ? `${localHealth.model || 'Ollama'} ready` : 'Ollama offline'}
+              </div>
+            )}
+            {isLangGraph && selectedConv && (
+              <button className="ai-reset-btn langgraph" onClick={resetLanggraphHistory}>↺ Reset History</button>
+            )}
+            
+            {/* LangGraph health pill - ADD THIS */}
+            {isLangGraph && langgraphHealth && (
+              <div className={`ai-status-badge ${langgraphHealth.healthy ? 'langgraph' : 'offline'}`}>
+                <div className={`ai-status-dot ${langgraphHealth.healthy ? 'langgraph' : 'offline'}`}></div>
+                {langgraphHealth.healthy ? `${langgraphHealth.deployment || 'Azure OpenAI'} ready` : 'Offline'}
               </div>
             )}
             <div className="ai-status-badge" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -801,17 +966,22 @@ const AIAssistantPage = () => {
         <div className="ai-messages-container">
           {activeMessages.length === 0 ? (
             <div className="ai-empty-state">
-              <div className={`ai-empty-icon ${isFoundry ? 'foundry' : isLocal ? 'local' : ''}`}>
-                {isFoundry ? <Zap size={52} color="#7C3AED" /> : isLocal ? <Shield size={52} color="#059669" /> : <Bot size={52} color="#667eea" />}
+              <div className={`ai-empty-icon ${isFoundry ? 'foundry' : isLocal ? 'local' : isLangGraph ? 'langgraph' : ''}`}>
+                {isFoundry ? <Zap size={52} color="#7C3AED" /> : isLocal ? <Shield size={52} color="#059669" /> : isLangGraph ? (  // ADD THIS
+                  <Zap size={52} color="#7C3AED" />
+                ) : <Bot size={52} color="#667eea" />}
               </div>
               <div className="ai-empty-title">
-                {isFoundry ? 'Azure AI Foundry Agent' : isLocal ? 'Local AI — 100% On-Premise' : 'Welcome to DOIT AI Assistant'}
+                {isFoundry ? 'Azure AI Foundry Agent' : isLocal ? 'Local AI — 100% On-Premise' : isLangGraph  // ADD THIS
+                  ? 'LangGraph AI Agent — Multi-Agent System': 'Welcome to DOIT AI Assistant'}
               </div>
               <div className="ai-empty-subtitle">
                 {isFoundry
                   ? 'Pre-configured with your DOIT context, Foundry tools, and full multi-turn memory. Ask about your tasks, projects, sprints, or anything else.'
                   : isLocal
                   ? `Powered by Ollama + LlamaIndex + ChromaDB. All data stays on your infrastructure — nothing is sent to external APIs. RAG retrieves relevant context from your live DOIT data.${localHealth && !localHealth.healthy ? `\n\n⚠️ ${localHealth.error}` : ''}`
+                  : isLangGraph  // ADD THIS
+                  ? 'Advanced multi-agent system powered by Azure OpenAI and LangGraph. Can execute complex workflows, manage tasks/sprints/projects, and reason across multiple steps. Has access to powerful tools for task automation.'
                   : 'Get personalized insights, task analytics, and intelligent recommendations based on your project data and team performance. I can also help you create, assign, and manage tasks automatically!'}
               </div>
               {isLocal && localHealth && !localHealth.healthy && (
@@ -823,11 +993,20 @@ const AIAssistantPage = () => {
                   </div>
                 </div>
               )}
+              {isLangGraph && langgraphHealth && !langgraphHealth.healthy && (
+                <div className="ai-local-offline-banner">
+                  <AlertCircle size={16} />
+                  <div>
+                    <strong>LangGraph Agent offline</strong>
+                    <p>{langgraphHealth.error}</p>
+                  </div>
+                </div>
+              )}
               <div className="ai-suggestion-chips">
                 {suggestions.map((prompt, idx) => (
                   <div
                     key={idx}
-                    className={`ai-suggestion-chip ${isFoundry ? 'foundry' : isLocal ? 'local' : ''}`}
+                    className={`ai-suggestion-chip ${isFoundry ? 'foundry' : isLocal ? 'local' : isLangGraph ? 'langgraph' : ''}`}
                     onClick={() => setInputText(prompt)}
                   >
                     {prompt}
@@ -857,8 +1036,13 @@ const AIAssistantPage = () => {
                         <Shield size={10} /> RAG · {msg.model}
                       </div>
                     )}
+                    {isLangGraph && msg.role === 'assistant' && msg.tool_calls && msg.tool_calls.length > 0 && (
+                      <div className="ai-tool-badge">
+                        <Zap size={10} /> {msg.tool_calls.length} tool{msg.tool_calls.length > 1 ? 's' : ''} executed
+                      </div>
+                    )}
                     {/* Token badge */}
-                    {(isFoundry || isLocal) && msg.tokens_used > 0 && (
+                    {(isFoundry || isLocal || isLangGraph) && msg.tokens_used > 0 && (
                       <div className="ai-token-badge">{msg.tokens_used} tokens</div>
                     )}
                     <div className="ai-message-timestamp">
@@ -871,8 +1055,10 @@ const AIAssistantPage = () => {
 
               {isTyping && (
                 <div className="ai-message assistant">
-                  <div className={`ai-message-avatar ${isFoundry ? 'foundry' : isLocal ? 'local' : ''}`}>
-                    {isFoundry ? <Zap size={20} /> : isLocal ? <Shield size={20} /> : <Bot size={20} />}
+                  <div className={`ai-message-avatar ${isFoundry ? 'foundry' : isLocal ? 'local' : isLangGraph ? 'langgraph': ''}`}>
+                    {isFoundry ? <Zap size={20} /> : isLocal ? <Shield size={20} /> : isLangGraph ? (  // ADD THIS
+                      <Zap size={20} style={{color: '#7C3AED'}} />
+                    ): <Bot size={20} />}
                   </div>
                   <div className="ai-message-content">
                     <div className="ai-message-bubble">
@@ -893,7 +1079,7 @@ const AIAssistantPage = () => {
         {/* ── Input area ────────────────────────────────────────────────────── */}
         <div className="ai-input-area">
           {/* DOIT-AI action buttons */}
-          {!isFoundry && !isLocal && (
+          {!isFoundry && !isLocal && !isLangGraph && (
             <div className="ai-input-actions">
               <button className="ai-action-btn" onClick={generateImage} disabled={isLoading || !inputText.trim()} title="Generate an image">
                 <Image size={16} /> Generate Image
@@ -921,15 +1107,24 @@ const AIAssistantPage = () => {
               Private &amp; on-premise · Ollama LLM · ChromaDB RAG · no data leaves your network
             </div>
           )}
+          {/* LangGraph info strip - ADD THIS */}
+          {isLangGraph && (
+            <div className="ai-langgraph-strip">
+              <Zap size={12} style={{color: '#7C3AED'}} />
+              Multi-agent system with tools for task/sprint/project automation · Azure OpenAI powered
+            </div>
+          )}
 
           <div className="ai-input-container">
             <div className="ai-textarea-wrapper">
               <textarea
                 ref={textareaRef}
-                className={`ai-textarea ${isFoundry ? 'foundry' : isLocal ? 'local' : ''}`}
+                className={`ai-textarea ${isFoundry ? 'foundry' : isLocal ? 'local' : isLangGraph ? 'langgraph': ''}`}
                 placeholder={
                   isFoundry ? 'Message the Foundry Agent… (Shift+Enter for newline)'
                   : isLocal  ? 'Message the local Ollama model… (Shift+Enter for newline)'
+                  : isLangGraph ? 'Ask LangGraph Agent to automate tasks… (Shift+Enter for newline)'  // ADD THIS
+
                   : uploadedFile ? `Ask about "${uploadedFile}"...`
                   : "Ask me anything or give me commands like 'Create a task for...' or 'Show my tasks'"
                 }
@@ -942,7 +1137,7 @@ const AIAssistantPage = () => {
               <MicButton inputText={inputText} setInputText={setInputText} variant="doit" disabled={isLoading} />
             </div>
             <button
-              className={`ai-send-btn ${isFoundry ? 'foundry' : isLocal ? 'local' : ''}`}
+              className={`ai-send-btn ${isFoundry ? 'foundry' : isLocal ? 'local' : isLangGraph ? 'langgraph': ''}`}
               onClick={sendMessage}
               disabled={isLoading || !inputText.trim()}
             >
