@@ -211,23 +211,51 @@ def generate_image(
         Dict with image_url, filename, and status
     """
     try:
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {AZURE_FLUX_KEY}"
-        }
+        if not AZURE_FLUX_ENDPOINT:
+            return {"success": False, "error": "AZURE_FLUX_ENDPOINT is not configured"}
+        if not AZURE_FLUX_KEY:
+            return {"success": False, "error": "AZURE_FLUX_KEY is not configured"}
+        if not AZURE_FLUX_MODEL:
+            return {"success": False, "error": "AZURE_FLUX_MODEL is not configured"}
         
         payload = {
             "prompt": prompt,
             "n": 1,
             "model": AZURE_FLUX_MODEL
         }
-        
-        response = requests.post(
-            AZURE_FLUX_ENDPOINT,
-            headers=headers,
-            json=payload,
-            timeout=90
-        )
+
+        auth_header_candidates = [
+            {
+                "Content-Type": "application/json",
+                "api-key": AZURE_FLUX_KEY,
+            },
+            {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {AZURE_FLUX_KEY}",
+            },
+        ]
+
+        response = None
+        attempted_schemes = []
+        for headers in auth_header_candidates:
+            scheme = "api-key" if "api-key" in headers else "bearer"
+            attempted_schemes.append(scheme)
+            response = requests.post(
+                AZURE_FLUX_ENDPOINT,
+                headers=headers,
+                json=payload,
+                timeout=90
+            )
+            if response.status_code == 200:
+                break
+            if response.status_code not in (401, 403):
+                break
+
+        if response is None:
+            return {
+                "success": False,
+                "error": "No response from FLUX endpoint",
+            }
         
         if response.status_code == 200:
             data = response.json()
@@ -280,10 +308,16 @@ def generate_image(
             }
         
         else:
+            print(
+                "❌ FLUX request failed "
+                f"status={response.status_code}, tried_auth={attempted_schemes}, "
+                f"endpoint={AZURE_FLUX_ENDPOINT}"
+            )
             return {
                 "success": False,
                 "error": f"API returned status code {response.status_code}",
-                "details": response.text
+                "details": response.text,
+                "tried_auth": attempted_schemes,
             }
     
     except Exception as e:
