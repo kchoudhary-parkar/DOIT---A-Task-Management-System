@@ -1,8 +1,8 @@
 """
 Azure AI Foundry Integration Utilities
-For GPT-5.2-chat and FLUX-1.1-pro models
+For Azure OpenAI chat and FLUX-1.1-pro image generation
 """
-from openai import AzureOpenAI
+from openai import AzureOpenAI, NotFoundError
 import requests
 import base64
 from typing import List, Dict, Optional
@@ -13,11 +13,19 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Azure OpenAI Configuration for GPT-5.2-chat
+# Azure OpenAI chat configuration (env-driven)
 AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
 AZURE_OPENAI_KEY = os.getenv("AZURE_OPENAI_KEY")
-AZURE_OPENAI_DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT")
-AZURE_OPENAI_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION")
+AZURE_OPENAI_DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o-mini")
+AZURE_OPENAI_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2025-09-01")
+AZURE_OPENAI_API_VERSION_FALLBACKS = [
+    v.strip()
+    for v in os.getenv(
+        "AZURE_OPENAI_API_VERSION_FALLBACKS",
+        "2024-12-01-preview,2024-10-21"
+    ).split(",")
+    if v.strip()
+]
 
 # Azure AI FLUX Configuration for image generation
 AZURE_FLUX_ENDPOINT = os.getenv("AZURE_FLUX_ENDPOINT")
@@ -31,13 +39,66 @@ print(f"  DEPLOYMENT: {AZURE_OPENAI_DEPLOYMENT}")
 print(f"  API_VERSION: {AZURE_OPENAI_API_VERSION}")
 print(f"  KEY: {'✅ Loaded' if AZURE_OPENAI_KEY else '❌ Missing'}")
 
-# Initialize Azure OpenAI client (for text chat)
-try:
-    azure_client = AzureOpenAI(
-        api_version=AZURE_OPENAI_API_VERSION,
+
+def _create_azure_client(api_version: str) -> AzureOpenAI:
+    return AzureOpenAI(
+        api_version=api_version,
         azure_endpoint=AZURE_OPENAI_ENDPOINT,
         api_key=AZURE_OPENAI_KEY,
     )
+
+
+def _api_version_candidates() -> List[str]:
+    candidates = [AZURE_OPENAI_API_VERSION, *AZURE_OPENAI_API_VERSION_FALLBACKS]
+    unique = []
+    for version in candidates:
+        if version and version not in unique:
+            unique.append(version)
+    return unique
+
+
+def _chat_completions_create(request_kwargs: Dict):
+    """Create chat completion with automatic api-version fallback on 404."""
+    global azure_client, AZURE_OPENAI_API_VERSION
+
+    if azure_client is None:
+        raise Exception("Azure OpenAI client not initialized. Check environment variables.")
+
+    try:
+        return azure_client.chat.completions.create(**request_kwargs)
+    except NotFoundError as original_error:
+        tried_versions = [AZURE_OPENAI_API_VERSION]
+
+        for api_version in _api_version_candidates():
+            if api_version == AZURE_OPENAI_API_VERSION:
+                continue
+
+            tried_versions.append(api_version)
+
+            try:
+                trial_client = _create_azure_client(api_version)
+                response = trial_client.chat.completions.create(**request_kwargs)
+
+                azure_client = trial_client
+                AZURE_OPENAI_API_VERSION = api_version
+                print(f"⚠️ Azure 404 recovered by switching API version to: {api_version}")
+                return response
+            except NotFoundError:
+                continue
+
+        deployment = request_kwargs.get("model", "<unknown>")
+        raise Exception(
+            "Azure OpenAI returned 404 (Resource not found). "
+            f"Deployment '{deployment}' was not reachable at endpoint '{AZURE_OPENAI_ENDPOINT}'. "
+            "Verify that AZURE_OPENAI_DEPLOYMENT is the Azure deployment name (not just model name), "
+            "the deployment exists in this exact Azure OpenAI resource, and API version is supported. "
+            f"API versions tried: {', '.join(tried_versions)}"
+        ) from original_error
+
+
+# Initialize Azure OpenAI client (for text chat)
+try:
+    azure_client = _create_azure_client(AZURE_OPENAI_API_VERSION)
     print("✅ Azure OpenAI client initialized successfully")
 except Exception as e:
     print(f"❌ Failed to initialize Azure OpenAI client: {e}")
@@ -51,12 +112,12 @@ def chat_completion(
     stream: bool = False
 ) -> Dict:
     """
-    Send a chat completion request to GPT-5.2-chat
+    Send a chat completion request to the Azure OpenAI deployment from environment.
     
     Args:
         messages: List of message dicts with 'role' and 'content'
         max_tokens: Maximum tokens in response
-        temperature: Creativity level (GPT-5.2-chat only supports 1.0)
+        temperature: Creativity level
         stream: Whether to stream the response
     
     Returns:
@@ -68,14 +129,16 @@ def chat_completion(
         
         print(f"📤 Sending request to Azure with {len(messages)} messages...")
         
-        # GPT-5.2-chat only supports temperature=1.0 (default)
-        # Don't pass temperature parameter to use default
-        response = azure_client.chat.completions.create(
-            model=AZURE_OPENAI_DEPLOYMENT,
-            messages=messages,
-            max_completion_tokens=max_tokens,
-            stream=stream
-        )
+        request_kwargs = {
+            "model": AZURE_OPENAI_DEPLOYMENT,
+            "messages": messages,
+            "stream": stream,
+        }
+
+        # Use standard chat-completions token limit parameter for broad model compatibility.
+        request_kwargs["max_tokens"] = max_tokens
+
+        response = _chat_completions_create(request_kwargs)
         
         if stream:
             return response  # Return generator for streaming
@@ -96,7 +159,7 @@ def chat_completion(
     
     except Exception as e:
         print(f"❌ Error in chat_completion: {str(e)}")
-        print(f"   Messages sent: {messages}")
+        print(f"   Message count: {len(messages)}")
         raise
 
 
@@ -106,18 +169,18 @@ def chat_completion_streaming(
     temperature: float = 1.0
 ):
     """
-    Stream chat completion responses from GPT-5.2-chat
+    Stream chat completion responses from the Azure OpenAI deployment from environment.
     
     Yields chunks of response text as they arrive
     """
     try:
-        # GPT-5.2-chat only supports temperature=1.0 (default)
-        # Don't pass temperature parameter to use default
-        response = azure_client.chat.completions.create(
-            model=AZURE_OPENAI_DEPLOYMENT,
-            messages=messages,
-            max_completion_tokens=max_tokens,
-            stream=True
+        response = _chat_completions_create(
+            {
+                "model": AZURE_OPENAI_DEPLOYMENT,
+                "messages": messages,
+                "max_tokens": max_tokens,
+                "stream": True,
+            }
         )
         
         for chunk in response:

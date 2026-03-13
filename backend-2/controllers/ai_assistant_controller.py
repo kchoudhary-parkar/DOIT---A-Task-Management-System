@@ -1,6 +1,6 @@
 """
 AI Assistant Controller - COMPLETE WITH ALL OPERATIONS
-Handles ChatGPT-like AI interactions using Azure AI Foundry (GPT-5.2-chat + FLUX-1.1-pro)
+Handles ChatGPT-like AI interactions using env-configured Azure OpenAI + FLUX models
 NOW with: Task automation, Sprint management, Member management, and intelligent insights
 """
 
