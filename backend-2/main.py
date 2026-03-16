@@ -24,6 +24,7 @@ from routers import (
     azure_agent_router,  # ← NEW: Azure AI Foundry Agent
     code_review_router,  # ← NEW: AI Code Review Agent
 )
+from routers.voice_chat_router import router as voice_chat_router
 from routers.local_agent_router import router as local_agent_router
 from routers.agent_data_router import router as agent_data_router
 from init_db import initialize_super_admin, initialize_default_channels
@@ -113,6 +114,7 @@ app.include_router(document_intelligence_router, tags=["Document Intelligence"])
 app.include_router(
     langgraph_agent_router, prefix="/api/langgraph-agent", tags=["LangGraph Agent"]
 )
+app.include_router(voice_chat_router, prefix="/api/voice-chat", tags=["Voice Chat"])
 # app.include_router(global_insights_router, tags=["Global Insights"])
 
 
