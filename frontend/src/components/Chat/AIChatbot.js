@@ -1122,19 +1122,22 @@
 // };
 
 // export default AIChatbot;
+
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { voiceChatAPI } from '../../services/api';
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   DOIT-BOT V2 · Azure Whisper + GPT-4o-mini + Azure TTS
+   DOIT-BOT · Azure Whisper + GPT-4o-mini + Azure TTS
    Glass Sphere LED Robot → Click to activate → Speak → Agent replies in voice
    
-   NEW ARCHITECTURE:
+   ARCHITECTURE:
    - Frontend: MediaRecorder → Audio blob
    - Backend: Azure Whisper (STT) → GPT-4o-mini → Azure TTS
    - Frontend: Audio stream playback
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* ─── LED dot-matrix definitions (same as before) ────────────────────────── */
+/* ─── LED dot-matrix definitions ──────────────────────────────────────────── */
 const GAP = 10, OX = 22, OY = 52, DOT = 4.2;
 
 const EXPRESSIONS = {
@@ -1171,7 +1174,7 @@ const EXPRESSIONS = {
   },
 };
 
-/* ─── SVG Components (same as before) ────────────────────────────────────── */
+/* ─── SVG Components ──────────────────────────────────────────────────────── */
 function LedFace({ expression = 'idle', glowColor = '#38bdf8' }) {
   const expr = EXPRESSIONS[expression] || EXPRESSIONS.idle;
   const dots = [...expr.leftEye, ...expr.rightEye, ...expr.mouth];
@@ -1396,8 +1399,6 @@ const AIChatbot = ({ user }) => {
   const exprTimer = useRef(null);
   const audioRef = useRef(null);
 
-  const API_BASE = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
-
   /* ── Color per mode ────────────────────────────────────────────── */
   const modeColor = {
     idle: '#38bdf8',
@@ -1413,16 +1414,6 @@ const AIChatbot = ({ user }) => {
     setExpression(expr);
     if (ttl) exprTimer.current = setTimeout(() => setExpression('idle'), ttl);
   }, []);
-
-  /* ── Get auth headers ─────────────────────────────────────────── */
-  const getHeaders = () => {
-    const token = localStorage.getItem('token');
-    const tabKey = sessionStorage.getItem('tab_session_key');
-    return {
-      Authorization: `Bearer ${token}`,
-      'X-Tab-Session-Key': tabKey || '',
-    };
-  };
 
   /* ── Start recording ─────────────────────────────────────────── */
   const startRecording = useCallback(async () => {
@@ -1479,58 +1470,42 @@ const AIChatbot = ({ user }) => {
     }
   }, []);
 
-  /* ── Send audio to backend ───────────────────────────────────── */
+  /* ── Send audio to backend using API service ─────────────────── */
   const sendAudioToBackend = async (audioBlob) => {
     setMode('processing');
     setExpr('thinking');
     setStatusLabel('Processing…');
 
     try {
-      const formData = new FormData();
-      formData.append('audio', audioBlob, 'recording.webm');
-      formData.append('persona', 'friendly');
-      formData.append('conversation_history', JSON.stringify(turns.map(t => ({
-        role: t.role === 'user' ? 'user' : 'assistant',
-        content: t.text
-      }))));
+      console.log('📤 Sending audio to voice chat API');
 
-      console.log('📤 Sending audio to /api/voice-chat/voice/chat');
+      // Use the voiceChatAPI service from api.js
+      const result = await voiceChatAPI.chat(
+        audioBlob,
+        'friendly',  // persona
+        turns.map(t => ({
+          role: t.role === 'user' ? 'user' : 'assistant',
+          content: t.text
+        }))
+      );
 
-      const response = await fetch(`${API_BASE}/api/voice-chat/voice/chat`, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Voice chat failed');
-      }
-
-      // Get transcript from headers
-      const userTranscript = response.headers.get('X-Transcript') || 'Voice input';
-      const botResponse = response.headers.get('X-Response-Text') || 'Thinking...';
-
-      console.log('✅ User said:', userTranscript);
-      console.log('✅ Bot responds:', botResponse);
+      console.log('✅ User said:', result.transcript);
+      console.log('✅ Bot responds:', result.responseText);
 
       // Add to conversation
       setTurns(prev => [
         ...prev,
-        { role: 'user', text: userTranscript },
-        { role: 'bot', text: botResponse }
+        { role: 'user', text: result.transcript },
+        { role: 'bot', text: result.responseText }
       ]);
-
-      // Get audio stream
-      const audioBlob = await response.blob();
-      const audioUrl = URL.createObjectURL(audioBlob);
 
       // Play audio
       setMode('speaking');
       setExpr('speaking');
       setStatusLabel('Speaking…');
-      setBotText(botResponse);
+      setBotText(result.responseText);
 
+      const audioUrl = URL.createObjectURL(result.audioBlob);
       const audio = new Audio(audioUrl);
       audioRef.current = audio;
 
@@ -1614,7 +1589,7 @@ const AIChatbot = ({ user }) => {
   };
 
   /* ── Cleanup ─────────────────────────────────────────────────── */
-  useEffect(() => () => stopAll(), []);
+  useEffect(() => () => stopAll(), [stopAll]);
 
   /* ── Mic button appearance per mode ─────────────────────────── */
   const MicIconSVG = () => (
@@ -1764,7 +1739,7 @@ const AIChatbot = ({ user }) => {
             <RobotSphere expression={expression} size={38} glowColor={modeColor} />
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: '14px', fontWeight: 800, color: '#f1f5f9', letterSpacing: '-0.02em' }}>
-                DOIT-AI V2
+                DOIT-AI
               </div>
               <div style={{ fontSize: '9.5px', color: '#334155', fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.1em', marginTop: '1px' }}>
                 AZURE WHISPER + TTS · GPT-4O-MINI
@@ -1916,7 +1891,7 @@ const AIChatbot = ({ user }) => {
             fontSize: '9px', fontFamily: "'JetBrains Mono', monospace",
             color: '#0f2035', letterSpacing: '0.07em',
           }}>
-            DOIT-AI V2 · Azure Whisper STT + TTS · Backend Processing
+            DOIT-AI · Azure Whisper STT + TTS · Backend Processing
           </div>
         </div>
       )}
