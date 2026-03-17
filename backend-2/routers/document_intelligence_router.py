@@ -102,6 +102,7 @@ from document_intelligence import (
     InsightReport,
     analyze_document_from_file,
     analyze_document_from_url,
+    get_document_intelligence_llm_config,
     generate_pdf_report,
 )
 from datetime import datetime
@@ -177,14 +178,13 @@ async def export_pdf(report: InsightReport):
 
 @router.get("/health")
 def health():
-    import os
-
-    key_loaded = bool(os.getenv("AZURE_OPENAI_KEY"))
-    endpoint_loaded = bool(os.getenv("AZURE_OPENAI_ENDPOINT"))
+    cfg = get_document_intelligence_llm_config()
     return {
         "status": "ok",
         "service": "Document Intelligence",
         "supported_formats": sorted(ALLOWED_EXTENSIONS),
-        "azure_key": "loaded" if key_loaded else "missing",
-        "azure_endpoint": "loaded" if endpoint_loaded else "missing",
+        "azure_key": "loaded" if cfg.get("key_loaded") else "missing",
+        "azure_endpoint": cfg.get("endpoint"),
+        "azure_deployment": cfg.get("deployment"),
+        "azure_api_version": cfg.get("api_version"),
     }
