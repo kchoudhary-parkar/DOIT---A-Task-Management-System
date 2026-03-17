@@ -6,7 +6,9 @@ import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from dotenv import load_dotenv
 
+load_dotenv(override=True)
 try:
     from mcp import ClientSession, StdioServerParameters
     from mcp.client.stdio import stdio_client
@@ -18,9 +20,15 @@ except Exception:  # pragma: no cover - graceful degradation if MCP isn't instal
 
 MCP_SERVER_SCRIPTS: Dict[str, Path] = {
     "task": Path(__file__).resolve().parents[1] / "mcp_servers" / "task_mcp_server.py",
-    "sprint": Path(__file__).resolve().parents[1] / "mcp_servers" / "sprint_mcp_server.py",
-    "project": Path(__file__).resolve().parents[1] / "mcp_servers" / "project_mcp_server.py",
-    "member": Path(__file__).resolve().parents[1] / "mcp_servers" / "member_mcp_server.py",
+    "sprint": Path(__file__).resolve().parents[1]
+    / "mcp_servers"
+    / "sprint_mcp_server.py",
+    "project": Path(__file__).resolve().parents[1]
+    / "mcp_servers"
+    / "project_mcp_server.py",
+    "member": Path(__file__).resolve().parents[1]
+    / "mcp_servers"
+    / "member_mcp_server.py",
 }
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
@@ -63,27 +71,45 @@ def _build_server_params(script_path: Path):
     )
 
 
-def _extract_text_from_tool_result(result: Any) -> str:
+def _extract_text_from_tool_result(result: Any) -> Dict[str, Any]:
+    """
+    Extract BOTH structured and text output from MCP result.
+    """
     if result is None:
-        return ""
+        return {"text": "", "data": None}
 
-    # Most MCP SDK responses expose `.content` with text segments.
+    # Case 1: MCP structured content
     content = getattr(result, "content", None)
     if content:
-        chunks: List[str] = []
+        texts = []
+        structured = []
+
         for item in content:
-            text = getattr(item, "text", None)
-            if text is not None:
-                chunks.append(text)
-            else:
-                chunks.append(str(item))
-        return "\n".join(chunks).strip()
+            # MCP text segment
+            if hasattr(item, "text") and item.text:
+                texts.append(item.text)
 
-    # Fallback for dict-like or plain-string responses.
+            # MCP structured JSON (VERY IMPORTANT)
+            if hasattr(item, "data"):
+                structured.append(item.data)
+
+        return {
+            "text": "\n".join(texts).strip(),
+            "data": structured if structured else None,
+        }
+
+    # Case 2: raw string
     if isinstance(result, str):
-        return result
+        try:
+            return {"text": result, "data": json.loads(result)}
+        except:
+            return {"text": result, "data": None}
 
-    return str(result)
+    # Case 3: dict already
+    if isinstance(result, dict):
+        return {"text": json.dumps(result, indent=2), "data": result}
+
+    return {"text": str(result), "data": None}
 
 
 async def list_mcp_tools(server_name: str) -> Dict[str, Any]:
@@ -164,23 +190,41 @@ async def call_mcp_tool(
                 await session.initialize()
                 raw_result = await session.call_tool(tool_name, arguments or {})
 
-                text_output = _extract_text_from_tool_result(raw_result)
-                parsed: Dict[str, Any]
+                extracted = _extract_text_from_tool_result(raw_result)
+                text_output = extracted["text"]
+                structured_data = extracted["data"]
+                parsed: Dict[str, Any] = {}
 
-                try:
-                    maybe_json = json.loads(text_output) if text_output else {}
-                    parsed = maybe_json if isinstance(maybe_json, dict) else {"data": maybe_json}
-                except Exception:
-                    parsed = {"output": text_output}
+                # Prefer structured data
+                if structured_data:
+                    parsed = {
+                        "success": True,
+                        "data": structured_data,
+                        "summary": text_output,
+                    }
+
+                else:
+                    try:
+                        maybe_json = json.loads(text_output) if text_output else {}
+                        parsed = (
+                            maybe_json
+                            if isinstance(maybe_json, dict)
+                            else {"data": maybe_json}
+                        )
+                    except Exception:
+                        parsed = {"output": text_output}
 
                 if "success" not in parsed:
-                    parsed["success"] = bool(text_output)
+                    parsed["success"] = True
+
+                formatted_output = _format_mcp_result(parsed)
 
                 return {
-                    "success": bool(parsed.get("success", False)),
+                    "success": True,
                     "server": server_name,
                     "tool": tool_name,
                     "result": parsed,
+                    "formatted": formatted_output, 
                     "raw_text": text_output,
                 }
     except Exception as exc:
@@ -190,6 +234,31 @@ async def call_mcp_tool(
             "tool": tool_name,
             "error": str(exc),
         }
+
+
+def _format_mcp_result(result: Dict[str, Any]) -> str:
+    """Convert structured MCP result into detailed human-readable output."""
+    data = result.get("data")
+
+    if not data:
+        return result.get("summary") or result.get("output", "")
+
+    # If list of items (MOST IMPORTANT CASE)
+    if isinstance(data, list):
+        lines = []
+        for i, item in enumerate(data, 1):
+            if isinstance(item, dict):
+                line = f"{i}. " + ", ".join(f"{k}: {v}" for k, v in item.items())
+                lines.append(line)
+            else:
+                lines.append(f"{i}. {item}")
+        return "\n".join(lines)
+
+    # If dict
+    if isinstance(data, dict):
+        return "\n".join(f"{k}: {v}" for k, v in data.items())
+
+    return str(data)
 
 
 async def get_mcp_servers_health() -> Dict[str, Any]:
