@@ -20,10 +20,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Optional, List
 
-from openai import AzureOpenAI
 from fastapi import HTTPException
 from pydantic import BaseModel
 from dotenv import load_dotenv
+from utils.azure_ai_utils import chat_completion_gpt4_mini, get_gpt4_mini_chat_config
 
 load_dotenv()
 
@@ -42,23 +42,23 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-# ── Azure OpenAI Configuration ─────────────────────────────────────────────
-AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
-AZURE_OPENAI_KEY = os.getenv("AZURE_OPENAI_KEY")
-AZURE_OPENAI_DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
-AZURE_OPENAI_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION")
+# ── Azure OpenAI Configuration (GPT-4.1-mini profile) ─────────────────────
+DOC_INTEL_CONFIG = get_gpt4_mini_chat_config()
+print(
+    "✅ Document Intelligence profile loaded: "
+    f"deployment={DOC_INTEL_CONFIG.get('deployment')}, "
+    f"api_version={DOC_INTEL_CONFIG.get('api_version')}"
+)
 
-# Initialize Azure OpenAI client
-try:
-    azure_client = AzureOpenAI(
-        api_version=AZURE_OPENAI_API_VERSION,
-        azure_endpoint=AZURE_OPENAI_ENDPOINT,
-        api_key=AZURE_OPENAI_KEY,
-    )
-    print("✅ Document Intelligence: Azure OpenAI client ready")
-except Exception as e:
-    print(f"❌ Document Intelligence: Azure OpenAI init failed: {e}")
-    azure_client = None
+
+def get_document_intelligence_llm_config() -> dict:
+    cfg = get_gpt4_mini_chat_config()
+    return {
+        "endpoint": cfg.get("endpoint"),
+        "deployment": cfg.get("deployment"),
+        "api_version": cfg.get("api_version"),
+        "key_loaded": bool(cfg.get("key_loaded")),
+    }
 
 
 # ── Pydantic models ────────────────────────────────────────────────────────
@@ -379,10 +379,14 @@ CRITICAL RULES — violating these makes the analysis useless:
 
 def extract_insights_azure(doc_text: str, question: str) -> dict:
     """Extract insights using Azure OpenAI."""
-    if azure_client is None:
+    cfg = get_document_intelligence_llm_config()
+    if not cfg.get("endpoint") or not cfg.get("deployment") or not cfg.get("key_loaded"):
         raise HTTPException(
             status_code=503,
-            detail="Azure OpenAI client not initialised. Check environment variables.",
+            detail=(
+                "Document Intelligence Azure profile is not fully configured. "
+                "Check AZURE_OPENAI_KEY and GPT_4_mini env variables."
+            ),
         )
 
     user_prompt = f"""Business question: {question or "Provide a comprehensive, deep analysis. Identify every named top and bottom performer explicitly. Leave nothing vague."}
@@ -391,15 +395,14 @@ Document content:
 {doc_text[:20000]}
 """
     try:
-        response = azure_client.chat.completions.create(
-            model=AZURE_OPENAI_DEPLOYMENT,
+        response = chat_completion_gpt4_mini(
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},
             ],
-            max_completion_tokens=4000,
+            max_tokens=4000,
         )
-        raw = response.choices[0].message.content.strip()
+        raw = response["content"].strip()
         # Strip markdown fences if the model adds them
         if raw.startswith("```"):
             raw = raw.split("```")[1]

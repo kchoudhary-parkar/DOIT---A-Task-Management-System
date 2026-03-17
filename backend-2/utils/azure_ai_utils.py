@@ -5,10 +5,11 @@ For Azure OpenAI chat and FLUX-1.1-pro image generation
 from openai import AzureOpenAI, NotFoundError
 import requests
 import base64
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 import os
 from datetime import datetime
 from dotenv import load_dotenv
+from urllib.parse import urlparse, parse_qs
 
 # Load environment variables
 load_dotenv()
@@ -26,6 +27,11 @@ AZURE_OPENAI_API_VERSION_FALLBACKS = [
     ).split(",")
     if v.strip()
 ]
+
+# Dedicated GPT-4.1-mini profile (used by Data-Viz Insights / Global Insights flows)
+AZURE_OPENAI_ENDPOINT_GPT_4_MINI = os.getenv("AZURE_OPENAI_ENDPOINT_GPT_4_mini") or os.getenv("AZURE_OPENAI_ENDPOINT_GPT_4_MINI")
+AZURE_OPENAI_API_VERSION_GPT_4_MINI = os.getenv("AZURE_OPENAI_API_VERSION_GPT_4_mini") or os.getenv("AZURE_OPENAI_API_VERSION_GPT_4_MINI")
+AZURE_OPENAI_DEPLOYMENT_GPT_4_MINI = os.getenv("AZURE_OPENAI_DEPLOYMENT_GPT_4_mini") or os.getenv("AZURE_OPENAI_DEPLOYMENT_GPT_4_MINI")
 
 # Azure AI FLUX Configuration for image generation
 AZURE_FLUX_ENDPOINT = os.getenv("AZURE_FLUX_ENDPOINT")
@@ -46,6 +52,56 @@ def _create_azure_client(api_version: str) -> AzureOpenAI:
         azure_endpoint=AZURE_OPENAI_ENDPOINT,
         api_key=AZURE_OPENAI_KEY,
     )
+
+
+def _normalize_azure_chat_endpoint(endpoint_raw: Optional[str]) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+    """
+    Accept either:
+    1) Azure resource endpoint: https://<resource>.openai.azure.com/
+    2) Full chat completions URL:
+       https://<resource>.openai.azure.com/openai/deployments/<deployment>/chat/completions?api-version=...
+
+    Returns: (base_endpoint, deployment_from_url, api_version_from_url)
+    """
+    if not endpoint_raw:
+        return None, None, None
+
+    parsed = urlparse(endpoint_raw)
+    if not parsed.scheme or not parsed.netloc:
+        return endpoint_raw, None, None
+
+    base_endpoint = f"{parsed.scheme}://{parsed.netloc}"
+    deployment_from_url = None
+    api_version_from_url = None
+
+    path = parsed.path or ""
+    marker = "/openai/deployments/"
+    if marker in path:
+        deployment_part = path.split(marker, 1)[1]
+        deployment_from_url = deployment_part.split("/", 1)[0] if deployment_part else None
+
+    query = parse_qs(parsed.query)
+    api_versions = query.get("api-version", [])
+    if api_versions:
+        api_version_from_url = api_versions[0]
+
+    return base_endpoint, deployment_from_url, api_version_from_url
+
+
+def get_gpt4_mini_chat_config() -> Dict[str, Optional[str]]:
+    endpoint_raw = AZURE_OPENAI_ENDPOINT_GPT_4_MINI or AZURE_OPENAI_ENDPOINT
+    endpoint_base, deployment_from_url, api_version_from_url = _normalize_azure_chat_endpoint(endpoint_raw)
+
+    deployment = AZURE_OPENAI_DEPLOYMENT_GPT_4_MINI or deployment_from_url or AZURE_OPENAI_DEPLOYMENT
+    api_version = AZURE_OPENAI_API_VERSION_GPT_4_MINI or api_version_from_url or AZURE_OPENAI_API_VERSION
+
+    return {
+        "endpoint_raw": endpoint_raw,
+        "endpoint": endpoint_base,
+        "deployment": deployment,
+        "api_version": api_version,
+        "key_loaded": bool(AZURE_OPENAI_KEY),
+    }
 
 
 def _api_version_candidates() -> List[str]:
@@ -160,6 +216,84 @@ def chat_completion(
     except Exception as e:
         print(f"❌ Error in chat_completion: {str(e)}")
         print(f"   Message count: {len(messages)}")
+        raise
+
+
+def chat_completion_gpt4_mini(
+    messages: List[Dict[str, str]],
+    max_tokens: int = 2000,
+    temperature: float = 1.0,
+    stream: bool = False,
+) -> Dict:
+    """
+    Chat completion that uses the dedicated GPT-4.1-mini profile from .env.
+    Falls back to default profile values when dedicated vars are not set.
+    """
+    try:
+        cfg = get_gpt4_mini_chat_config()
+        endpoint = cfg.get("endpoint")
+        deployment = cfg.get("deployment")
+        preferred_api_version = cfg.get("api_version")
+
+        if not endpoint:
+            raise Exception("Azure endpoint is not configured for GPT-4.1-mini profile")
+        if not deployment:
+            raise Exception("Azure deployment is not configured for GPT-4.1-mini profile")
+        if not AZURE_OPENAI_KEY:
+            raise Exception("AZURE_OPENAI_KEY is missing")
+
+        version_candidates = [preferred_api_version, AZURE_OPENAI_API_VERSION, "2024-12-01-preview", "2024-10-21"]
+        unique_versions = []
+        for version in version_candidates:
+            if version and version not in unique_versions:
+                unique_versions.append(version)
+
+        last_error = None
+        for api_version in unique_versions:
+            try:
+                client = AzureOpenAI(
+                    api_version=api_version,
+                    azure_endpoint=endpoint,
+                    api_key=AZURE_OPENAI_KEY,
+                )
+
+                response = client.chat.completions.create(
+                    model=deployment,
+                    messages=messages,
+                    max_tokens=max_tokens,
+                    stream=stream,
+                )
+
+                if stream:
+                    return response
+
+                if api_version != preferred_api_version:
+                    print(f"⚠️ GPT-4.1-mini call recovered with API version: {api_version}")
+
+                return {
+                    "content": response.choices[0].message.content,
+                    "model": response.model,
+                    "tokens": {
+                        "prompt": response.usage.prompt_tokens,
+                        "completion": response.usage.completion_tokens,
+                        "total": response.usage.total_tokens,
+                    },
+                    "finish_reason": response.choices[0].finish_reason,
+                }
+            except NotFoundError as e:
+                last_error = e
+                continue
+            except Exception as e:
+                last_error = e
+                continue
+
+        raise Exception(
+            "Failed to call GPT-4.1-mini profile. "
+            f"Endpoint='{endpoint}', Deployment='{deployment}', API versions tried={unique_versions}. "
+            f"Last error: {last_error}"
+        )
+    except Exception as e:
+        print(f"❌ Error in chat_completion_gpt4_mini: {str(e)}")
         raise
 
 
