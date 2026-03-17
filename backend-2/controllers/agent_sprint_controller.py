@@ -188,12 +188,15 @@ def agent_create_sprint(
                 status_code=404, detail=f"User with email '{requesting_user}' not found"
             )
 
-        # Step 2: Check permission - ONLY Admin can create sprints
+        # Step 2: Check permission - Admin and Super-Admin can create sprints
         user_role = actual_user.get("role", "").lower()
-        if user_role != "admin":
+        if user_role not in ["admin", "super-admin"]:
             raise HTTPException(
                 status_code=403,
-                detail=f"Only Admin users can create sprints. Your role is '{actual_user.get('role')}'",
+                detail=(
+                    "Only Admin and Super-Admin users can create sprints. "
+                    f"Your role is '{actual_user.get('role')}'"
+                ),
             )
 
         # Step 3: Verify project exists
