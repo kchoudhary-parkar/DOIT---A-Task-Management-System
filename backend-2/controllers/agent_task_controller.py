@@ -361,12 +361,15 @@ def agent_create_task(
                 status_code=404, detail=f"User with email '{requesting_user}' not found"
             )
 
-        # Step 2: Check if user has permission to create tasks (Admin or Member)
+        # Step 2: Check if user has permission to create tasks (Admin/Member/Super-Admin)
         user_role = actual_user.get("role", "").lower()
-        if user_role not in ["admin", "member"]:
+        if user_role not in ["admin", "member", "super-admin"]:
             raise HTTPException(
                 status_code=403,
-                detail=f"Only Admin and Member users can create tasks. Your role is '{actual_user.get('role')}'",
+                detail=(
+                    "Only Admin, Member, and Super-Admin users can create tasks. "
+                    f"Your role is '{actual_user.get('role')}'"
+                ),
             )
 
         # Step 3: Use actual user's ID for task creation (for audit trail)
@@ -462,12 +465,15 @@ def agent_assign_task(
                 status_code=404, detail=f"User with email '{requesting_user}' not found"
             )
 
-        # Step 2: Check permission (Admin or Member)
+        # Step 2: Check permission (Admin/Member/Super-Admin)
         user_role = actual_user.get("role", "").lower()
-        if user_role not in ["admin", "member"]:
+        if user_role not in ["admin", "member", "super-admin"]:
             raise HTTPException(
                 status_code=403,
-                detail=f"Only Admin and Member users can assign tasks. Your role is '{actual_user.get('role')}'",
+                detail=(
+                    "Only Admin, Member, and Super-Admin users can assign tasks. "
+                    f"Your role is '{actual_user.get('role')}'"
+                ),
             )
 
         modifier_id = str(actual_user["_id"])
