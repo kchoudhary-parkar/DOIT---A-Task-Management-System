@@ -1261,12 +1261,72 @@ const AIAssistantPage = () => {
           )}
 
           {/* Foundry info strip */}
-          {isFoundry && (
-            <div className="ai-foundry-strip">
-              <Zap size={12} />
-              Foundry Agent has live access to your tasks, projects &amp; sprints via context injection
-            </div>
-          )}
+          {/* Foundry info strip + upload button */}
+{isFoundry && (
+  <>
+    <div className="ai-foundry-strip">
+      <Zap size={12} />
+      Foundry Agent has live access to your tasks, projects &amp; sprints
+      <label
+        style={{
+          marginLeft: 'auto',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 4,
+          cursor: 'pointer',
+          fontSize: 11,
+          color: '#7C3AED',
+          fontWeight: 600,
+          padding: '2px 8px',
+          border: '1px solid rgba(124,58,237,0.3)',
+          borderRadius: 6,
+          background: 'rgba(124,58,237,0.06)',
+        }}
+      >
+        <Paperclip size={11} /> Attach File
+        <input
+          type="file"
+          style={{ display: 'none' }}
+          accept=".pdf,.csv,.xlsx,.docx,.doc,.txt"
+          disabled={isLoading || !foundryActiveConv}
+          onChange={async (e) => {
+            const file = e.target.files[0];
+            if (!file || !foundryActiveConv) return;
+            // Show user message immediately
+            const opt = {
+              _id: `opt-${Date.now()}`,
+              role: 'user',
+              content: `📎 Uploaded: ${file.name} — analyzing...`,
+              created_at: new Date().toISOString(),
+            };
+            setFoundryMessages(p => [...p, opt]);
+            setIsLoading(true);
+            setIsTyping(true);
+            try {
+              const result = await foundryAgentAPI.uploadFile(
+                foundryActiveConv._id, file
+              );
+              setIsTyping(false);
+              if (result.success && result.agent_response) {
+                setFoundryMessages(p => [...p, result.agent_response]);
+              }
+            } catch (err) {
+              setIsTyping(false);
+              setFoundryMessages(p => [...p, {
+                role: 'assistant',
+                content: `❌ Upload failed: ${err.message}`,
+                created_at: new Date().toISOString(),
+              }]);
+            } finally {
+              setIsLoading(false);
+              e.target.value = '';
+            }
+          }}
+        />
+      </label>
+    </div>
+  </>
+)}
 
           {/* Local info strip */}
           {isLocal && (
