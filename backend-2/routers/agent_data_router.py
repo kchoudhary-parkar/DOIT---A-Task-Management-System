@@ -36,10 +36,64 @@ async def get_all_projects_for_agent():
             "total_tasks": 1,
             "completed_tasks": 1
         }).limit(100))
+
+        # Compute project task counts from tasks collection so counts stay accurate
+        # even if project summary fields are missing or stale.
+        task_counts = {}
+        task_counts_cursor = db.tasks.aggregate([
+            {
+                "$match": {
+                    "project_id": {"$exists": True, "$ne": None}
+                }
+            },
+            {
+                "$group": {
+                    "_id": "$project_id",
+                    "total_tasks": {"$sum": 1},
+                    "completed_tasks": {
+                        "$sum": {
+                            "$cond": [
+                                {
+                                    "$in": [
+                                        {"$toLower": {"$ifNull": ["$status", ""]}},
+                                        ["done", "closed", "completed"]
+                                    ]
+                                },
+                                1,
+                                0
+                            ]
+                        }
+                    }
+                }
+            }
+        ])
+
+        for row in task_counts_cursor:
+            project_id_key = str(row.get("_id"))
+            if project_id_key and project_id_key != "None":
+                task_counts[project_id_key] = {
+                    "total_tasks": int(row.get("total_tasks", 0)),
+                    "completed_tasks": int(row.get("completed_tasks", 0)),
+                }
         
         # Convert MongoDB ObjectId to string and rename _id to project_id
         for project in projects:
-            project["project_id"] = str(project.pop("_id"))
+            project_id = str(project.pop("_id"))
+            project["project_id"] = project_id
+
+            counts = task_counts.get(project_id, {})
+            total_tasks = counts.get("total_tasks", project.get("total_tasks") or project.get("task_count") or 0)
+            completed_tasks = counts.get("completed_tasks", project.get("completed_tasks") or 0)
+
+            project["total_tasks"] = total_tasks
+            project["completed_tasks"] = completed_tasks
+            project["task_count"] = total_tasks
+
+            if total_tasks > 0:
+                project["progress_percentage"] = round((completed_tasks / total_tasks) * 100, 1)
+            elif project.get("progress_percentage") is None:
+                project["progress_percentage"] = 0
+
             if project.get("created_at"):
                 project["created_at"] = str(project["created_at"])
             if project.get("updated_at"):
