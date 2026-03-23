@@ -59,7 +59,7 @@ async def create_task_automation(
     - assignee_name: "John Doe"
 
     The system will automatically find and assign the user
-    
+
     Permissions: Admin or Member can create tasks
     """
     return agent_create_task(
@@ -93,7 +93,7 @@ async def assign_task_automation(
 
     Example: {"requesting_user": "admin@example.com", "assignee_identifier": "john@example.com"}
     Example: {"requesting_user": "member@example.com", "assignee_identifier": "John Doe"}
-    
+
     Permissions: Admin or Member can assign tasks
     """
     return agent_assign_task(
@@ -133,11 +133,11 @@ async def create_sprint_automation(
     - project_id: Target project ID
     - start_date: Sprint start date (ISO format: YYYY-MM-DD)
     - end_date: Sprint end date (ISO format: YYYY-MM-DD)
-    
+
     Optional:
     - goal: Sprint goal
     - status: Sprint status (default "Planning")
-    
+
     Permissions: Only Admin users can create sprints
     """
     return agent_create_sprint(
