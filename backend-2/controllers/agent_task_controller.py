@@ -330,6 +330,7 @@ from models.project import Project
 from database import db
 from bson import ObjectId
 import json
+import re
 
 
 def agent_create_task(
@@ -478,13 +479,24 @@ def agent_assign_task(
 
         modifier_id = str(actual_user["_id"])
 
+        assignee_identifier = (assignee_identifier or "").strip()
+
         # Try email first
         assignee = User.find_by_email(assignee_identifier)
 
-        # Try name if email fails
+        # Try direct user_id (Mongo ObjectId) if email lookup fails
+        if not assignee and re.fullmatch(r"[0-9a-fA-F]{24}", assignee_identifier):
+            assignee = User.find_by_id(assignee_identifier)
+
+        # Try exact display name if still unresolved
         if not assignee:
             assignee = db.users.find_one(
-                {"name": {"$regex": f"^{assignee_identifier}$", "$options": "i"}}
+                {
+                    "name": {
+                        "$regex": f"^{re.escape(assignee_identifier)}$",
+                        "$options": "i",
+                    }
+                }
             )
 
         if not assignee:
@@ -497,11 +509,19 @@ def agent_assign_task(
         # Resolve task_id - could be ticket_id (FTP-005) or MongoDB _id
         from models.task import Task
 
-        task = (
-            Task.find_by_ticket_id(task_id)
-            if task_id.startswith(("FTP-", "SLS-", "TMP-", "TST-", "NP-"))
-            else Task.find_by_id(task_id)
-        )
+        is_object_id_like = bool(re.fullmatch(r"[0-9a-fA-F]{24}", task_id or ""))
+        is_ticket_like = bool(re.fullmatch(r"[A-Za-z]{2,}-\d+", task_id or ""))
+
+        if is_object_id_like:
+            task = Task.find_by_id(task_id)
+            if not task:
+                task = Task.find_by_ticket_id(task_id)
+        elif is_ticket_like:
+            task = Task.find_by_ticket_id(task_id)
+            if not task:
+                task = Task.find_by_id(task_id)
+        else:
+            task = Task.find_by_id(task_id) or Task.find_by_ticket_id(task_id)
 
         if not task:
             raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")

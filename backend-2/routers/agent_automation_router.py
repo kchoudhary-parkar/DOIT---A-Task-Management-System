@@ -106,14 +106,28 @@ async def assign_task_automation(
 
 @router.get("/projects/{project_id}/assignable-users")
 async def get_assignable_users(
-    project_id: str, agent_user_id: str = Depends(verify_agent_token)
+    project_id: str,
+    requesting_user: Optional[EmailStr] = None,
+    agent_user_id: str = Depends(verify_agent_token),
 ):
     """
     Get list of users who can be assigned tasks in a project
     """
     from controllers.member_controller import get_project_members
+    from models.user import User
 
-    response = get_project_members(project_id, agent_user_id)
+    # Prefer actual authenticated user from context for project-membership checks.
+    effective_user_id = agent_user_id
+    if requesting_user:
+        actual_user = User.find_by_email(str(requesting_user).lower())
+        if not actual_user:
+            raise HTTPException(
+                status_code=404,
+                detail=f"User with email '{requesting_user}' not found",
+            )
+        effective_user_id = str(actual_user["_id"])
+
+    response = get_project_members(project_id, effective_user_id)
 
     if isinstance(response.get("body"), str):
         return json.loads(response["body"])
