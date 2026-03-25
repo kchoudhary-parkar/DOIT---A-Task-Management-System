@@ -62,6 +62,20 @@ class UpdateTaskRequest(BaseModel):
     due_date: Optional[str] = None
 
 
+class UpdateTaskStatusAutomationRequest(BaseModel):
+    requesting_user: EmailStr
+    status: str
+
+
+class UpdateTaskPriorityAutomationRequest(BaseModel):
+    requesting_user: EmailStr
+    priority: str
+
+
+class ApproveTaskAutomationRequest(BaseModel):
+    requesting_user: EmailStr
+
+
 class BulkUpdateDueDateRequest(BaseModel):
     requesting_user: EmailStr
     project_id: str
@@ -184,10 +198,50 @@ def _resolve_task_id_or_404(task_identifier: str) -> str:
     return str(task_doc.get("_id"))
 
 
+def _resolve_task_actor(
+    task_identifier: str,
+    requesting_user: EmailStr,
+    agent_user_id: Optional[str],
+) -> tuple[str, str]:
+    """
+    Resolve canonical task id and effective user id.
+
+    Uses requesting_user for RBAC checks and tolerates missing agent auth channels
+    for Foundry calls that omit api_key/header tokens.
+    """
+    canonical_task_id = _resolve_task_id_or_404(task_identifier)
+    actual_user_id = _resolve_requesting_user_id(requesting_user)
+
+    if agent_user_id:
+        return canonical_task_id, actual_user_id
+
+    # Fallback path mirrors create-code-review behavior when Foundry sends no auth channels.
+    from models.project import Project
+
+    task_doc = Task.find_by_id(canonical_task_id)
+    if not task_doc:
+        raise HTTPException(status_code=404, detail=f"Task '{task_identifier}' not found")
+
+    project_id = str(task_doc.get("project_id", ""))
+    if not Project.is_member(project_id, actual_user_id):
+        raise HTTPException(
+            status_code=403,
+            detail="Requesting user is not a member/owner of the target project.",
+        )
+
+    return canonical_task_id, actual_user_id
+
+
 def _unwrap_controller_response(response: Dict[str, Any]) -> Dict[str, Any]:
-    status = int(response.get("status", 200))
+    status = int(response.get("statusCode", response.get("status", 200)))
     body = response.get("body", "{}")
-    payload = json.loads(body) if isinstance(body, str) else body
+    if isinstance(body, str):
+        try:
+            payload = json.loads(body)
+        except Exception:
+            payload = {"message": body}
+    else:
+        payload = body
     if status >= 400:
         detail = payload.get("error") if isinstance(payload, dict) else str(payload)
         raise HTTPException(status_code=status, detail=detail or "Request failed")
@@ -278,6 +332,62 @@ async def update_task_automation(
         status=request.status,
         due_date=request.due_date,
     )
+
+
+@router.put("/tasks/{task_id}/status")
+async def update_task_status_automation(
+    task_id: str,
+    request: UpdateTaskStatusAutomationRequest,
+    agent_user_id: Optional[str] = Depends(verify_agent_token_optional),
+):
+    """Update task status using ticket ID or Mongo _id."""
+    canonical_task_id, actual_user_id = _resolve_task_actor(
+        task_id,
+        request.requesting_user,
+        agent_user_id,
+    )
+    response = task_controller.update_task(
+        json.dumps({"status": request.status}),
+        canonical_task_id,
+        actual_user_id,
+    )
+    return _unwrap_controller_response(response)
+
+
+@router.put("/tasks/{task_id}/priority")
+async def update_task_priority_automation(
+    task_id: str,
+    request: UpdateTaskPriorityAutomationRequest,
+    agent_user_id: Optional[str] = Depends(verify_agent_token_optional),
+):
+    """Update task priority using ticket ID or Mongo _id."""
+    canonical_task_id, actual_user_id = _resolve_task_actor(
+        task_id,
+        request.requesting_user,
+        agent_user_id,
+    )
+    response = task_controller.update_task(
+        json.dumps({"priority": request.priority}),
+        canonical_task_id,
+        actual_user_id,
+    )
+    return _unwrap_controller_response(response)
+
+
+@router.post("/tasks/{task_id}/approve")
+async def approve_task_automation(
+    task_id: str,
+    request: ApproveTaskAutomationRequest,
+    agent_user_id: Optional[str] = Depends(verify_agent_token_optional),
+):
+    """Approve a Done task and move it to Closed using ticket ID or Mongo _id."""
+    canonical_task_id, actual_user_id = _resolve_task_actor(
+        task_id,
+        request.requesting_user,
+        agent_user_id,
+    )
+    response = task_controller.approve_task(canonical_task_id, actual_user_id)
+    return _unwrap_controller_response(response)
 
 
 @router.post("/tasks/bulk-update-due-date")
