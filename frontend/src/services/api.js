@@ -20,6 +20,7 @@ const getTabSessionKey = () => {
   return key;
 };
 
+
 // Helper to get auth headers (always includes tab key)
 export const getAuthHeaders = () => {
   const headers = {
@@ -35,6 +36,91 @@ export const getAuthHeaders = () => {
   headers["X-Tab-Session-Key"] = getTabSessionKey();
   
   return headers;
+};
+
+export const documentIntelligenceAPI = {
+  // Analyze a file (PDF, DOCX, XLSX, images etc.)
+  analyzeFile: async (file, question = '') => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (question) formData.append('question', question);
+
+    const token = getToken();
+    const tabSessionKey = getTabSessionKey();
+
+    const response = await fetch(`${API_BASE_URL}/api/document-intelligence/analyze`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'X-Tab-Session-Key': tabSessionKey
+        // No Content-Type — browser sets it for FormData
+      },
+      body: formData
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || data.error || 'Analysis failed');
+    return data;
+  },
+
+  // Analyze from URL
+  analyzeUrl: async (url, question = '') => {
+    const formData = new FormData();
+    formData.append('url', url);
+    if (question) formData.append('question', question);
+
+    const token = getToken();
+    const tabSessionKey = getTabSessionKey();
+
+    const response = await fetch(`${API_BASE_URL}/api/document-intelligence/analyze`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'X-Tab-Session-Key': tabSessionKey
+      },
+      body: formData
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || data.error || 'Analysis failed');
+    return data;
+  },
+
+  // Export InsightReport as PDF
+  exportPdf: async (report) => {
+    const response = await fetch(`${API_BASE_URL}/api/document-intelligence/export-pdf`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(report)
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'PDF export failed');
+    }
+
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `insights_${Date.now()}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    return { success: true };
+  },
+
+  // Health check
+  checkHealth: async () => {
+    const response = await fetch(`${API_BASE_URL}/api/document-intelligence/health`, {
+      headers: getAuthHeaders()
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Health check failed');
+    return data;
+  }
 };
 
 // Data Visualization API

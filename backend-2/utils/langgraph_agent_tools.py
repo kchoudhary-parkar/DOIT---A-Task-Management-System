@@ -2220,8 +2220,429 @@ def send_email_tool(
     except Exception as e:
         logger.error(f"send_email_tool error: {e}")
         import traceback
+
         traceback.print_exc()
         return f"❌ Failed to send email: {str(e)}"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PDF REPORT GENERATION TOOL
+# Requires: pip install reportlab
+# Saves PDF to /tmp/ so send_email_tool can attach it via attachment_paths
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+@tool
+def generate_pdf_report_tool(
+    report_type: str = "overdue",
+    project_name: Optional[str] = None,
+    output_path: Optional[str] = None,
+) -> str:
+    """
+    Generate a PDF report of tasks and save it to disk.
+    Use the returned file path with send_email_tool's attachment_paths to email it.
+
+    Args:
+        report_type: Type of report to generate:
+                     - "overdue"   → All overdue tasks (default)
+                     - "all"       → All tasks across projects
+                     - "analytics" → Project analytics summary (requires project_name)
+                     - "workload"  → Current user's assigned tasks
+        project_name: Filter by project name (optional for overdue/all, required for analytics)
+        output_path:  Where to save the PDF (default: /tmp/report_<type>_<timestamp>.pdf)
+
+    Returns:
+        File path of the generated PDF, or an error message.
+
+    Examples:
+        # Generate and get the path
+        path = generate_pdf_report_tool(report_type="overdue")
+
+        # Then email it
+        send_email_tool(
+            to="manager@company.com",
+            subject="Overdue Tasks Report",
+            body="Please find the overdue tasks report attached.",
+            attachment_paths=path
+        )
+    """
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib import colors
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import mm
+        from reportlab.platypus import (
+            SimpleDocTemplate,
+            Paragraph,
+            Spacer,
+            Table,
+            TableStyle,
+            HRFlowable,
+        )
+        from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
+
+        # ── Resolve output path ───────────────────────────────────────────────
+        if not output_path:
+            timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+            proj_slug = f"_{project_name.replace(' ', '_')}" if project_name else ""
+            output_path = f"/tmp/report_{report_type}{proj_slug}_{timestamp}.pdf"
+
+        ctx = get_tool_context()
+        user_id = ctx.get("user_id")
+        user_email = ctx.get("user_email", "")
+
+        # ── Fetch data based on report_type ───────────────────────────────────
+        tasks = []
+        report_title = "Task Report"
+        analytics_data = None
+
+        if report_type == "overdue":
+            report_title = "Overdue Tasks Report"
+            query = {
+                "due_date": {"$lt": datetime.utcnow().strftime("%Y-%m-%d")},
+                "status": {"$ne": "Done"},
+            }
+            if project_name:
+                from utils.langgraph_agent_automation import resolve_project_id
+
+                pid = resolve_project_id(user_id, project_name=project_name)
+                if pid:
+                    query["project_id"] = pid
+                    report_title = f"Overdue Tasks — {project_name}"
+            else:
+                projects = list(
+                    db.projects.find(
+                        {"$or": [{"user_id": user_id}, {"members.user_id": user_id}]}
+                    )
+                )
+                query["project_id"] = {"$in": [str(p["_id"]) for p in projects]}
+            tasks = list(db.tasks.find(query).limit(200))
+
+        elif report_type == "all":
+            report_title = "All Tasks Report"
+            projects = list(
+                db.projects.find(
+                    {"$or": [{"user_id": user_id}, {"members.user_id": user_id}]}
+                )
+            )
+            query = {"project_id": {"$in": [str(p["_id"]) for p in projects]}}
+            if project_name:
+                from utils.langgraph_agent_automation import resolve_project_id
+
+                pid = resolve_project_id(user_id, project_name=project_name)
+                if pid:
+                    query["project_id"] = pid
+                    report_title = f"All Tasks — {project_name}"
+            tasks = list(db.tasks.find(query).limit(200))
+
+        elif report_type == "workload":
+            report_title = f"Workload Report — {user_email}"
+            tasks = list(db.tasks.find({"assignee_email": user_email}).limit(200))
+
+        elif report_type == "analytics":
+            if not project_name:
+                return "❌ report_type='analytics' requires a project_name."
+            from utils.langgraph_agent_automation import resolve_project_id
+
+            pid = resolve_project_id(user_id, project_name=project_name)
+            if not pid:
+                return f"❌ Project '{project_name}' not found."
+            tasks = list(db.tasks.find({"project_id": pid}))
+            report_title = f"Analytics Report — {project_name}"
+
+            # Pre-compute analytics
+            total = len(tasks)
+            today = datetime.utcnow().strftime("%Y-%m-%d")
+            by_status, by_priority = {}, {}
+            overdue_count = 0
+            for t in tasks:
+                s = t.get("status", "To Do")
+                by_status[s] = by_status.get(s, 0) + 1
+                p = t.get("priority", "Medium")
+                by_priority[p] = by_priority.get(p, 0) + 1
+                if t.get("due_date") and t["due_date"] < today and s != "Done":
+                    overdue_count += 1
+            done = by_status.get("Done", 0)
+            analytics_data = {
+                "total": total,
+                "overdue": overdue_count,
+                "completion_rate": (done / total * 100) if total > 0 else 0,
+                "by_status": by_status,
+                "by_priority": by_priority,
+            }
+        else:
+            return f"❌ Unknown report_type '{report_type}'. Use: overdue, all, workload, analytics."
+
+        # ── Define styles ─────────────────────────────────────────────────────
+        styles = getSampleStyleSheet()
+
+        BRAND_DARK = colors.HexColor("#1E293B")  # slate-800
+        BRAND_ACCENT = colors.HexColor("#6366F1")  # indigo-500
+        BRAND_LIGHT = colors.HexColor("#F1F5F9")  # slate-100
+        BRAND_MUTED = colors.HexColor("#64748B")  # slate-500
+        RED = colors.HexColor("#EF4444")
+        ORANGE = colors.HexColor("#F97316")
+        GREEN = colors.HexColor("#22C55E")
+        YELLOW = colors.HexColor("#EAB308")
+
+        style_title = ParagraphStyle(
+            "ReportTitle",
+            parent=styles["Title"],
+            fontSize=22,
+            textColor=BRAND_DARK,
+            spaceAfter=4,
+            fontName="Helvetica-Bold",
+        )
+        style_subtitle = ParagraphStyle(
+            "ReportSubtitle",
+            parent=styles["Normal"],
+            fontSize=10,
+            textColor=BRAND_MUTED,
+            spaceAfter=16,
+            fontName="Helvetica",
+        )
+        style_section = ParagraphStyle(
+            "SectionHeading",
+            parent=styles["Heading2"],
+            fontSize=13,
+            textColor=BRAND_ACCENT,
+            spaceBefore=18,
+            spaceAfter=8,
+            fontName="Helvetica-Bold",
+        )
+        style_normal = ParagraphStyle(
+            "Body",
+            parent=styles["Normal"],
+            fontSize=9,
+            textColor=BRAND_DARK,
+            fontName="Helvetica",
+            leading=13,
+        )
+        style_small = ParagraphStyle(
+            "Small",
+            parent=styles["Normal"],
+            fontSize=8,
+            textColor=BRAND_MUTED,
+            fontName="Helvetica",
+        )
+        style_footer = ParagraphStyle(
+            "Footer",
+            parent=styles["Normal"],
+            fontSize=8,
+            textColor=BRAND_MUTED,
+            alignment=TA_CENTER,
+        )
+
+        # ── Priority colour helper ─────────────────────────────────────────────
+        PRIORITY_COLORS = {
+            "Critical": RED,
+            "High": ORANGE,
+            "Medium": YELLOW,
+            "Low": GREEN,
+        }
+        STATUS_COLORS = {
+            "Done": GREEN,
+            "In Progress": BRAND_ACCENT,
+            "In Review": colors.HexColor("#8B5CF6"),
+            "Blocked": RED,
+            "To Do": BRAND_MUTED,
+        }
+
+        def priority_badge(p):
+            c = PRIORITY_COLORS.get(p, BRAND_MUTED)
+            return Paragraph(
+                f'<font color="#{c.hexval()[2:]}"><b>{p or "—"}</b></font>',
+                style_normal,
+            )
+
+        def status_badge(s):
+            c = STATUS_COLORS.get(s, BRAND_MUTED)
+            return Paragraph(
+                f'<font color="#{c.hexval()[2:]}"><b>{s or "—"}</b></font>',
+                style_normal,
+            )
+
+        # ── Build document ────────────────────────────────────────────────────
+        doc = SimpleDocTemplate(
+            output_path,
+            pagesize=A4,
+            leftMargin=18 * mm,
+            rightMargin=18 * mm,
+            topMargin=20 * mm,
+            bottomMargin=20 * mm,
+        )
+
+        story = []
+        generated_at = datetime.utcnow().strftime("%B %d, %Y at %H:%M UTC")
+
+        # ── Header ────────────────────────────────────────────────────────────
+        story.append(Paragraph(report_title, style_title))
+        story.append(Paragraph(f"Generated on {generated_at}", style_subtitle))
+        story.append(
+            HRFlowable(width="100%", thickness=1.5, color=BRAND_ACCENT, spaceAfter=12)
+        )
+
+        # ── Analytics block (for analytics report type) ───────────────────────
+        if analytics_data:
+            story.append(Paragraph("Summary", style_section))
+
+            summary_data = [
+                ["Metric", "Value"],
+                ["Total Tasks", str(analytics_data["total"])],
+                ["Overdue Tasks", str(analytics_data["overdue"])],
+                ["Completion Rate", f"{analytics_data['completion_rate']:.1f}%"],
+            ]
+            for status, count in analytics_data["by_status"].items():
+                summary_data.append([f"Status: {status}", str(count)])
+            for priority, count in analytics_data["by_priority"].items():
+                summary_data.append([f"Priority: {priority}", str(count)])
+
+            summary_table = Table(summary_data, colWidths=[100 * mm, 50 * mm])
+            summary_table.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, 0), BRAND_DARK),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                        ("FONTSIZE", (0, 0), (-1, 0), 10),
+                        (
+                            "ROWBACKGROUNDS",
+                            (0, 1),
+                            (-1, -1),
+                            [colors.white, BRAND_LIGHT],
+                        ),
+                        ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+                        ("FONTSIZE", (0, 1), (-1, -1), 9),
+                        ("TOPPADDING", (0, 0), (-1, -1), 7),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#E2E8F0")),
+                        ("ROUNDEDCORNERS", [4]),
+                    ]
+                )
+            )
+            story.append(summary_table)
+            story.append(Spacer(1, 10))
+
+        # ── Task table ────────────────────────────────────────────────────────
+        if tasks:
+            story.append(Paragraph(f"Tasks ({len(tasks)})", style_section))
+
+            # Resolve project names for display
+            project_cache = {}
+            for task in tasks:
+                pid = task.get("project_id", "")
+                if pid and pid not in project_cache:
+                    proj = (
+                        db.projects.find_one({"_id": ObjectId(pid)})
+                        if len(pid) == 24
+                        else None
+                    )
+                    project_cache[pid] = proj.get("name", "—") if proj else "—"
+
+            # Table header
+            col_widths = [18 * mm, 65 * mm, 32 * mm, 22 * mm, 22 * mm, 22 * mm]
+            table_data = [
+                [
+                    Paragraph("<b>Ticket</b>", style_normal),
+                    Paragraph("<b>Title</b>", style_normal),
+                    Paragraph("<b>Project</b>", style_normal),
+                    Paragraph("<b>Priority</b>", style_normal),
+                    Paragraph("<b>Status</b>", style_normal),
+                    Paragraph("<b>Due Date</b>", style_normal),
+                ]
+            ]
+
+            for task in tasks:
+                ticket = task.get("ticket_id", "—")
+                title = task.get("title", "Untitled")[:60] + (
+                    "…" if len(task.get("title", "")) > 60 else ""
+                )
+                project = project_cache.get(task.get("project_id", ""), "—")
+                due = task.get("due_date", "—")
+
+                # Flag overdue dates in red
+                today_str = datetime.utcnow().strftime("%Y-%m-%d")
+                due_para = Paragraph(
+                    f'<font color="#EF4444"><b>{due}</b></font>'
+                    if due != "—" and due < today_str and task.get("status") != "Done"
+                    else due,
+                    style_normal,
+                )
+
+                table_data.append(
+                    [
+                        Paragraph(ticket, style_small),
+                        Paragraph(title, style_normal),
+                        Paragraph(project[:28], style_small),
+                        priority_badge(task.get("priority", "Medium")),
+                        status_badge(task.get("status", "To Do")),
+                        due_para,
+                    ]
+                )
+
+            task_table = Table(table_data, colWidths=col_widths, repeatRows=1)
+            task_table.setStyle(
+                TableStyle(
+                    [
+                        # Header row
+                        ("BACKGROUND", (0, 0), (-1, 0), BRAND_DARK),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                        ("FONTSIZE", (0, 0), (-1, 0), 9),
+                        # Alternating rows
+                        (
+                            "ROWBACKGROUNDS",
+                            (0, 1),
+                            (-1, -1),
+                            [colors.white, BRAND_LIGHT],
+                        ),
+                        ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+                        ("FONTSIZE", (0, 1), (-1, -1), 8),
+                        # Padding
+                        ("TOPPADDING", (0, 0), (-1, -1), 6),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                        # Grid
+                        ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#E2E8F0")),
+                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ]
+                )
+            )
+            story.append(task_table)
+
+        else:
+            story.append(Paragraph("No tasks found for this report.", style_normal))
+
+        # ── Footer ────────────────────────────────────────────────────────────
+        story.append(Spacer(1, 20))
+        story.append(
+            HRFlowable(width="100%", thickness=0.5, color=BRAND_MUTED, spaceAfter=6)
+        )
+        story.append(
+            Paragraph(
+                f"DOIT Task Management  •  {generated_at}  •  {len(tasks)} task(s) listed",
+                style_footer,
+            )
+        )
+
+        # ── Build PDF ─────────────────────────────────────────────────────────
+        doc.build(story)
+
+        logger.info(f"📄 PDF report saved to: {output_path}")
+        return output_path
+
+    except ImportError:
+        return (
+            "❌ reportlab is not installed. Run:\n  pip install reportlab\nthen retry."
+        )
+    except Exception as e:
+        logger.error(f"generate_pdf_report_tool error: {e}")
+        import traceback
+
+        traceback.print_exc()
+        return f"❌ Failed to generate PDF report: {str(e)}"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -2305,6 +2726,7 @@ def create_task_tool(
     except Exception as e:
         logger.error(f"create_task_tool error: {e}")
         import traceback
+
         traceback.print_exc()
         return f"❌ Failed to create task: {str(e)}"
 
@@ -2429,7 +2851,9 @@ def list_tasks_tool(
         result = f"Found {len(tasks)} task(s):\n\n"
         for task in tasks:
             result += f"• [{task.get('ticket_id', 'N/A')}] {task.get('title')}\n"
-            result += f"  Status: {task.get('status')} | Priority: {task.get('priority')}\n"
+            result += (
+                f"  Status: {task.get('status')} | Priority: {task.get('priority')}\n"
+            )
             if task.get("assignee_email"):
                 result += f"  Assigned to: {task.get('assignee_email')}\n"
             if task.get("due_date"):
@@ -2659,7 +3083,9 @@ def create_sprint_tool(
             goal=goal,
         )
 
-        msg = f"✅ Sprint '{sprint_name}' created successfully in project {project_name}"
+        msg = (
+            f"✅ Sprint '{sprint_name}' created successfully in project {project_name}"
+        )
         if start_date and end_date:
             msg += f" ({start_date} to {end_date})"
         return msg
@@ -2810,7 +3236,9 @@ def list_sprints_tool(
         result = f"Found {len(sprints)} sprint(s):\n\n"
         for sprint in sprints:
             task_count = db.tasks.count_documents({"sprint_id": sprint["_id"]})
-            result += f"• {sprint.get('name')} - Status: {sprint.get('status', 'planned')}\n"
+            result += (
+                f"• {sprint.get('name')} - Status: {sprint.get('status', 'planned')}\n"
+            )
             result += f"  Tasks: {task_count}\n"
             if sprint.get("start_date"):
                 result += f"  Start: {sprint.get('start_date')}\n"
@@ -3046,7 +3474,11 @@ def get_project_analytics_tool(project_name: str) -> str:
             by_status[status] = by_status.get(status, 0) + 1
             priority = task.get("priority", "Medium")
             by_priority[priority] = by_priority.get(priority, 0) + 1
-            if task.get("due_date") and task.get("due_date") < today and status != "Done":
+            if (
+                task.get("due_date")
+                and task.get("due_date") < today
+                and status != "Done"
+            ):
                 overdue += 1
 
         done = by_status.get("Done", 0)
@@ -3101,7 +3533,11 @@ def get_user_workload_tool(user_email: Optional[str] = None) -> str:
             by_status[status] = by_status.get(status, 0) + 1
             priority = task.get("priority", "Medium")
             by_priority[priority] = by_priority.get(priority, 0) + 1
-            if task.get("due_date") and task.get("due_date") < today and status != "Done":
+            if (
+                task.get("due_date")
+                and task.get("due_date") < today
+                and status != "Done"
+            ):
                 overdue += 1
 
         result = f"👤 Workload for {target_email}:\n\n"
@@ -3165,7 +3601,9 @@ def get_overdue_tasks_tool(project_name: Optional[str] = None) -> str:
         result = f"⚠️ Found {len(tasks)} overdue task(s):\n\n"
         for task in tasks:
             result += f"• [{task.get('ticket_id', 'N/A')}] {task.get('title')}\n"
-            result += f"  Due: {task.get('due_date')} | Priority: {task.get('priority')}\n"
+            result += (
+                f"  Due: {task.get('due_date')} | Priority: {task.get('priority')}\n"
+            )
             if task.get("assignee_email"):
                 result += f"  Assigned to: {task.get('assignee_email')}\n"
             result += "\n"
@@ -3205,11 +3643,13 @@ def update_user_profile_tool(
 
         profile = db.profiles.find_one({"user_id": user_id})
         if not profile:
-            db.profiles.insert_one({
-                "user_id": user_id,
-                "personal": {},
-                "created_at": datetime.utcnow(),
-            })
+            db.profiles.insert_one(
+                {
+                    "user_id": user_id,
+                    "personal": {},
+                    "created_at": datetime.utcnow(),
+                }
+            )
 
         update_data = {}
         if phone:
@@ -3262,4 +3702,5 @@ def get_all_langgraph_tools():
         get_overdue_tasks_tool,
         # Profile Management
         update_user_profile_tool,
+        generate_pdf_report_tool,
     ]
