@@ -27,6 +27,7 @@ from routers import (
 from routers.voice_chat_router import router as voice_chat_router
 from routers.local_agent_router import router as local_agent_router
 from routers.agent_data_router import router as agent_data_router
+from middleware.agent_auth import verify_agent_token
 from init_db import initialize_super_admin, initialize_default_channels
 from routers.langgraph_agent_router import router as langgraph_agent_router
 from routers.mcp_agent_router import router as mcp_agent_router
@@ -99,7 +100,8 @@ app.include_router(user_router, prefix="/api/users", tags=["Users"])
 app.include_router(chat_router, prefix="/api/chat", tags=["AI Chat"])
 app.include_router(team_chat_router, prefix="/api/team-chat", tags=["Team Chat"])
 app.include_router(data_viz_router, prefix="/api/data-viz", tags=["Data Visualization"])
-app.include_router(agent_data_router)
+app.include_router(agent_data_router, prefix="/api/agent/data", tags=["Agent Data"])
+app.include_router(agent_automation_router, tags=["Agent Automation"])
 app.include_router(
     ai_assistant_router, prefix="/api/ai-assistant", tags=["AI Assistant"]
 )
