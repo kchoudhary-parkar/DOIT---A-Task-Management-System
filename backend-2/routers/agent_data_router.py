@@ -159,7 +159,7 @@ async def get_all_tasks_for_agent(
             query["assignee_id"] = assignee_id
             
         tasks = list(db.tasks.find(query, {
-            "_id": 0,
+            "_id": 1,
             "task_id": 1,
             "title": 1,
             "description": 1,
@@ -180,6 +180,12 @@ async def get_all_tasks_for_agent(
         
         # Convert datetime objects to strings
         for task in tasks:
+            mongo_id = str(task.get("_id")) if task.get("_id") is not None else None
+            # Always expose canonical Mongo identifier as task_id for downstream writes.
+            task["task_id"] = mongo_id
+            task["mongo_id"] = mongo_id
+            task.pop("_id", None)
+
             if task.get("created_at"):
                 task["created_at"] = str(task["created_at"])
             if task.get("updated_at"):
@@ -259,7 +265,7 @@ async def get_sprints_for_agent(
             query["status"] = status
             
         sprints = list(db.sprints.find(query, {
-            "_id": 0,
+            "_id": 1,
             "sprint_id": 1,
             "name": 1,
             "project_id": 1,
@@ -273,15 +279,69 @@ async def get_sprints_for_agent(
             "completed_tasks": 1,
             "created_at": 1
         }).limit(100))
+
+        # Derive sprint tasks from live task documents so AI responses do not rely
+        # on potentially stale sprint.tasks arrays stored on sprint documents.
+        sprint_ids = []
+        for sprint in sprints:
+            resolved_sprint_id = sprint.get("sprint_id") or str(sprint.get("_id"))
+            if resolved_sprint_id:
+                sprint_ids.append(resolved_sprint_id)
+
+        tasks_by_sprint = {}
+        if sprint_ids:
+            sprint_tasks = list(
+                db.tasks.find(
+                    {"sprint_id": {"$in": sprint_ids}},
+                    {
+                        "_id": 0,
+                        "task_id": 1,
+                        "ticket_id": 1,
+                        "title": 1,
+                        "description": 1,
+                        "status": 1,
+                        "priority": 1,
+                        "assigned_to_name": 1,
+                        "project_id": 1,
+                        "due_date": 1,
+                        "sprint_id": 1,
+                        "created_at": 1,
+                    },
+                )
+                .sort("created_at", -1)
+            )
+
+            for task in sprint_tasks:
+                if task.get("created_at"):
+                    task["created_at"] = str(task["created_at"])
+                if task.get("due_date"):
+                    task["due_date"] = str(task["due_date"])
+
+                sid = task.get("sprint_id")
+                if sid:
+                    tasks_by_sprint.setdefault(sid, []).append(task)
         
         # Convert datetime objects to strings
         for sprint in sprints:
+            resolved_sprint_id = sprint.get("sprint_id") or str(sprint.get("_id"))
+            sprint["sprint_id"] = resolved_sprint_id
+
             if sprint.get("created_at"):
                 sprint["created_at"] = str(sprint["created_at"])
             if sprint.get("start_date"):
                 sprint["start_date"] = str(sprint["start_date"])
             if sprint.get("end_date"):
                 sprint["end_date"] = str(sprint["end_date"])
+
+            live_tasks = tasks_by_sprint.get(resolved_sprint_id, [])
+            sprint["tasks"] = live_tasks
+            sprint["total_tasks"] = len(live_tasks)
+            sprint["completed_tasks"] = sum(
+                1 for task in live_tasks if str(task.get("status", "")).lower() == "done"
+            )
+
+            # Hide internal Mongo field from the response.
+            sprint.pop("_id", None)
         
         return {
             "success": True,
