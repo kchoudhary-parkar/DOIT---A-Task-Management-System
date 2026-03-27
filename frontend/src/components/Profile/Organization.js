@@ -52,7 +52,7 @@ const Organization = ({ data, onUpdate }) => {
   const hasData = data && (data.name || data.role || data.employee_id);
 
   return (
-    <div className="profile-section">
+    <div className="profile-section organization-section">
       <div className="section-header">
         <div>
           <h2>Organization</h2>
@@ -85,162 +85,168 @@ const Organization = ({ data, onUpdate }) => {
           </button>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="profile-form">
-          <div className="form-grid">
-            <div className="form-group full-width">
-              <label htmlFor="name">Organization Name *</label>
-              <input
-                id="name"
-                type="text"
-                name="name"
-                value={formData.name}
-                onChange={handleChange}
-                disabled={!isEditing}
-                className="form-input"
-                placeholder="e.g., Tech Solutions Inc."
-              />
-            </div>
+        <div className="organization-layout">
+          <div className="organization-form-pane">
+            <form onSubmit={handleSubmit} className="profile-form">
+              <div className="form-grid">
+                <div className="form-group">
+                  <label htmlFor="name">Organization Name *</label>
+                  <input
+                    id="name"
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleChange}
+                    disabled={!isEditing}
+                    className="form-input"
+                    placeholder="e.g., Tech Solutions Inc."
+                  />
+                </div>
 
-            <div className="form-group">
-              <label htmlFor="role">Role/Position *</label>
-              <input
-                id="role"
-                type="text"
-                name="role"
-                value={formData.role}
-                onChange={handleChange}
-                disabled={!isEditing}
-                className="form-input"
-                placeholder="e.g., Software Engineer"
-              />
-            </div>
+                <div className="form-group">
+                  <label htmlFor="role">Role/Position *</label>
+                  <input
+                    id="role"
+                    type="text"
+                    name="role"
+                    value={formData.role}
+                    onChange={handleChange}
+                    disabled={!isEditing}
+                    className="form-input"
+                    placeholder="e.g., Software Engineer"
+                  />
+                </div>
 
-            <div className="form-group">
-              <label htmlFor="employee_id">Employee ID</label>
-              <input
-                id="employee_id"
-                type="text"
-                name="employee_id"
-                value={formData.employee_id}
-                onChange={handleChange}
-                disabled={!isEditing}
-                className="form-input"
-                placeholder="EMP12345"
-              />
-            </div>
+                <div className="form-group">
+                  <label htmlFor="employee_id">Employee ID</label>
+                  <input
+                    id="employee_id"
+                    type="text"
+                    name="employee_id"
+                    value={formData.employee_id}
+                    onChange={handleChange}
+                    disabled={!isEditing}
+                    className="form-input"
+                    placeholder="EMP12345"
+                  />
+                </div>
 
-            <div className="form-group">
-              <label htmlFor="department">Department</label>
-              <input
-                id="department"
-                type="text"
-                name="department"
-                value={formData.department}
-                onChange={handleChange}
-                disabled={!isEditing}
-                className="form-input"
-                placeholder="e.g., Engineering, IT, HR"
-              />
-            </div>
+                <div className="form-group">
+                  <label htmlFor="department">Department</label>
+                  <input
+                    id="department"
+                    type="text"
+                    name="department"
+                    value={formData.department}
+                    onChange={handleChange}
+                    disabled={!isEditing}
+                    className="form-input"
+                    placeholder="e.g., Engineering, IT, HR"
+                  />
+                </div>
 
-            <div className="form-group">
-              <label htmlFor="joinDate">Join Date</label>
-              <input
-                id="joinDate"
-                type="month"
-                name="joinDate"
-                value={formData.joinDate}
-                onChange={handleChange}
-                disabled={!isEditing}
-                className="form-input"
-              />
-            </div>
+                <div className="form-group">
+                  <label htmlFor="joinDate">Join Date</label>
+                  <input
+                    id="joinDate"
+                    type="month"
+                    name="joinDate"
+                    value={formData.joinDate}
+                    onChange={handleChange}
+                    disabled={!isEditing}
+                    className="form-input"
+                  />
+                </div>
 
-            <div className="form-group">
-              <label htmlFor="workEmail">Work Email</label>
-              <input
-                id="workEmail"
-                type="email"
-                name="workEmail"
-                value={formData.workEmail}
-                onChange={handleChange}
-                disabled={!isEditing}
-                className="form-input"
-                placeholder="you@company.com"
-              />
-            </div>
+                <div className="form-group">
+                  <label htmlFor="workEmail">Work Email</label>
+                  <input
+                    id="workEmail"
+                    type="email"
+                    name="workEmail"
+                    value={formData.workEmail}
+                    onChange={handleChange}
+                    disabled={!isEditing}
+                    className="form-input"
+                    placeholder="you@company.com"
+                  />
+                </div>
+              </div>
+
+              {isEditing && (
+                <div className="form-actions">
+                  <button
+                    type="button"
+                    className="btn-cancel"
+                    onClick={() => {
+                      setIsEditing(false);
+                      setFormData({
+                        name: data.name || "",
+                        role: data.role || "",
+                        employee_id: data.employee_id || "",
+                        department: data.department || "",
+                        joinDate: data.joinDate || "",
+                        workEmail: data.workEmail || ""
+                      });
+                    }}
+                    disabled={loading}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn-save"
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <>
+                        <span className="btn-spinner"></span>
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="btn-icon-text" size={16} />
+                        Save Changes
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+            </form>
           </div>
 
-          {isEditing && (
-            <div className="form-actions">
-              <button
-                type="button"
-                className="btn-cancel"
-                onClick={() => {
-                  setIsEditing(false);
-                  setFormData({
-                    name: data.name || "",
-                    role: data.role || "",
-                    employee_id: data.employee_id || "",
-                    department: data.department || "",
-                    joinDate: data.joinDate || "",
-                    workEmail: data.workEmail || ""
-                  });
-                }}
-                disabled={loading}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="btn-save"
-                disabled={loading}
-              >
-                {loading ? (
-                  <>
-                    <span className="btn-spinner"></span>
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <Save className="btn-icon-text" size={16} />
-                    Save Changes
-                  </>
-                )}
-              </button>
-            </div>
-          )}
-        </form>
-      )}
-
-      {!isEditing && hasData && (
-        <div className="organization-summary">
-          <div className="summary-card">
-            <Building2 className="summary-icon" size={80} />
-            <div className="summary-content">
-              <h4>{formData.name}</h4>
-              <p className="summary-role">{formData.role}</p>
-              <div className="summary-details-wrapper">
-                {formData.department && (
-                  <span className="summary-detail"><Folder size={16} /> {formData.department}</span>
-                )}
-                {formData.employee_id && (
-                  <span className="summary-detail"><Hash size={16} /> {formData.employee_id}</span>
-                )}
-                {formData.joinDate && (
-                  <span className="summary-detail">
-                    <Calendar size={16} /> Joined {new Date(formData.joinDate).toLocaleDateString('en-US', { 
-                      month: 'long', 
-                      year: 'numeric' 
-                    })}
-                  </span>
-                )}
-                {formData.workEmail && (
-                  <span className="summary-detail"><Mail size={16} /> {formData.workEmail}</span>
-                )}
+          {!isEditing && hasData && (
+            <div className="organization-summary-pane">
+              <div className="organization-summary">
+                <div className="summary-card">
+                  <Building2 className="summary-icon" size={80} />
+                  <div className="summary-content">
+                    <h4>{formData.name}</h4>
+                    <p className="summary-role">{formData.role}</p>
+                    <div className="summary-details-wrapper">
+                      {formData.department && (
+                        <span className="summary-detail"><Folder size={16} /> {formData.department}</span>
+                      )}
+                      {formData.employee_id && (
+                        <span className="summary-detail"><Hash size={16} /> {formData.employee_id}</span>
+                      )}
+                      {formData.joinDate && (
+                        <span className="summary-detail">
+                          <Calendar size={16} /> Joined {new Date(formData.joinDate).toLocaleDateString('en-US', {
+                            month: 'long',
+                            year: 'numeric'
+                          })}
+                        </span>
+                      )}
+                      {formData.workEmail && (
+                        <span className="summary-detail"><Mail size={16} /> {formData.workEmail}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       )}
     </div>
