@@ -7,6 +7,9 @@ import {
   Link,
   useNavigate,
 } from "react-router-dom";
+import AboutPage from "./pages/About/AboutPage";
+import LandingAuth from "./pages/Auth/LandingAuth";  // adjust path
+
 import { FiActivity } from 'react-icons/fi';
 import { BsStars, BsBriefcase } from 'react-icons/bs';  // For AI Assistant and PM icons
 import { AuthContext } from "./context/AuthContext";
@@ -52,11 +55,13 @@ function AuthenticatedApp({ user, theme, toggleTheme, logout }) {
     )},
     { label: 'DOIT-AI', path: '/ai-assistant', icon: <BsStars size={17} /> },
     { label: 'Analytics', path: '/data-viz', icon: <FiActivity size={17} /> },
+    
     { label: 'Profile', path: '/profile', icon: (
       <svg width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
       </svg>
     )},
+    
     ...(user.role === 'super-admin' || user.role === 'admin' ? [{
       label: 'Users', path: '/users', icon: (
         <svg width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
@@ -72,6 +77,18 @@ function AuthenticatedApp({ user, theme, toggleTheme, logout }) {
         </svg>
       )
     }] : []),
+    {
+  label: 'About DOIT',
+  path: '/about',
+  icon: (
+    <svg width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2"
+      strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="12" y1="8" x2="12" y2="12"/>
+      <line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+  )
+}
   ];
 
   return (
@@ -86,11 +103,16 @@ function AuthenticatedApp({ user, theme, toggleTheme, logout }) {
       <aside className={`app-sidebar${sidebarOpen ? ' open' : ''}`}>
         <div className="sidebar-header">
           <div className="sidebar-brand">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor"
-              strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
-              className="sidebar-brand-icon" viewBox="0 0 24 24">
-              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-            </svg>
+            <svg
+  xmlns="http://www.w3.org/2000/svg"
+  fill="none"
+  stroke="currentColor"
+  strokeWidth="2"
+  className="nav-brand-icon"
+  viewBox="0 0 24 24"
+>
+  <path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round" />
+</svg>
             <span className="sidebar-brand-name">DOIT</span>
           </div>
           <button className="sidebar-close-btn" onClick={() => setSidebarOpen(false)}>
@@ -126,6 +148,7 @@ function AuthenticatedApp({ user, theme, toggleTheme, logout }) {
               <span>{link.label}</span>
             </Link>
           ))}
+          
         </nav>
 
         <div className="sidebar-footer">
@@ -146,11 +169,16 @@ function AuthenticatedApp({ user, theme, toggleTheme, logout }) {
 
           {/* Brand — clicking opens sidebar */}
           <button className="nav-brand-btn" onClick={() => setSidebarOpen(true)}>
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor"
-              strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
-              className="nav-brand-icon" viewBox="0 0 24 24">
-              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-            </svg>
+            <svg
+  xmlns="http://www.w3.org/2000/svg"
+  fill="none"
+  stroke="currentColor"
+  strokeWidth="2"
+  className="nav-brand-icon"
+  viewBox="0 0 24 24"
+>
+  <path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round" />
+</svg>
             <span className="nav-brand-text">DOIT</span>
           </button>
 
@@ -241,6 +269,8 @@ function AuthenticatedApp({ user, theme, toggleTheme, logout }) {
           <Route path="/data-viz" element={<DataVisualization />} />
           <Route path="/ai-assistant" element={<AIAssistantPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="/about" element={<AboutPage />} />
+
         </Routes>
       </main>
 
@@ -428,672 +458,7 @@ function App() {
             logout={logout} 
           />
         ) : (
-          <div style={{
-  minHeight: '100vh',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  backgroundImage: 'url("https://raw.githubusercontent.com/kchoudhary-parkar/task_management_system/refs/heads/main/frontend/shared%20image%20(1).jpg")',
-  backgroundSize: 'cover',
-  backgroundPosition: 'center',
-  backgroundRepeat: 'no-repeat',
-  padding: '20px',
-  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-}}>
-            <div style={{
-              width: '100%',
-              maxWidth: '480px',
-              background: 'white',
-              borderRadius: '12px',
-              boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
-              padding: '48px 40px',
-              position: 'relative'
-            }}>
-              {/* Back Button for Clerk and Traditional modes */}
-              {(authMode === "clerk" || authMode === "traditional") && (
-                <button
-                  onClick={() => setAuthMode("choice")}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: '#0052CC',
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                    padding: '8px 0',
-                    marginBottom: '16px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    fontWeight: '500',
-                    transition: 'all 0.2s'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.target.style.gap = '10px';
-                    e.target.style.color = '#0747A6';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.gap = '6px';
-                    e.target.style.color = '#0052CC';
-                  }}
-                >
-                  <span style={{ fontSize: '18px' }}>←</span> Back
-                </button>
-              )}
-
-              {/* Brand Header */}
-              <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-                <div style={{
-                  fontSize: '42px',
-                  fontWeight: '700',
-                  background: 'linear-gradient(135deg, #0052CC 0%, #667eea 100%)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  letterSpacing: '2px'
-                }}>
-                  DOIT
-                </div>
-                <div style={{
-                  fontSize: '13px',
-                  color: '#5E6C84',
-                  marginTop: '8px',
-                  fontWeight: '400'
-                }}>
-                  Modern Project Management
-                </div>
-              </div>
-
-              {/* Choice Screen */}
-              {authMode === "choice" && (
-                <>
-                  <h2 style={{
-                    fontSize: '24px',
-                    fontWeight: '600',
-                    color: '#172B4D',
-                    textAlign: 'center',
-                    marginBottom: '32px',
-                    letterSpacing: '-0.02em'
-                  }}>
-                    Welcome! Choose how to sign in
-                  </h2>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    <button
-                      onClick={() => setAuthMode("clerk")}
-                      style={{
-                        width: '100%',
-                        padding: '14px 20px',
-                        background: 'linear-gradient(135deg, #0052CC 0%, #0065FF 100%)',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '6px',
-                        fontSize: '15px',
-                        fontWeight: '600',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '10px',
-                        transition: 'all 0.2s',
-                        boxShadow: '0 4px 12px rgba(0,82,204,0.25)'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.target.style.transform = 'translateY(-2px)';
-                        e.target.style.boxShadow = '0 6px 20px rgba(0,82,204,0.35)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.target.style.transform = 'translateY(0)';
-                        e.target.style.boxShadow = '0 4px 12px rgba(0,82,204,0.25)';
-                      }}
-                    >
-                      <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-                        <path d="M10 0C4.477 0 0 4.477 0 10s4.477 10 10 10 10-4.477 10-10S15.523 0 10 0zm0 18c-4.411 0-8-3.589-8-8s3.589-8 8-8 8 3.589 8 8-3.589 8-8 8z"/>
-                      </svg>
-                      Continue with Google / Microsoft
-                    </button>
-
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      margin: '8px 0',
-                      gap: '12px'
-                    }}>
-                      <div style={{ flex: 1, height: '1px', background: '#DFE1E6' }}></div>
-                      <span style={{ fontSize: '12px', color: '#5E6C84', fontWeight: '500' }}>
-                        OR
-                      </span>
-                      <div style={{ flex: 1, height: '1px', background: '#DFE1E6' }}></div>
-                    </div>
-
-                    <button
-                      onClick={() => setAuthMode("traditional")}
-                      style={{
-                        width: '100%',
-                        padding: '14px 20px',
-                        background: 'white',
-                        border: '2px solid #DFE1E6',
-                        borderRadius: '6px',
-                        fontSize: '15px',
-                        fontWeight: '500',
-                        cursor: 'pointer',
-                        color: '#172B4D',
-                        transition: 'all 0.2s'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.target.style.background = '#F4F5F7';
-                        e.target.style.borderColor = '#B3BAC5';
-                        e.target.style.transform = 'translateY(-1px)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.target.style.background = 'white';
-                        e.target.style.borderColor = '#DFE1E6';
-                        e.target.style.transform = 'translateY(0)';
-                      }}
-                    >
-                      Continue with Email & Password
-                    </button>
-                  </div>
-                </>
-              )}
-
-              {/* Clerk Auth Mode */}
-              {authMode === "clerk" && (
-                <>
-                  <h2 style={{
-                    fontSize: '24px',
-                    fontWeight: '600',
-                    color: '#172B4D',
-                    textAlign: 'center',
-                    marginBottom: '24px',
-                    letterSpacing: '-0.02em'
-                  }}>
-                    {isLogin ? "Sign In" : "Sign Up"}
-                  </h2>
-
-                  <div style={{ marginBottom: '20px' }}>
-                    {isLogin ? (
-                      <SignIn
-                        routing="hash"
-                        signUpUrl="#"
-                        appearance={{
-                          elements: {
-                            formButtonPrimary: "btn-primary",
-                            card: "clerk-card",
-                          },
-                        }}
-                      />
-                    ) : (
-                      <SignUp
-                        routing="hash"
-                        signInUrl="#"
-                        appearance={{
-                          elements: {
-                            formButtonPrimary: "btn-primary",
-                            card: "clerk-card",
-                          },
-                        }}
-                      />
-                    )}
-                  </div>
-
-                  <p style={{
-                    textAlign: 'center',
-                    fontSize: '14px',
-                    color: '#5E6C84',
-                    marginTop: '20px'
-                  }}>
-                    {isLogin ? "Don't have an account?" : "Already have an account?"}{' '}
-                    <button
-                      onClick={() => setIsLogin(!isLogin)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: '#0052CC',
-                        cursor: 'pointer',
-                        fontWeight: '600',
-                        fontSize: '14px'
-                      }}
-                      onMouseEnter={(e) => e.target.style.textDecoration = 'underline'}
-                      onMouseLeave={(e) => e.target.style.textDecoration = 'none'}
-                    >
-                      {isLogin ? "Sign Up" : "Sign In"}
-                    </button>
-                  </p>
-                </>
-              )}
-
-              {/* Traditional Email/Password Mode */}
-              {authMode === "traditional" && (
-                <>
-                  <div style={{
-                    display: 'flex',
-                    gap: '8px',
-                    marginBottom: '32px',
-                    background: '#F4F5F7',
-                    padding: '4px',
-                    borderRadius: '8px'
-                  }}>
-                    <button
-                      type="button"
-                      onClick={() => setIsLogin(true)}
-                      style={{
-                        flex: 1,
-                        padding: '10px',
-                        background: isLogin ? 'white' : 'transparent',
-                        border: 'none',
-                        borderRadius: '6px',
-                        fontSize: '14px',
-                        fontWeight: '600',
-                        color: isLogin ? '#0052CC' : '#5E6C84',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s',
-                        boxShadow: isLogin ? '0 2px 4px rgba(0,0,0,0.1)' : 'none'
-                      }}
-                    >
-                      Login
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setIsLogin(false)}
-                      style={{
-                        flex: 1,
-                        padding: '10px',
-                        background: !isLogin ? 'white' : 'transparent',
-                        border: 'none',
-                        borderRadius: '6px',
-                        fontSize: '14px',
-                        fontWeight: '600',
-                        color: !isLogin ? '#0052CC' : '#5E6C84',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s',
-                        boxShadow: !isLogin ? '0 2px 4px rgba(0,0,0,0.1)' : 'none'
-                      }}
-                    >
-                      Register
-                    </button>
-                  </div>
-
-                  <h2 style={{
-                    fontSize: '24px',
-                    fontWeight: '600',
-                    color: '#172B4D',
-                    textAlign: 'center',
-                    marginBottom: '32px',
-                    letterSpacing: '-0.02em'
-                  }}>
-                    {isLogin ? "Welcome back" : "Create your account"}
-                  </h2>
-
-                  <form onSubmit={handleSubmit} noValidate>
-                    {!isLogin && (
-                      <div style={{ marginBottom: '20px' }}>
-                        <label style={{
-                          display: 'block',
-                          fontSize: '13px',
-                          fontWeight: '600',
-                          color: '#172B4D',
-                          marginBottom: '6px'
-                        }}>
-                          Full Name <span style={{ color: '#DE350B' }}>*</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={name}
-                          onChange={(e) => handleFieldChange("name", e.target.value)}
-                          onKeyPress={handleKeyPress}
-                          placeholder="Enter your full name"
-                          style={{
-                            width: '100%',
-                            padding: '12px 14px',
-                            fontSize: '15px',
-                            border: errors.name ? '2px solid #DE350B' : '2px solid #DFE1E6',
-                            borderRadius: '6px',
-                            outline: 'none',
-                            transition: 'all 0.2s',
-                            backgroundColor: errors.name ? '#FFEBE6' : 'white',
-                            boxSizing: 'border-box'
-                          }}
-                          onFocus={(e) => {
-                            if (!errors.name) {
-                              e.target.style.borderColor = '#0052CC';
-                              e.target.style.boxShadow = '0 0 0 3px rgba(0,82,204,0.1)';
-                            }
-                          }}
-                          onBlur={(e) => {
-                            if (!errors.name) {
-                              e.target.style.borderColor = '#DFE1E6';
-                              e.target.style.boxShadow = 'none';
-                            }
-                          }}
-                        />
-                        {errors.name && (
-                          <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            marginTop: '6px',
-                            fontSize: '13px',
-                            color: '#DE350B'
-                          }}>
-                            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                              <path d="M8 0C3.58 0 0 3.58 0 8s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8zm1 13H7v-2h2v2zm0-3H7V4h2v6z"/>
-                            </svg>
-                            {errors.name}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    <div style={{ marginBottom: '20px' }}>
-                      <label style={{
-                        display: 'block',
-                        fontSize: '13px',
-                        fontWeight: '600',
-                        color: '#172B4D',
-                        marginBottom: '6px'
-                      }}>
-                        Email <span style={{ color: '#DE350B' }}>*</span>
-                      </label>
-                      <input
-                        type="email"
-                        value={email}
-                        onChange={(e) => handleFieldChange("email", e.target.value)}
-                        onKeyPress={handleKeyPress}
-                        placeholder="you@example.com"
-                        style={{
-                          width: '100%',
-                          padding: '12px 14px',
-                          fontSize: '15px',
-                          border: errors.email ? '2px solid #DE350B' : '2px solid #DFE1E6',
-                          borderRadius: '6px',
-                          outline: 'none',
-                          transition: 'all 0.2s',
-                          backgroundColor: errors.email ? '#FFEBE6' : 'white',
-                          boxSizing: 'border-box'
-                        }}
-                        onFocus={(e) => {
-                          if (!errors.email) {
-                            e.target.style.borderColor = '#0052CC';
-                            e.target.style.boxShadow = '0 0 0 3px rgba(0,82,204,0.1)';
-                          }
-                        }}
-                        onBlur={(e) => {
-                          if (!errors.email) {
-                            e.target.style.borderColor = '#DFE1E6';
-                            e.target.style.boxShadow = 'none';
-                          }
-                        }}
-                      />
-                      {errors.email && (
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          marginTop: '6px',
-                          fontSize: '13px',
-                          color: '#DE350B'
-                        }}>
-                          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                            <path d="M8 0C3.58 0 0 3.58 0 8s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8zm1 13H7v-2h2v2zm0-3H7V4h2v6z"/>
-                          </svg>
-                          {errors.email}
-                        </div>
-                      )}
-                    </div>
-
-                    <div style={{ marginBottom: '16px' }}>
-                      <label style={{
-                        display: 'block',
-                        fontSize: '13px',
-                        fontWeight: '600',
-                        color: '#172B4D',
-                        marginBottom: '6px'
-                      }}>
-                        Password <span style={{ color: '#DE350B' }}>*</span>
-                      </label>
-                      {isLogin ? (
-                        <div style={{ position: 'relative' }}>
-                          <input
-                            type={showPassword ? 'text' : 'password'}
-                            value={password}
-                            onChange={(e) => handleFieldChange("password", e.target.value)}
-                            onKeyPress={handleKeyPress}
-                            placeholder="••••••••"
-                            style={{
-                              width: '100%',
-                              padding: '12px 44px 12px 14px',
-                              fontSize: '15px',
-                              border: errors.password ? '2px solid #DE350B' : '2px solid #DFE1E6',
-                              borderRadius: '6px',
-                              outline: 'none',
-                              transition: 'all 0.2s',
-                              backgroundColor: errors.password ? '#FFEBE6' : 'white',
-                              boxSizing: 'border-box'
-                            }}
-                            onFocus={(e) => {
-                              if (!errors.password) {
-                                e.target.style.borderColor = '#0052CC';
-                                e.target.style.boxShadow = '0 0 0 3px rgba(0,82,204,0.1)';
-                              }
-                            }}
-                            onBlur={(e) => {
-                              if (!errors.password) {
-                                e.target.style.borderColor = '#DFE1E6';
-                                e.target.style.boxShadow = 'none';
-                              }
-                            }}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowPassword(!showPassword)}
-                            style={{
-                              position: 'absolute',
-                              right: '12px',
-                              top: '50%',
-                              transform: 'translateY(-50%)',
-                              background: 'none',
-                              border: 'none',
-                              cursor: 'pointer',
-                              padding: '6px',
-                              color: '#5E6C84',
-                              fontSize: '18px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              borderRadius: '4px',
-                              transition: 'all 0.2s'
-                            }}
-                            onMouseEnter={(e) => e.target.style.background = '#F4F5F7'}
-                            onMouseLeave={(e) => e.target.style.background = 'none'}
-                          >
-                            {showPassword ? '👁️' : '👁️‍🗨️'}
-                          </button>
-                        </div>
-                      ) : (
-                        <PasswordInput
-                          id="password"
-                          value={password}
-                          onChange={(value) => handleFieldChange("password", value)}
-                          placeholder="Create a strong password"
-                          showStrength={true}
-                          showRequirements={true}
-                        />
-                      )}
-                      {errors.password && (
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          marginTop: '6px',
-                          fontSize: '13px',
-                          color: '#DE350B'
-                        }}>
-                          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                            <path d="M8 0C3.58 0 0 3.58 0 8s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8zm1 13H7v-2h2v2zm0-3H7V4h2v6z"/>
-                          </svg>
-                          {errors.password}
-                        </div>
-                      )}
-                    </div>
-
-                    {!isLogin && (
-                      <div style={{ marginBottom: '16px' }}>
-                        <label style={{
-                          display: 'block',
-                          fontSize: '13px',
-                          fontWeight: '600',
-                          color: '#172B4D',
-                          marginBottom: '6px'
-                        }}>
-                          Confirm Password <span style={{ color: '#DE350B' }}>*</span>
-                        </label>
-                        <input
-                          type="password"
-                          value={confirmPassword}
-                          onChange={(e) => handleFieldChange("confirmPassword", e.target.value)}
-                          onKeyPress={handleKeyPress}
-                          placeholder="Re-enter your password"
-                          style={{
-                            width: '100%',
-                            padding: '12px 14px',
-                            fontSize: '15px',
-                            border: errors.confirmPassword ? '2px solid #DE350B' : '2px solid #DFE1E6',
-                            borderRadius: '6px',
-                            outline: 'none',
-                            transition: 'all 0.2s',
-                            backgroundColor: errors.confirmPassword ? '#FFEBE6' : 'white',
-                            boxSizing: 'border-box'
-                          }}
-                          onFocus={(e) => {
-                            if (!errors.confirmPassword) {
-                              e.target.style.borderColor = '#0052CC';
-                              e.target.style.boxShadow = '0 0 0 3px rgba(0,82,204,0.1)';
-                            }
-                          }}
-                          onBlur={(e) => {
-                            if (!errors.confirmPassword) {
-                              e.target.style.borderColor = '#DFE1E6';
-                              e.target.style.boxShadow = 'none';
-                            }
-                          }}
-                        />
-                        {errors.confirmPassword && (
-                          <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            marginTop: '6px',
-                            fontSize: '13px',
-                            color: '#DE350B'
-                          }}>
-                            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                              <path d="M8 0C3.58 0 0 3.58 0 8s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8zm1 13H7v-2h2v2zm0-3H7V4h2v6z"/>
-                            </svg>
-                            {errors.confirmPassword}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {isLogin && (
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        marginBottom: '24px'
-                      }}>
-                        <input
-                          type="checkbox"
-                          id="remember"
-                          checked={rememberMe}
-                          onChange={(e) => setRememberMe(e.target.checked)}
-                          style={{
-                            width: '16px',
-                            height: '16px',
-                            cursor: 'pointer',
-                            accentColor: '#0052CC'
-                          }}
-                        />
-                        <label htmlFor="remember" style={{
-                          fontSize: '14px',
-                          color: '#172B4D',
-                          cursor: 'pointer'
-                        }}>
-                          Remember me
-                        </label>
-                      </div>
-                    )}
-
-                    {error && (
-                      <div style={{
-                        padding: '14px 16px',
-                        marginBottom: '16px',
-                        backgroundColor: '#FFEBE6',
-                        border: '1px solid #DE350B',
-                        borderRadius: '6px',
-                        color: '#DE350B',
-                        fontSize: '14px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px'
-                      }}>
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                          <path d="M8 0C3.58 0 0 3.58 0 8s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8zm1 13H7v-2h2v2zm0-3H7V4h2v6z"/>
-                        </svg>
-                        {error}
-                      </div>
-                    )}
-
-                    {success && (
-                      <div style={{
-                        padding: '14px 16px',
-                        marginBottom: '16px',
-                        backgroundColor: '#E3FCEF',
-                        border: '1px solid #00875A',
-                        borderRadius: '6px',
-                        color: '#00875A',
-                        fontSize: '14px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px'
-                      }}>
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                          <path d="M8 0C3.58 0 0 3.58 0 8s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8zm6.2 5.8L7 12.9l-3.7-3.7 1.4-1.4L7 10.1l5.8-5.8 1.4 1.5z"/>
-                        </svg>
-                        {success}
-                      </div>
-                    )}
-
-                    <button
-                      type="submit"
-                      style={{
-                        width: '100%',
-                        padding: '12px',
-                        background: 'linear-gradient(135deg, #0052CC 0%, #0065FF 100%)',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '6px',
-                        fontSize: '15px',
-                        fontWeight: '600',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s',
-                        boxShadow: '0 4px 12px rgba(0,82,204,0.25)'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.target.style.transform = 'translateY(-2px)';
-                        e.target.style.boxShadow = '0 6px 20px rgba(0,82,204,0.35)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.target.style.transform = 'translateY(0)';
-                        e.target.style.boxShadow = '0 4px 12px rgba(0,82,204,0.25)';
-                      }}
-                    >
-                      {isLogin ? "Login" : "Register"}
-                    </button>
-                  </form>
-                </>
-              )}
-            </div>
-          </div>
+          <LandingAuth login={login} register={register} />
         )}
       </div>
     </Router>

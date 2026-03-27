@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { SignIn, SignUp } from "@clerk/clerk-react";
-import PasswordInput from "";
+import PasswordInput from "../../components/Input/PasswordInput";
 import "./LandingAuth.css";
 
 /* ── tiny helpers ───────────────────────────────────────────────── */
