@@ -1,0 +1,138 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "version": "1.0.0.0",
+    "title": "Email-Agent",
+    "description": "Agent designed to email"
+  },
+  "servers": [
+    {
+      "url": "https://prod-05.swedencentral.logic.azure.com/workflows/d6f4ce139b5e4ff79b2c9451dd5f7b6d/triggers/When_a_HTTP_request_is_received/paths"
+    }
+  ],
+  "security": [
+    {
+      "sig": []
+    }
+  ],
+  "paths": {
+    "/invoke": {
+      "post": {
+        "description": "Send an email with a specified recipient, subject, and body. Optionally attach a PDF by providing attachment_name and attachment_base64.",
+        "operationId": "sendEmail",
+        "parameters": [
+          {
+            "name": "api-version",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "default": "2016-10-01"
+            },
+            "example": "2016-10-01"
+          },
+          {
+            "name": "sv",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            },
+            "example": "1.0"
+          },
+          {
+            "name": "sp",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "default": "%2Ftriggers%2FWhen_a_HTTP_request_is_received%2Frun"
+            },
+            "example": "%2Ftriggers%2FWhen_a_HTTP_request_is_received%2Frun"
+          },
+          {
+            "name": "sig",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "default": "QrK33ObZxJxussTXDlHR24bYhzY9he4llNWIojvnnGo"
+            },
+            "example": "QrK33ObZxJxussTXDlHR24bYhzY9he4llNWIojvnnGo"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email_to",
+                  "email_subject",
+                  "email_body"
+                ],
+                "properties": {
+                  "email_to": {
+                    "type": "string",
+                    "description": "The recipient's email address"
+                  },
+                  "email_subject": {
+                    "type": "string",
+                    "description": "The subject line of the email"
+                  },
+                  "email_body": {
+                    "type": "string",
+                    "description": "The body content of the email"
+                  },
+                  "attachment_name": {
+                    "type": "string",
+                    "description": "Filename for the attachment e.g. report.pdf — required if attachment_base64 is provided"
+                  },
+                  "attachment_base64": {
+                    "type": "string",
+                    "description": "Base64-encoded file content to attach to the email — omit this field entirely to send without attachment"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Email sent successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The Logic App Response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "sig": {
+        "type": "apiKey",
+        "description": "The SHA 256 hash of the entire request URI with an internal key.",
+        "name": "sig",
+        "in": "query"
+      }
+    }
+  }
+}

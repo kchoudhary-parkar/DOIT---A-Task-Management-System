@@ -868,7 +868,7 @@ Agent Automation Router
 Provides simplified endpoints for Azure AI Agent to create and assign tasks
 """
 
-from fastapi import APIRouter, Depends, HTTPException, File, Form, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, File, Form, UploadFile, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, EmailStr
 from typing import Optional, List, Dict, Any
@@ -876,6 +876,13 @@ import asyncio
 import time
 import io
 import json
+import base64
+import os
+import smtplib
+import socket
+from email.message import EmailMessage
+from pathlib import Path
+from uuid import uuid4
 
 from middleware.agent_auth import verify_agent_token, verify_agent_token_optional
 from models.task import Task
@@ -914,6 +921,14 @@ from utils.response import success_response, error_response
 from celery_app import celery_app
 
 router = APIRouter(prefix="/api/agent/automation", tags=["Agent Automation"])
+
+
+def _to_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
 # ---------------------------------------------------------------------------
@@ -1066,6 +1081,33 @@ class AddTaskLinkAutomationRequest(BaseModel):
     linked_ticket_id: Optional[str] = None
 
 
+class ExportReportKPIRequest(BaseModel):
+    label: str
+    value: str
+    trend: Optional[str] = "neutral"
+
+
+class ExportReportRequest(BaseModel):
+    requesting_user: EmailStr
+    report_title: str
+    executive_summary: str
+    key_insights: Optional[List[str]] = []
+    kpis: Optional[List[ExportReportKPIRequest]] = []
+    recommendations: Optional[List[str]] = []
+    email_to: Optional[EmailStr] = None
+    export_format: Optional[str] = "pdf"
+    save_to_sharepoint: Optional[bool] = False
+    sharepoint_folder: Optional[str] = "Reports"
+
+
+class SendReportEmailRequest(BaseModel):
+    requesting_user: EmailStr
+    to_email: EmailStr
+    report_url: str
+    subject: Optional[str] = "Structured Report"
+    message: Optional[str] = "Please find your generated report at the link below."
+
+
 # ---------------------------------------------------------------------------
 # Pydantic request models — data viz
 # ---------------------------------------------------------------------------
@@ -1167,6 +1209,46 @@ def _handle_controller_response(response: Dict[str, Any]) -> Any:
             status_code=status_code, detail=payload.get("error", "Unknown error")
         )
     return payload
+
+
+def _send_report_email_sync(
+    to_email: str,
+    subject: str,
+    message: str,
+    report_url: str,
+) -> Dict[str, Any]:
+    smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com")
+    smtp_port = int(os.getenv("SMTP_PORT", "465"))
+    smtp_user = os.getenv("SMTP_USERNAME") or os.getenv("GMAIL_ADDRESS")
+    smtp_password = os.getenv("SMTP_PASSWORD") or os.getenv("GMAIL_APP_PASSWORD")
+    smtp_from = os.getenv("SMTP_FROM") or smtp_user
+
+    if not smtp_user or not smtp_password or not smtp_from:
+        raise RuntimeError(
+            "SMTP not configured. Set SMTP_USERNAME/SMTP_PASSWORD "
+            "(or GMAIL_ADDRESS/GMAIL_APP_PASSWORD)."
+        )
+
+    body = f"{message}\n\nReport link: {report_url}\n"
+    email_message = EmailMessage()
+    email_message["From"] = smtp_from
+    email_message["To"] = to_email
+    email_message["Subject"] = subject
+    email_message.set_content(body)
+
+    socket.setdefaulttimeout(15)
+    with smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=15) as smtp:
+        smtp.login(smtp_user, smtp_password)
+        smtp.send_message(email_message)
+
+    return {
+        "to_email": to_email,
+        "from_email": smtp_from,
+        "subject": subject,
+        "delivery_mode": "link_only",
+        "report_url": report_url,
+        "smtp_host": smtp_host,
+    }
 
 
 # ===========================================================================
@@ -1970,6 +2052,245 @@ async def agent_export_pdf(
         )
     except Exception as e:
         return error_response(str(e), 500)
+
+
+@router.post("/export-report")
+async def agent_export_report(
+    payload: Dict[str, Any],
+    http_request: Request,
+    requesting_user: Optional[EmailStr] = None,
+    agent_user_id: Optional[str] = Depends(verify_agent_token_optional),
+):
+    """
+    Build a structured report payload and generate PDF bytes.
+
+    Returns JSON (not binary stream) so agent tools can consume the result reliably.
+    """
+    # Accept requesting user from query first, then common body keys.
+    body_requesting_user = (
+        payload.get("requesting_user")
+        or payload.get("user_email")
+        or payload.get("email")
+    )
+    effective_requesting_user = requesting_user or body_requesting_user
+
+    if effective_requesting_user:
+        _resolve_requesting_user_id(effective_requesting_user)
+    elif not agent_user_id:
+        raise HTTPException(
+            status_code=401,
+            detail=(
+                "Authentication missing for export-report. "
+                "Provide auth token or requesting_user in query/body."
+            ),
+        )
+
+    try:
+        trend_map = {
+            "flat": "neutral",
+            "steady": "neutral",
+        }
+
+        raw_kpis = payload.get("kpis") or []
+        if not isinstance(raw_kpis, list):
+            raw_kpis = []
+
+        mapped_kpis = []
+        for kpi in raw_kpis:
+            if not isinstance(kpi, dict):
+                continue
+
+            trend_value = str(kpi.get("trend") or "neutral").lower()
+            normalized_trend = trend_map.get(trend_value, trend_value)
+            if normalized_trend not in {"up", "down", "neutral"}:
+                normalized_trend = "neutral"
+
+            score_value = 0
+            try:
+                score_value = int(float(str(kpi.get("score", kpi.get("value", 0))).strip()))
+            except Exception:
+                score_value = 0
+            score_value = max(0, min(score_value, 100))
+
+            label_value = (
+                kpi.get("label")
+                or kpi.get("name")
+                or kpi.get("key")
+                or "KPI"
+            )
+            display_value = str(kpi.get("value", score_value))
+
+            mapped_kpis.append(
+                {
+                    "label": str(label_value),
+                    "value": display_value,
+                    "trend": normalized_trend,
+                    "score": score_value,
+                }
+            )
+
+        raw_key_insights = payload.get("key_insights")
+        if raw_key_insights is None:
+            raw_key_insights = payload.get("insights")
+
+        if not isinstance(raw_key_insights, list):
+            raw_key_insights = []
+
+        mapped_insights = []
+        for idx, insight_item in enumerate(raw_key_insights, start=1):
+            if isinstance(insight_item, dict):
+                insight_title = str(insight_item.get("title") or f"Insight {idx}")
+                insight_body = str(
+                    insight_item.get("body")
+                    or insight_item.get("text")
+                    or insight_item.get("value")
+                    or ""
+                )
+            else:
+                insight_title = f"Insight {idx}"
+                insight_body = str(insight_item)
+
+            if not insight_body.strip():
+                continue
+
+            mapped_insights.append(
+                {
+                    "category": "Performance",
+                    "priority": "MEDIUM",
+                    "title": insight_title,
+                    "body": insight_body,
+                }
+            )
+
+        report_title = (
+            payload.get("report_title")
+            or payload.get("title")
+            or payload.get("doc_name")
+            or "Structured Report"
+        )
+
+        executive_summary = (
+            payload.get("executive_summary")
+            or payload.get("summary")
+            or payload.get("analysis_summary")
+            or "Automated report generated from dataset analysis."
+        )
+
+        raw_recommendations = payload.get("recommendations") or []
+        if not isinstance(raw_recommendations, list):
+            raw_recommendations = [str(raw_recommendations)]
+
+        email_to_value = payload.get("email_to")
+        export_format_value = str(payload.get("export_format") or "pdf")
+        omit_pdf_base64 = _to_bool(payload.get("omit_pdf_base64"))
+
+        report = InsightReport(
+            doc_name=str(report_title),
+            question="Generated from dataset analysis",
+            summary=str(executive_summary),
+            kpis=mapped_kpis,
+            insights=mapped_insights,
+            recommendations=[str(item) for item in raw_recommendations],
+            top_performers=[],
+            bottom_performers=[],
+            score_distribution=None,
+            generated_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            parser_used="agent-export-report",
+        )
+
+        pdf_bytes = generate_pdf_report(report)
+        pdf_b64 = base64.b64encode(pdf_bytes).decode("utf-8")
+
+        # Persist report PDF under static uploads so clients can download via URL.
+        reports_dir = Path("uploads") / "ai_attachments"
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        file_name = f"report_{int(time.time())}_{uuid4().hex[:8]}.pdf"
+        output_path = reports_dir / file_name
+        output_path.write_bytes(pdf_bytes)
+
+        download_path = f"/uploads/ai_attachments/{file_name}"
+        base_url = str(http_request.base_url).rstrip("/")
+        download_url = f"{base_url}{download_path}"
+        download_markdown = f"[Download Full Report]({download_url})"
+
+        # Keep response compact while still enabling downstream attachment handling.
+        response_payload: Dict[str, Any] = {
+            "status": "success",
+            "message": "Report generated successfully",
+            "requesting_user": str(effective_requesting_user) if effective_requesting_user else None,
+            "email_to": str(email_to_value) if email_to_value else None,
+            "export_format": export_format_value,
+            "delivery_mode": "response_download",
+            "stored_to_sharepoint": False,
+            "pdf_generated": True,
+            "pdf_size_bytes": len(pdf_bytes),
+            "file_name": file_name,
+            "download_path": download_path,
+            "download_url": download_url,
+            "download_markdown": download_markdown,
+            "pdf_base64_included": not omit_pdf_base64,
+            "email_handoff": {
+                "mode": "url_only",
+                "to": str(email_to_value) if email_to_value else None,
+                "subject": f"{report_title} - Structured Report",
+                "attachment_url": download_url,
+                "attachment_name": file_name,
+                "notes": "Use attachment_url in mail/Logic App flow to avoid large payload timeouts.",
+            },
+            "report": report.dict(),
+        }
+
+        if not omit_pdf_base64:
+            response_payload["pdf_base64"] = pdf_b64
+
+        return response_payload
+    except Exception as e:
+        return error_response(str(e), 500)
+
+
+@router.post("/send-report-email")
+async def send_report_email_automation(
+    request: SendReportEmailRequest,
+    agent_user_id: Optional[str] = Depends(verify_agent_token_optional),
+):
+    """
+    Send report email directly via SMTP as fallback when Mail_Agent/Logic App is unavailable.
+    """
+    if request.requesting_user:
+        _resolve_requesting_user_id(request.requesting_user)
+    elif not agent_user_id:
+        raise HTTPException(
+            status_code=401,
+            detail=(
+                "Authentication missing for send-report-email. "
+                "Provide auth token or requesting_user in body."
+            ),
+        )
+
+    try:
+        result = await asyncio.wait_for(
+            asyncio.to_thread(
+                _send_report_email_sync,
+                str(request.to_email),
+                str(request.subject or "Structured Report"),
+                str(request.message or "Please find your generated report at the link below."),
+                str(request.report_url),
+            ),
+            timeout=20,
+        )
+        return {
+            "status": "success",
+            "message": "Report email sent successfully",
+            "requesting_user": str(request.requesting_user),
+            **result,
+        }
+    except asyncio.TimeoutError:
+        raise HTTPException(
+            status_code=504,
+            detail="Email send timed out. Retry with valid SMTP configuration.",
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Email send failed: {str(exc)}")
 
 
 # ===========================================================================

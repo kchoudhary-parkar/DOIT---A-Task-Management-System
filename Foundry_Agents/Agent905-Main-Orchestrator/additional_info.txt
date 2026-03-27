@@ -1,0 +1,1 @@
+In Agent905-Main-orchestrator for knowledge base along with md files, Fabric lakehouse connection is also done.

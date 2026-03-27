@@ -1,0 +1,3 @@
+The activation steps for the connected agnet Email Agent is
+
+Agent to send emails

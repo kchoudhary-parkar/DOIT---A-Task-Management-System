@@ -26,6 +26,30 @@ class DataVizController:
     """Handle data visualization operations with MongoDB storage"""
 
     @staticmethod
+    def _make_json_safe(value):
+        """Recursively convert NaN/Inf and numpy scalars into JSON-safe primitives."""
+        if isinstance(value, dict):
+            return {
+                str(k): DataVizController._make_json_safe(v)
+                for k, v in value.items()
+            }
+
+        if isinstance(value, list):
+            return [DataVizController._make_json_safe(v) for v in value]
+
+        if isinstance(value, tuple):
+            return [DataVizController._make_json_safe(v) for v in value]
+
+        if isinstance(value, np.generic):
+            value = value.item()
+
+        if isinstance(value, float):
+            if np.isnan(value) or np.isinf(value):
+                return None
+
+        return value
+
+    @staticmethod
     def upload_file(file_data, filename, user_id):
         """
         Upload and process CSV/Excel file
@@ -103,7 +127,7 @@ class DataVizController:
             # Convert datetime to string for JSON
             metadata["uploaded_at"] = metadata["uploaded_at"].isoformat()
 
-            return {"success": True, "dataset": metadata}
+            return {"success": True, "dataset": DataVizController._make_json_safe(metadata)}
 
         except Exception as e:
             print(f"Upload error: {e}")
@@ -148,7 +172,10 @@ class DataVizController:
                 }
                 dataset_list.append(dataset_info)
 
-            return {"success": True, "datasets": dataset_list}
+            return {
+                "success": True,
+                "datasets": DataVizController._make_json_safe(dataset_list),
+            }
 
         except Exception as e:
             print(f"Get datasets error: {e}")
@@ -255,7 +282,10 @@ class DataVizController:
                     value_counts = df[col].value_counts().head(10).to_dict()
                     analysis["categorical_distributions"][col] = value_counts
 
-            return {"success": True, "analysis": analysis}
+            return {
+                "success": True,
+                "analysis": DataVizController._make_json_safe(analysis),
+            }
 
         except Exception as e:
             print(f"Analyze error: {e}")

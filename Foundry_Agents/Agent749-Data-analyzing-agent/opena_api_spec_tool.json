@@ -1,0 +1,930 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "DOIT Agent749 Delivery Intelligence API (Read-Only)",
+    "version": "1.1.0",
+    "description": "Read-only OpenAPI tool for Agent749 analysis mode under Agent905. This tool is strictly for delivery intelligence analysis and must not perform automation. IMPORTANT SPRINT WORKFLOW: when checking active sprint, first call getSprints with project_id only (no status filter), then detect active sprint from returned status values case-insensitively (active/Active/ACTIVE)."
+  },
+  "servers": [
+    {
+      "url": "https://keaton-hyte-nonincidentally.ngrok-free.dev",
+      "description": "DOIT backend via ngrok"
+    }
+  ],
+  "security": [
+    {
+      "AgentAPIKeyHeader": []
+    },
+    {
+      "AgentAPIKeyQuery": []
+    },
+    {
+      "BearerAuth": []
+    }
+  ],
+  "x-ms-connector-auth": {
+    "type": "apiKey",
+    "apiKeyHeader": "X-Agent-Key"
+  },
+  "paths": {
+    "/api/agent/projects": {
+      "get": {
+        "operationId": "getAllProjects",
+        "summary": "Get all projects",
+        "description": "Use first to map project name to internal project_id.",
+        "responses": {
+          "200": {
+            "description": "Project list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/api/agent/tasks": {
+      "get": {
+        "operationId": "getAllTasks",
+        "summary": "Get tasks with filters",
+        "description": "Retrieve tasks for delivery-risk, assignment-load, and sprint-readiness analysis.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by project ID"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "To Do",
+                "In Progress",
+                "Dev Complete",
+                "Testing",
+                "Done",
+                "Closed"
+              ]
+            },
+            "description": "Filter by task status"
+          },
+          {
+            "name": "priority",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Critical",
+                "High",
+                "Medium",
+                "Low"
+              ]
+            },
+            "description": "Filter by task priority"
+          },
+          {
+            "name": "assignee_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by assignee user ID"
+          },
+          {
+            "name": "assigned_to_email",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "email"
+            },
+            "description": "Recommended assignee filter for load-balancing analysis"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500,
+              "default": 100
+            },
+            "description": "Maximum number of tasks returned"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Task list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TasksResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/api/agent/users": {
+      "get": {
+        "operationId": "getAllUsers",
+        "summary": "Get all users",
+        "description": "Retrieve users for assignment recommendations and workload distribution analysis.",
+        "responses": {
+          "200": {
+            "description": "User list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsersResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/api/agent/sprints": {
+      "get": {
+        "operationId": "getSprints",
+        "summary": "Get sprints",
+        "description": "Retrieve sprint data for deadline and completion-risk analysis. IMPORTANT: do not apply status filter on first call. Fetch all sprints for a project, then identify active sprint from returned status values case-insensitively.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "planned",
+                "active",
+                "completed",
+                "Planning",
+                "Active",
+                "Completed"
+              ]
+            },
+            "description": "Optional exact status filter. Prefer first call without this filter."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sprint list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SprintsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/api/agent/statistics": {
+      "get": {
+        "operationId": "getStatistics",
+        "summary": "Get aggregated statistics",
+        "description": "Use for top-level health snapshots and trend checks.",
+        "responses": {
+          "200": {
+            "description": "Statistics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatisticsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/api/agent/task/{task_id}": {
+      "get": {
+        "operationId": "getTaskDetails",
+        "summary": "Get specific task details",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Task details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskDetailsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/api/agent/project/{project_id}": {
+      "get": {
+        "operationId": "getProjectDetails",
+        "summary": "Get specific project details",
+        "description": "Use internal project_id from getAllProjects response.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Project details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDetailsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/api/agent/health": {
+      "get": {
+        "operationId": "healthCheck",
+        "summary": "API health check",
+        "responses": {
+          "200": {
+            "description": "Health status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "AgentAPIKeyHeader": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Agent-Key",
+        "description": "Preferred agent API key header"
+      },
+      "AgentAPIKeyQuery": {
+        "type": "apiKey",
+        "in": "query",
+        "name": "api_key",
+        "description": "Fallback API key query parameter"
+      },
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Bearer service token or user token"
+      }
+    },
+    "responses": {
+      "Unauthorized": {
+        "description": "Authentication failed or missing credentials",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Requested resource not found",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "ValidationError": {
+        "description": "Request validation error",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/FastAPIValidationError"
+            }
+          }
+        }
+      },
+      "ServerError": {
+        "description": "Internal server error",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "ProjectsResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "count",
+          "projects"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "projects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Project"
+            }
+          }
+        }
+      },
+      "TasksResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "count",
+          "filters_applied",
+          "tasks"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "filters_applied": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Task"
+            }
+          }
+        }
+      },
+      "UsersResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "count",
+          "users"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "users": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/User"
+            }
+          }
+        }
+      },
+      "SprintsResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "count",
+          "filters_applied",
+          "sprints"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "filters_applied": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "sprints": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Sprint"
+            }
+          }
+        }
+      },
+      "StatisticsResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "statistics",
+          "timestamp"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "statistics": {
+            "$ref": "#/components/schemas/Statistics"
+          },
+          "timestamp": {
+            "type": "string"
+          }
+        }
+      },
+      "TaskDetailsResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "task"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "task": {
+            "$ref": "#/components/schemas/Task"
+          }
+        }
+      },
+      "ProjectDetailsResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "project"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "project": {
+            "$ref": "#/components/schemas/Project"
+          }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "healthy",
+              "unhealthy"
+            ]
+          },
+          "service": {
+            "type": "string"
+          },
+          "database": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "service",
+          "database",
+          "timestamp"
+        ]
+      },
+      "Project": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "owner_name": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "progress_percentage": {
+            "type": "number"
+          },
+          "total_tasks": {
+            "type": "integer"
+          },
+          "completed_tasks": {
+            "type": "integer"
+          },
+          "task_count": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "project_id",
+          "name"
+        ],
+        "additionalProperties": true
+      },
+      "Task": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "To Do",
+              "In Progress",
+              "Dev Complete",
+              "Testing",
+              "Done",
+              "Closed"
+            ]
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "Critical",
+              "High",
+              "Medium",
+              "Low"
+            ]
+          },
+          "assignee_id": {
+            "type": "string"
+          },
+          "assigned_to_name": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "project_name": {
+            "type": "string"
+          },
+          "ticket_id": {
+            "type": "string"
+          },
+          "issue_type": {
+            "type": "string"
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "due_date": {
+            "type": "string"
+          },
+          "sprint_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "task_id",
+          "title"
+        ],
+        "additionalProperties": true
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "role": {
+            "type": "string"
+          },
+          "organization": {
+            "type": "string"
+          },
+          "department": {
+            "type": "string"
+          },
+          "job_title": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "is_active": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "user_id",
+          "email"
+        ],
+        "additionalProperties": true
+      },
+      "Sprint": {
+        "type": "object",
+        "properties": {
+          "sprint_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "project_name": {
+            "type": "string"
+          },
+          "start_date": {
+            "type": "string"
+          },
+          "end_date": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "goal": {
+            "type": "string"
+          },
+          "tasks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "total_tasks": {
+            "type": "integer"
+          },
+          "completed_tasks": {
+            "type": "integer"
+          },
+          "created_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sprint_id",
+          "name"
+        ],
+        "additionalProperties": true
+      },
+      "Statistics": {
+        "type": "object",
+        "properties": {
+          "total_projects": {
+            "type": "integer"
+          },
+          "total_tasks": {
+            "type": "integer"
+          },
+          "total_users": {
+            "type": "integer"
+          },
+          "total_sprints": {
+            "type": "integer"
+          },
+          "tasks_by_status": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            }
+          },
+          "tasks_by_priority": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            }
+          },
+          "users_by_role": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            }
+          },
+          "projects_by_status": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            }
+          }
+        },
+        "additionalProperties": true
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "detail": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "additionalProperties": true
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            ]
+          }
+        },
+        "required": [
+          "detail"
+        ],
+        "additionalProperties": true
+      },
+      "FastAPIValidationError": {
+        "type": "object",
+        "properties": {
+          "detail": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "loc": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "msg": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "loc",
+                "msg",
+                "type"
+              ],
+              "additionalProperties": true
+            }
+          }
+        },
+        "required": [
+          "detail"
+        ],
+        "additionalProperties": true
+      }
+    }
+  }
+}

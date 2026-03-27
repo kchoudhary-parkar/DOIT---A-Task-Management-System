@@ -13,9 +13,37 @@ from controllers.data_viz_controller import (
     handle_download,
     handle_get_visualizations,
 )
-from dependencies import get_current_user
+from middleware.agent_auth import verify_agent_token_optional
+from models.user import User
 
 router = APIRouter()
+
+
+def _resolve_effective_user_id(
+    requesting_user: Optional[str],
+    agent_user_id: Optional[str],
+) -> str:
+    """Resolve effective user for data-viz routes from requesting_user or auth context."""
+    email = (requesting_user or "").strip().lower()
+    if email:
+        user = User.find_by_email(email)
+        if not user:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Requesting user '{requesting_user}' not found",
+            )
+        return str(user["_id"])
+
+    if agent_user_id:
+        return agent_user_id
+
+    raise HTTPException(
+        status_code=401,
+        detail=(
+            "Authentication or requesting_user is required. "
+            "Provide API key/Bearer token or pass requesting_user query parameter."
+        ),
+    )
 
 
 def handle_controller_response(response):
@@ -44,7 +72,8 @@ def handle_controller_response(response):
 async def upload_dataset(
     request: Request,
     file: UploadFile = File(...),
-    user_id: str = Depends(get_current_user),
+    requesting_user: Optional[str] = Query(default=None),
+    agent_user_id: Optional[str] = Depends(verify_agent_token_optional),
 ):
     """
     Upload CSV/Excel file for data visualization
@@ -63,6 +92,8 @@ async def upload_dataset(
                 status_code=400,
                 detail="Unsupported file format. Please upload CSV or Excel files.",
             )
+
+        user_id = _resolve_effective_user_id(requesting_user, agent_user_id)
 
         # Call controller's upload_file method directly
         result = DataVizController.upload_file(
@@ -85,12 +116,16 @@ async def upload_dataset(
 
 
 @router.get("/datasets")
-async def get_datasets(user_id: str = Depends(get_current_user)):
+async def get_datasets(
+    requesting_user: Optional[str] = Query(default=None),
+    agent_user_id: Optional[str] = Depends(verify_agent_token_optional),
+):
     """
     Get all datasets uploaded by the current user
 
     Returns list of datasets with metadata
     """
+    user_id = _resolve_effective_user_id(requesting_user, agent_user_id)
     result = DataVizController.get_datasets(user_id)
 
     if result.get("error"):
@@ -100,7 +135,11 @@ async def get_datasets(user_id: str = Depends(get_current_user)):
 
 
 @router.post("/analyze")
-async def analyze_dataset(request: Request, user_id: str = Depends(get_current_user)):
+async def analyze_dataset(
+    request: Request,
+    requesting_user: Optional[str] = Query(default=None),
+    agent_user_id: Optional[str] = Depends(verify_agent_token_optional),
+):
     """
     Analyze a dataset to get statistical insights
 
@@ -113,6 +152,8 @@ async def analyze_dataset(request: Request, user_id: str = Depends(get_current_u
 
         if not dataset_id:
             raise HTTPException(status_code=400, detail="dataset_id required")
+
+        user_id = _resolve_effective_user_id(requesting_user, agent_user_id)
 
         # Verify dataset belongs to user
         from bson import ObjectId
@@ -145,7 +186,9 @@ async def analyze_dataset(request: Request, user_id: str = Depends(get_current_u
 
 @router.post("/visualize")
 async def create_visualization(
-    request: Request, user_id: str = Depends(get_current_user)
+    request: Request,
+    requesting_user: Optional[str] = Query(default=None),
+    agent_user_id: Optional[str] = Depends(verify_agent_token_optional),
 ):
     """
     Generate a visualization from a dataset
@@ -166,6 +209,8 @@ async def create_visualization(
 
         if not dataset_id:
             raise HTTPException(status_code=400, detail="dataset_id required")
+
+        user_id = _resolve_effective_user_id(requesting_user, agent_user_id)
 
         # Verify dataset belongs to user
         from bson import ObjectId
@@ -199,12 +244,16 @@ async def create_visualization(
 
 
 @router.get("/visualizations")
-async def get_visualizations(user_id: str = Depends(get_current_user)):
+async def get_visualizations(
+    requesting_user: Optional[str] = Query(default=None),
+    agent_user_id: Optional[str] = Depends(verify_agent_token_optional),
+):
     """
     Get all visualizations created by the current user
 
     Returns list of visualizations with metadata (sorted by newest first)
     """
+    user_id = _resolve_effective_user_id(requesting_user, agent_user_id)
     result = DataVizController.get_user_visualizations(user_id)
 
     if result.get("error"):
@@ -258,7 +307,11 @@ async def download_visualization(
 
 
 @router.delete("/datasets/{dataset_id}")
-async def delete_dataset(dataset_id: str, user_id: str = Depends(get_current_user)):
+async def delete_dataset(
+    dataset_id: str,
+    requesting_user: Optional[str] = Query(default=None),
+    agent_user_id: Optional[str] = Depends(verify_agent_token_optional),
+):
     """
     Delete a dataset and all associated visualizations
 
@@ -267,6 +320,8 @@ async def delete_dataset(dataset_id: str, user_id: str = Depends(get_current_use
     try:
         from bson import ObjectId
         from database import datasets, dataset_files, visualizations
+
+        user_id = _resolve_effective_user_id(requesting_user, agent_user_id)
 
         # Verify dataset exists and belongs to user
         dataset = datasets.find_one({"_id": ObjectId(dataset_id)})
@@ -302,7 +357,11 @@ async def delete_dataset(dataset_id: str, user_id: str = Depends(get_current_use
 
 
 @router.delete("/visualizations/{viz_id}")
-async def delete_visualization(viz_id: str, user_id: str = Depends(get_current_user)):
+async def delete_visualization(
+    viz_id: str,
+    requesting_user: Optional[str] = Query(default=None),
+    agent_user_id: Optional[str] = Depends(verify_agent_token_optional),
+):
     """
     Delete a specific visualization
 
@@ -311,6 +370,8 @@ async def delete_visualization(viz_id: str, user_id: str = Depends(get_current_u
     try:
         from bson import ObjectId
         from database import visualizations
+
+        user_id = _resolve_effective_user_id(requesting_user, agent_user_id)
 
         # Verify visualization exists and belongs to user
         viz = visualizations.find_one({"_id": ObjectId(viz_id)})
@@ -337,7 +398,11 @@ async def delete_visualization(viz_id: str, user_id: str = Depends(get_current_u
 
 
 @router.get("/dataset/{dataset_id}/info")
-async def get_dataset_info(dataset_id: str, user_id: str = Depends(get_current_user)):
+async def get_dataset_info(
+    dataset_id: str,
+    requesting_user: Optional[str] = Query(default=None),
+    agent_user_id: Optional[str] = Depends(verify_agent_token_optional),
+):
     """
     Get detailed information about a specific dataset
 
@@ -347,6 +412,8 @@ async def get_dataset_info(dataset_id: str, user_id: str = Depends(get_current_u
     try:
         from bson import ObjectId
         from database import datasets
+
+        user_id = _resolve_effective_user_id(requesting_user, agent_user_id)
 
         dataset = datasets.find_one({"_id": ObjectId(dataset_id)})
         if not dataset:

@@ -1,0 +1,9 @@
+Activation steps for the connected agent Agent422-Weather-forecasting-agent
+
+Role: Agent422 is weather-only under Agent905. It provides forecast analysis only. Agent905 handles all DOIT decisions and write actions.
+Activate Agent422 for weather intent: current-day forecast, condition, temperature, rain, wind, humidity, and city weather comparisons.
+Activate Agent422 when user explicitly asks weather questions or asks for weather context before planning.
+Activate Agent422 before planning if weather may impact schedules, travel, or field execution, or if confidence is below High without weather context.
+Allowed read ops: MSN Weather Logic App action only.
+Handoff required: weather_request_id, location_scope, forecast_summary, key_metrics, weather_risks, recommendations_non_executing, confidence, data_gaps.
+Safety: Agent422 never executes or claims project/task/sprint writes and never answers non-weather business requests.
