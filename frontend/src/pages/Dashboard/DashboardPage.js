@@ -495,86 +495,208 @@ function DashboardPage() {
         <TaskStatsCard stats={analytics.task_stats} />
 
         {/* Project Statistics Cards */}
-        <div className="project-stats-cards">
-          <div 
-            className="project-stat-card project-stat-card-total project-stat-card-clickable" 
-            onClick={() => navigate("/projects")}
-            role="button"
-            tabIndex={0}
-            onKeyPress={(e) => e.key === 'Enter' && navigate("/projects")}
-          >
-            <div className="pstat-icon pstat-icon-blue">
-              <FiBarChart2 size={24} />
-            </div>
-            <div className="pstat-content">
-              <div className="pstat-value">{analytics.project_stats.total}</div>
-              <div className="pstat-label">Total Projects</div>
-              <div className="pstat-action">
-                View All <FiArrowRight size={14} style={{ marginLeft: '4px' }} />
-              </div>
-            </div>
-          </div>
-          
-          <div 
-            className="project-stat-card project-stat-card-owned"
-            role="button"
-            tabIndex={0}
-          >
-            <div className="pstat-icon pstat-icon-green">
-              <FiStar size={24} />
-            </div>
-            <div className="pstat-content">
-              <div className="pstat-value">{analytics.project_stats.owned}</div>
-              <div className="pstat-label">Owned Projects</div>
-            </div>
-          </div>
-          
-          <div 
-            className="project-stat-card project-stat-card-member"
-            role="button"
-            tabIndex={0}
-          >
-            <div className="pstat-icon pstat-icon-purple">
-              <FiUsers size={24} />
-            </div>
-            <div className="pstat-content">
-              <div className="pstat-value">{analytics.project_stats.member_of}</div>
-              <div className="pstat-label">Member Of</div>
-            </div>
-          </div>
-          
-          <div 
-            className="project-stat-card project-stat-card-pending"
-            onClick={handleShowPendingTasks}
-            role="button"
-            tabIndex={0}
-            onKeyPress={(e) => e.key === 'Enter' && handleShowPendingTasks()}
-          >
-            <div className="pstat-icon pstat-icon-warning">
-              <FiClock size={24} />
-            </div>
-            <div className="pstat-content">
-              <div className="pstat-value">{pendingCount}</div>
-              <div className="pstat-label">Pending Approval</div>
-            </div>
-          </div>
-          
-          <div 
-            className="project-stat-card project-stat-card-closed"
-            onClick={handleShowClosedTasks}
-            role="button"
-            tabIndex={0}
-            onKeyPress={(e) => e.key === 'Enter' && handleShowClosedTasks()}
-          >
-            <div className="pstat-icon pstat-icon-dark">
-              <FiLock size={24} />
-            </div>
-            <div className="pstat-content">
-              <div className="pstat-value">{closedCount}</div>
-              <div className="pstat-label">Closed Tickets</div>
-            </div>
-          </div>
-        </div>
+        <div style={{
+  display: 'flex',
+  flexWrap: 'wrap',
+  margin: '0 -12px',
+  textAlign: 'center',
+}}>
+
+  {/* Total Projects */}
+  <div style={{ padding: 12, width: '20%', minWidth: 160, boxSizing: 'border-box' }}>
+    <div
+      onClick={() => navigate("/projects")}
+      role="button"
+      tabIndex={0}
+      onKeyPress={(e) => e.key === 'Enter' && navigate("/projects")}
+      style={{
+        border: '2px solid var(--border-primary)',
+        borderRadius: 12,
+        padding: '28px 16px',
+        cursor: 'pointer',
+        transition: 'all 0.2s ease',
+        background: 'var(--bg-card, transparent)',
+      }}
+      onMouseEnter={e => {
+        e.currentTarget.style.borderColor = 'var(--accent-blue)';
+        e.currentTarget.style.transform = 'translateY(-3px)';
+        e.currentTarget.style.boxShadow = '0 8px 24px rgba(79,142,247,0.15)';
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.borderColor = 'var(--border-primary)';
+        e.currentTarget.style.transform = 'translateY(0)';
+        e.currentTarget.style.boxShadow = 'none';
+      }}
+    >
+      <FiBarChart2 size={40} style={{ color: 'var(--accent-blue)', marginBottom: 12 }} />
+      <div style={{ fontSize: 32, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1, marginBottom: 8 }}>
+        {analytics.project_stats.total}
+      </div>
+      <div style={{
+        display: 'inline-flex', alignItems: 'center', gap: 4,
+        fontSize: 12, fontWeight: 600,
+        color: 'var(--accent-blue)',
+        background: 'rgba(79,142,247,0.1)',
+        padding: '4px 10px', borderRadius: 999,
+      }}>
+        View All Projects <FiArrowRight size={14} />
+      </div>
+    </div>
+  </div>
+
+  {/* Owned Projects */}
+  <div style={{ padding: 12, width: '20%', minWidth: 160, boxSizing: 'border-box' }}>
+    <div
+      role="button"
+      tabIndex={0}
+      style={{
+        border: '2px solid var(--border-primary)',
+        borderRadius: 12,
+        padding: '28px 16px',
+        background: 'var(--bg-card, transparent)',
+        transition: 'all 0.2s ease',
+      }}
+      onMouseEnter={e => {
+        e.currentTarget.style.borderColor = '#22c55e';
+        e.currentTarget.style.transform = 'translateY(-3px)';
+        e.currentTarget.style.boxShadow = '0 8px 24px rgba(34,197,94,0.15)';
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.borderColor = 'var(--border-primary)';
+        e.currentTarget.style.transform = 'translateY(0)';
+        e.currentTarget.style.boxShadow = 'none';
+      }}
+    >
+      <FiStar size={40} style={{ color: '#22c55e', marginBottom: 12 }} />
+      <div style={{ fontSize: 32, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1, marginBottom: 8 }}>
+        {analytics.project_stats.owned}
+      </div>
+      <div style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
+        Owned Projects
+      </div>
+    </div>
+  </div>
+
+  {/* Member Of */}
+  <div style={{ padding: 12, width: '20%', minWidth: 160, boxSizing: 'border-box' }}>
+    <div
+      role="button"
+      tabIndex={0}
+      style={{
+        border: '2px solid var(--border-primary)',
+        borderRadius: 12,
+        padding: '28px 16px',
+        background: 'var(--bg-card, transparent)',
+        transition: 'all 0.2s ease',
+      }}
+      onMouseEnter={e => {
+        e.currentTarget.style.borderColor = '#a855f7';
+        e.currentTarget.style.transform = 'translateY(-3px)';
+        e.currentTarget.style.boxShadow = '0 8px 24px rgba(168,85,247,0.15)';
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.borderColor = 'var(--border-primary)';
+        e.currentTarget.style.transform = 'translateY(0)';
+        e.currentTarget.style.boxShadow = 'none';
+      }}
+    >
+      <FiUsers size={40} style={{ color: '#a855f7', marginBottom: 12 }} />
+      <div style={{ fontSize: 32, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1, marginBottom: 8 }}>
+        {analytics.project_stats.member_of}
+      </div>
+      <div style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
+        Member Of
+      </div>
+    </div>
+  </div>
+
+  {/* Pending Approval */}
+  <div style={{ padding: 12, width: '20%', minWidth: 160, boxSizing: 'border-box' }}>
+    <div
+      onClick={handleShowPendingTasks}
+      role="button"
+      tabIndex={0}
+      onKeyPress={(e) => e.key === 'Enter' && handleShowPendingTasks()}
+      style={{
+        border: '2px solid var(--border-primary)',
+        borderRadius: 12,
+        padding: '28px 16px',
+        cursor: 'pointer',
+        background: 'var(--bg-card, transparent)',
+        transition: 'all 0.2s ease',
+      }}
+      onMouseEnter={e => {
+        e.currentTarget.style.borderColor = '#f59e0b';
+        e.currentTarget.style.transform = 'translateY(-3px)';
+        e.currentTarget.style.boxShadow = '0 8px 24px rgba(245,158,11,0.15)';
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.borderColor = 'var(--border-primary)';
+        e.currentTarget.style.transform = 'translateY(0)';
+        e.currentTarget.style.boxShadow = 'none';
+      }}
+    >
+      <FiClock size={40} style={{ color: '#f59e0b', marginBottom: 12 }} />
+      <div style={{ fontSize: 32, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1, marginBottom: 8 }}>
+        {pendingCount}
+      </div>
+      <div style={{
+        display: 'inline-flex', alignItems: 'center', gap: 4,
+        fontSize: 12, fontWeight: 600,
+        color: '#f59e0b',
+        background: 'rgba(245,158,11,0.1)',
+        padding: '4px 10px', borderRadius: 999,
+      }}>
+        Review: Pending Approval <FiArrowRight size={14} />
+      </div>
+    </div>
+  </div>
+
+  {/* Closed Tickets */}
+  <div style={{ padding: 12, width: '20%', minWidth: 160, boxSizing: 'border-box' }}>
+    <div
+      onClick={handleShowClosedTasks}
+      role="button"
+      tabIndex={0}
+      onKeyPress={(e) => e.key === 'Enter' && handleShowClosedTasks()}
+      style={{
+        border: '2px solid var(--border-primary)',
+        borderRadius: 12,
+        padding: '28px 16px',
+        cursor: 'pointer',
+        background: 'var(--bg-card, transparent)',
+        transition: 'all 0.2s ease',
+      }}
+      onMouseEnter={e => {
+        e.currentTarget.style.borderColor = 'var(--text-secondary)';
+        e.currentTarget.style.transform = 'translateY(-3px)';
+        e.currentTarget.style.boxShadow = '0 8px 24px rgba(100,116,139,0.15)';
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.borderColor = 'var(--border-primary)';
+        e.currentTarget.style.transform = 'translateY(0)';
+        e.currentTarget.style.boxShadow = 'none';
+      }}
+    >
+      <FiLock size={40} style={{ color: 'var(--text-secondary)', marginBottom: 12 }} />
+      <div style={{ fontSize: 32, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1, marginBottom: 8 }}>
+        {closedCount}
+      </div>
+
+      <div style={{
+        display: 'inline-flex', alignItems: 'center', gap: 4,
+        fontSize: 12, fontWeight: 600,
+        color: 'var(--text-secondary)',
+        background: 'var(--bg-tertiary, rgba(226,232,240,0.4))',
+        padding: '4px 10px', borderRadius: 999,
+      }}>
+        View         Closed Tickets
+<FiArrowRight size={14} />
+      </div>
+    </div>
+  </div>
+
+</div>
 
         {/* Charts Grid */}
         <div className="charts-grid">

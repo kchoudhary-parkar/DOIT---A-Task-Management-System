@@ -28,92 +28,212 @@ import TeamChat from "./components/TeamChat/TeamChat";
 import DataVisualization from "./components/DataVizualization/DataVisualization";
 // import AnalyticsStudio from "./components/DataVizualization/AnalyticsStudio";
 // Authenticated App Component (uses navigate hook)
+
 function AuthenticatedApp({ user, theme, toggleTheme, logout }) {
   const navigate = useNavigate();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const navLinks = [
+    { label: 'Dashboard', path: '/', icon: (
+      <svg width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+        <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+      </svg>
+    )},
+    { label: 'Projects', path: '/projects', icon: (
+      <svg width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+      </svg>
+    )},
+    { label: 'My Tasks', path: '/my-tasks', icon: (
+      <svg width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+        <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+      </svg>
+    )},
+    { label: 'DOIT-AI', path: '/ai-assistant', icon: <BsStars size={17} /> },
+    { label: 'Analytics', path: '/data-viz', icon: <FiActivity size={17} /> },
+    { label: 'Profile', path: '/profile', icon: (
+      <svg width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+      </svg>
+    )},
+    ...(user.role === 'super-admin' || user.role === 'admin' ? [{
+      label: 'Users', path: '/users', icon: (
+        <svg width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+      )
+    }] : []),
+    ...(user.role === 'super-admin' ? [{
+      label: 'System', path: '/system-dashboard', icon: (
+        <svg width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/>
+        </svg>
+      )
+    }] : []),
+  ];
 
   return (
     <>
-      <nav className="navbar">
-        <div className="nav-container">
-          <div className="nav-brand">
-            <div className="nav-brand-title">
-              <Link to="/" style={{ textDecoration: 'none', color: 'inherit' }}>
-                DOIT
-              </Link>
+      {/* Sidebar Overlay */}
+      <div
+        className={`sidebar-overlay${sidebarOpen ? ' active' : ''}`}
+        onClick={() => setSidebarOpen(false)}
+      />
+
+      {/* Sidebar */}
+      <aside className={`app-sidebar${sidebarOpen ? ' open' : ''}`}>
+        <div className="sidebar-header">
+          <div className="sidebar-brand">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor"
+              strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+              className="sidebar-brand-icon" viewBox="0 0 24 24">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+            </svg>
+            <span className="sidebar-brand-name">DOIT</span>
+          </div>
+          <button className="sidebar-close-btn" onClick={() => setSidebarOpen(false)}>
+            <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2"
+              strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        <div className="sidebar-user">
+          <div className="sidebar-avatar">
+            {user.name.charAt(0).toUpperCase()}
+          </div>
+          <div className="sidebar-user-info">
+            <div className="sidebar-user-name">{user.name}</div>
+            <div className="sidebar-user-role">
+              {user.role === 'super-admin' ? 'Super Admin'
+                : user.role.charAt(0).toUpperCase() + user.role.slice(1)}
             </div>
           </div>
+        </div>
 
+        <nav className="sidebar-nav">
+          {navLinks.map((link) => (
+            <Link
+              key={link.path}
+              to={link.path}
+              className="sidebar-nav-link"
+              onClick={() => setSidebarOpen(false)}
+            >
+              <span className="sidebar-nav-icon">{link.icon}</span>
+              <span>{link.label}</span>
+            </Link>
+          ))}
+        </nav>
+
+        <div className="sidebar-footer">
+          <button className="sidebar-logout-btn" onClick={logout}>
+            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2"
+              strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+              <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+            Logout
+          </button>
+        </div>
+      </aside>
+
+      {/* Navbar */}
+      <nav className="app-navbar">
+        <div className="nav-inner">
+
+          {/* Brand — clicking opens sidebar */}
+          <button className="nav-brand-btn" onClick={() => setSidebarOpen(true)}>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor"
+              strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+              className="nav-brand-icon" viewBox="0 0 24 24">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+            </svg>
+            <span className="nav-brand-text">DOIT</span>
+          </button>
+
+          {/* Right actions */}
           <div className="nav-actions">
+
+            {/* Theme Toggle */}
             <button
               onClick={toggleTheme}
-              className="theme-toggle-btn"
-              title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              className="theme-toggle"
             >
-              {theme === "dark" ? "☀️" : "🌙"}
+              <span className="toggle-icon">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                </svg>
+              </span>
+              <span className="toggle-track">
+                <span className="toggle-thumb" />
+              </span>
+              <span className="toggle-icon sun">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="5" />
+                  <line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" />
+                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                  <line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" />
+                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                </svg>
+              </span>
             </button>
 
-            <button
-              onClick={() => navigate('/ai-assistant')}
-              className="ai-assistant-btn"
-              title="DOIT AI Assistant"
-            >
-              <BsStars size={20} />
+            {/* DOIT-AI */}
+            <button onClick={() => navigate('/ai-assistant')} className="nav-link-btn">
+              <BsStars size={17} />
               <span>DOIT-AI</span>
             </button>
 
-            <button
-              onClick={() => navigate('/data-viz')}
-              className="analytics-btn"
-              title="DOIT Analytics"
-            >
-              <FiActivity size={20} />
-              <span>DOIT Analytics</span>
+            {/* Analytics */}
+            <button onClick={() => navigate('/data-viz')} className="nav-link-btn analytics">
+              <FiActivity size={17} />
+              <span>Analytics</span>
             </button>
 
-            <div className="nav-user">
-              <div 
-                className="user-avatar clickable"
-                onClick={() => navigate('/profile')}
-                title="Go to Profile"
-              >
-                {user.name.charAt(0).toUpperCase()}
-              </div>
-              <div className="user-info">
-                <div className="user-name">{user.name}</div>
-                <div className="user-role">
-                  {user.role === "super-admin"
-                    ? "Super Admin"
-                    : user.role.charAt(0).toUpperCase() +
-                      user.role.slice(1)}
-                </div>
-              </div>
-              <button type="button" onClick={logout} className="btn-logout">
-                Logout
-              </button>
+            {/* Divider */}
+            <div className="nav-divider" />
+
+            {/* Avatar */}
+            <div onClick={() => navigate('/profile')} className="nav-avatar" title="Profile">
+              {user.name.charAt(0).toUpperCase()}
             </div>
+
+            {/* Name + Role */}
+            <div className="nav-user-info">
+              <div className="nav-user-name">{user.name}</div>
+              <div className="nav-user-role">
+                {user.role === 'super-admin' ? 'Super Admin'
+                  : user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+              </div>
+            </div>
+
+            {/* Logout */}
+            <button type="button" onClick={logout} className="nav-logout-btn">
+              Logout
+              <svg fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"
+                strokeWidth="2" width="13" height="13" viewBox="0 0 24 24">
+                <path d="M5 12h14M12 5l7 7-7 7" />
+              </svg>
+            </button>
+
           </div>
         </div>
       </nav>
 
-      <main style={{ paddingTop: "0px", minHeight: "calc(100vh - 80px)" }}>
+      <main style={{ minHeight: 'calc(100vh - 80px)' }}>
         <Routes>
-          <Route
-            path="/"
-            element={
-              user.role === "super-admin" ? (
-                <SuperAdminDashboard />
-              ) : (
-                <DashboardPage />
-              )
-            }
-          />
+          <Route path="/" element={user.role === 'super-admin' ? <SuperAdminDashboard /> : <DashboardPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/projects/:projectId/tasks" element={<TasksPage />} />
-          <Route
-            path="/projects/:projectId/sprints"
-            element={<SprintPage />}
-          />
+          <Route path="/projects/:projectId/sprints" element={<SprintPage />} />
           <Route path="/my-tasks" element={<MyTasksPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/users" element={<UsersPage />} />
@@ -121,16 +241,14 @@ function AuthenticatedApp({ user, theme, toggleTheme, logout }) {
           <Route path="/data-viz" element={<DataVisualization />} />
           <Route path="/ai-assistant" element={<AIAssistantPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
-
         </Routes>
       </main>
+
       <AIChatbot user={user} />
-      <TeamChat userId="current-user-id"           // User ID for fetching their projects
-  apiEndpoint="/api" />
+      <TeamChat userId="current-user-id" apiEndpoint="/api" />
     </>
   );
 }
-
 function App() {
   const { user, loading, login, register, logout } = useContext(AuthContext);
   const { isSignedIn } = useAuth();
