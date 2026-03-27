@@ -1,9 +1,10 @@
 /* ══════════════════════════════════════════════════════════════════
    LandingAuth.css  —  DOIT Split-Screen Auth Landing
    ══════════════════════════════════════════════════════════════════ */
-
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Clash+Display:wght@600;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap');
-
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Orbitron:wght@500;700&display=swap');
 /* ── Root ──────────────────────────────────────────────────────── */
 .landing-root {
   min-height: 100vh;
@@ -101,7 +102,7 @@
 }
 .ll-logo-icon svg { width: 20px; height: 20px; color: #fff; }
 .ll-logo-name {
-  font-family: 'Syne', sans-serif;
+  font-family: 'Clash Display', sans-serif;
   font-size: 22px;
   font-weight: 800;
   letter-spacing: 0.04em;
@@ -133,7 +134,7 @@
   animation: fade-up 0.6s ease both;
 }
 .ll-title {
-  font-family: 'Syne', sans-serif;
+  font-family:'Orbitron', sans-serif;
   font-size: clamp(36px, 4vw, 54px);
   font-weight: 800;
   line-height: 1.08;
@@ -263,7 +264,7 @@
   margin-bottom: 36px;
 }
 .auth-right-title {
-  font-family: 'Syne', sans-serif;
+  font-family: 'Orbitron',sans-serif;
   font-size: 26px;
   font-weight: 800;
   letter-spacing: -0.02em;

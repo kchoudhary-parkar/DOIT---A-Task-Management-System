@@ -82,6 +82,23 @@ const values = [
   { icon: <FiCheckCircle size={20} />, text: "Open to feedback, always evolving" },
 ];
 
+const developers = [
+  {
+    name: "Abhishek Nage",
+    role: "Software Engineer",
+    bio: "Architect of scalable applications with expertise in Python,Agentic Frameworks and AI integrations. Passionate about building intelligent systems that empower teams to deliver faster.",
+    image: "https://media.licdn.com/dms/image/v2/D4D03AQGJxBBDIurS3g/profile-displayphoto-crop_800_800/B4DZmgfpGTJcAI-/0/1759334278764?e=1776297600&v=beta&t=1lkngnKhLFLxm_cjzXrZLBEqEQF0Cw7TgANxf07CUrs",
+    linkedin: "https://www.linkedin.com/in/abhisheknage16/"
+  },
+  {
+    name: "Kamlesh Choudhary",
+    role: "Software Engineer",
+    bio: "Specialist in robust AI systems, database optimization, API development, and microservices. Ensures DOIT's core infrastructure scales seamlessly under heavy loads.",
+    image: "https://media.licdn.com/dms/image/v2/D4D03AQGF5bMiuokK2A/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1725448834074?e=1776297600&v=beta&t=L653uVCQ9nb8yXUIYFzIuHZW0d_6-5xpJmMAObp4Jnc",
+    linkedin: "https://www.linkedin.com/in/kamlesh-choudhary-775512257/"
+  }
+];
+
 /* ── Component ───────────────────────────────────────────────────────── */
 export default function AboutPage() {
   const sectionsRef = useRef([]);
@@ -317,6 +334,36 @@ export default function AboutPage() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Our Developers ─────────────────────────────────────────────── */}
+      <section className="about-section" ref={addRef}>
+        <div className="about-container about-fade-up">
+          <div className="about-section-label">Meet the Team</div>
+          <h2 className="about-section-title about-centered">
+            The developers powering DOIT
+          </h2>
+          <p className="about-section-sub">
+            Passionate engineers dedicated to building the future of project management.
+          </p>
+          <div className="about-devs-grid">
+            {developers.map((d) => (
+              <a href={d.linkedin} target="_blank" rel="noopener noreferrer" className="about-dev-card" key={d.name}>
+                <div 
+                  className="dev-image" 
+                  style={{ 
+                    backgroundImage: `url(${d.image})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center'
+                  }} 
+                />
+                <h3>{d.name}</h3>
+                <div className="dev-role">{d.role}</div>
+                <p>{d.bio}</p>
+              </a>
+            ))}
           </div>
         </div>
       </section>
