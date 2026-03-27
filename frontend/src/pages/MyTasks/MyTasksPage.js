@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { FiAlertCircle, FiArrowRight, FiCalendar, FiCheckCircle, FiUser } from "react-icons/fi";
+import { BsBug, BsBullseye, BsCheckSquare, BsBook } from "react-icons/bs";
 import { taskAPI } from "../../services/api";
 import { TaskDetailModal } from "../../components/Tasks";
 import Loader from "../../components/Loader/Loader";
@@ -58,6 +60,47 @@ function MyTasksPage() {
         return "#94a3b8";
       default:
         return "#94a3b8";
+    }
+  };
+
+  const getIssueTypeIcon = (issueType) => {
+    switch (issueType) {
+      case "bug":
+        return <BsBug />;
+      case "task":
+        return <BsCheckSquare />;
+      case "story":
+        return <BsBook />;
+      case "epic":
+        return <BsBullseye />;
+      default:
+        return <BsCheckSquare />;
+    }
+  };
+
+  const getIssueTypeColor = (issueType) => {
+    switch (issueType) {
+      case "bug":
+        return "#ef4444";
+      case "task":
+        return "#3b82f6";
+      case "story":
+        return "#8b5cf6";
+      case "epic":
+        return "#f97316";
+      default:
+        return "#3b82f6";
+    }
+  };
+
+  const getPriorityIcon = (priority) => {
+    switch (priority) {
+      case "High":
+        return <FiAlertCircle />;
+      case "Low":
+        return <FiCheckCircle />;
+      default:
+        return <FiAlertCircle />;
     }
   };
 
@@ -139,9 +182,6 @@ function MyTasksPage() {
     <div className="my-tasks-page">
       <div className="my-tasks-container">
         <div className="my-tasks-header">
-          <button type="button" onClick={() => navigate("/")} className="btn-back">
-            ← Back to Dashboard
-          </button>
           <h1>Tasks Assigned to Me</h1>
           <p className="tasks-subtitle">All tasks assigned to you across all projects</p>
         </div>
@@ -182,21 +222,34 @@ function MyTasksPage() {
             </div>
           ) : (
             filteredTasks.map((task) => (
-              <div key={task._id} className="my-task-card" onClick={() => handleTaskClick(task)}>
+              <div key={task._id} className="my-task-card task-card" onClick={() => handleTaskClick(task)}>
                 <div className="task-card-header">
-                  <h3>{task.title}</h3>
+                  <div className="task-header-left">
+                    {task.ticket_id && (
+                      <span className="task-ticket-id">{task.ticket_id}</span>
+                    )}
+                    <h3 className="task-title">{task.title}</h3>
+                  </div>
                   <div className="task-meta">
+                    <span
+                      className="task-issue-type"
+                      style={{ backgroundColor: getIssueTypeColor(task.issue_type || "task") }}
+                    >
+                      {getIssueTypeIcon(task.issue_type || "task")}
+                      <span className="badge-text">{(task.issue_type || "task").charAt(0).toUpperCase() + (task.issue_type || "task").slice(1)}</span>
+                    </span>
                     <span
                       className="task-priority"
                       style={{ backgroundColor: getPriorityColor(task.priority) }}
                     >
-                      {task.priority}
+                      {getPriorityIcon(task.priority)}
+                      <span className="badge-text">{task.priority || "Medium"}</span>
                     </span>
                     <span
                       className="task-status"
                       style={{ backgroundColor: getStatusColor(task.status) }}
                     >
-                      {task.status}
+                      {task.status || "Unknown"}
                     </span>
                   </div>
                 </div>
@@ -205,41 +258,30 @@ function MyTasksPage() {
                   <p className="task-description">{task.description}</p>
                 )}
 
-                <div className="task-details">
-                  <div className="task-detail-item">
-                    <span className="detail-icon">📁</span>
-                    <div className="detail-content">
-                      <span className="detail-label">Project</span>
-                      <span className="detail-value">{task.project_name || "Unknown Project"}</span>
-                    </div>
+                <div className="task-footer">
+                  <div className="task-assignee">
+                    <FiUser size={14} />
+                    <span>{task.assignee_name || "Unassigned"}</span>
                   </div>
-
-                  <div className="task-detail-item">
-                    <span className="detail-icon">👤</span>
-                    <div className="detail-content">
-                      <span className="detail-label">Assigned by</span>
-                      <span className="detail-value">{task.created_by_name || "Project Owner"}</span>
-                    </div>
+                  <div className="task-creator">
+                    <FiUser size={14} />
+                    <span>By: {task.created_by_name || "Unknown"}</span>
                   </div>
-
-                  <div className="task-detail-item">
-                    <span className="detail-icon">📅</span>
-                    <div className="detail-content">
-                      <span className="detail-label">Due Date</span>
-                      <span className="detail-value">{formatDate(task.due_date)}</span>
-                    </div>
+                  <div className="task-due-date">
+                    <FiCalendar size={14} />
+                    <span>{formatDate(task.due_date)}</span>
                   </div>
                 </div>
 
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    navigate(`/projects/${task.project_id}/tasks`);
-                  }}
-                  className="btn-view-project"
-                >
-                  View in Project →
-                </button>
+                <div className="task-card-actions" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    onClick={() => navigate(`/projects/${task.project_id}/tasks`)}
+                    className="btn-view-project"
+                  >
+                    View in Project
+                    <FiArrowRight size={16} />
+                  </button>
+                </div>
               </div>
             ))
           )}

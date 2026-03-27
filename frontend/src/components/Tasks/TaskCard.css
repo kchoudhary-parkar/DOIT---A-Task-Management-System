@@ -244,6 +244,11 @@
   color: var(--accent-green);
 }
 
+/* Keep status label readable even if other pages define global .task-status styles. */
+.task-card .task-status {
+  color: #ffffff !important;
+}
+
 .task-footer {
   display: flex;
   justify-content: space-between;
