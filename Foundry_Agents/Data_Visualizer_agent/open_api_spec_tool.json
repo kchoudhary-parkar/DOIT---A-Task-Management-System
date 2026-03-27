@@ -1,0 +1,2567 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "DOIT Agent API - Extended",
+    "version": "3.0.0",
+    "description": "Complete API for Azure AI Agent with read and write operations for MongoDB data, Document Intelligence (Azure DI + GPT-4o-mini), and Data Visualization (Plotly/Seaborn). IMPORTANT: Every message includes a [Context: {...}] section with user_email field. When calling write operations (createTask, assignTask, etc.), ALWAYS extract user_email from the Context and use it as the requesting_user parameter. Example: If Context shows 'user_email': 'testuser@gmail.com', then use requesting_user: 'testuser@gmail.com' in your API calls."
+  },
+  "servers": [
+    {
+      "url": "https://keaton-hyte-nonincidentally.ngrok-free.dev",
+      "description": "Public tunnel to development server via ngrok"
+    }
+  ],
+  "security": [
+    {
+      "AgentAPIKey": []
+    }
+  ],
+  "x-ms-connector-auth": {
+    "type": "apiKey",
+    "apiKeyHeader": "X-Agent-Key"
+  },
+  "paths": {
+    "/api/agent/projects": {
+      "get": {
+        "operationId": "getAllProjects",
+        "summary": "Get all projects",
+        "description": "ALWAYS call this FIRST to get project list with internal project_id values. Each project has a 'name' field (human-readable) and 'project_id' field (internal MongoDB ID). When user mentions a project name, use this endpoint to find and extract the project_id field.",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response with project list"
+          }
+        }
+      }
+    },
+    "/api/agent/tasks": {
+      "get": {
+        "operationId": "getAllTasks",
+        "summary": "Get tasks with filters",
+        "description": "Retrieve tasks from MongoDB with optional filters for project, status, priority, and assignee.",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            }
+          },
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "To Do",
+                "In Progress",
+                "Dev Complete",
+                "Testing",
+                "Done"
+              ]
+            }
+          },
+          {
+            "name": "priority",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Critical",
+                "High",
+                "Medium",
+                "Low"
+              ]
+            }
+          },
+          {
+            "name": "assignee_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "assigned_to_email",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "email"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response with task list"
+          }
+        }
+      }
+    },
+    "/api/agent/users": {
+      "get": {
+        "operationId": "getAllUsers",
+        "summary": "Get all users",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "description": "Retrieve all users (excluding sensitive information like passwords and tokens)",
+        "responses": {
+          "200": {
+            "description": "Successful response with user list"
+          }
+        }
+      }
+    },
+    "/api/agent/sprints": {
+      "get": {
+        "operationId": "getSprints",
+        "summary": "Get sprints",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "description": "Retrieve sprints with optional filters for project and status",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Planning",
+                "Active",
+                "Completed"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response with sprint list"
+          }
+        }
+      }
+    },
+    "/api/agent/statistics": {
+      "get": {
+        "operationId": "getStatistics",
+        "summary": "Get project statistics",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "description": "Retrieve aggregated statistics including total counts, task distributions by status and priority, users by role, and projects by status",
+        "responses": {
+          "200": {
+            "description": "Successful response with statistics"
+          }
+        }
+      }
+    },
+    "/api/agent/task/{task_id}": {
+      "get": {
+        "operationId": "getTaskDetails",
+        "summary": "Get specific task details",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response with task details"
+          }
+        }
+      }
+    },
+    "/api/agent/project/{project_id}": {
+      "get": {
+        "operationId": "getProjectDetails",
+        "summary": "Get specific project details by internal ID",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "description": "Get details for a specific project using its internal project_id (MongoDB ObjectId). NEVER use project name here.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response with project details"
+          }
+        }
+      }
+    },
+    "/api/agent/health": {
+      "get": {
+        "operationId": "healthCheck",
+        "summary": "Health check",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "description": "Check if the agent API and database connection are healthy",
+        "responses": {
+          "200": {
+            "description": "Service is healthy"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/tasks": {
+      "post": {
+        "operationId": "createTask",
+        "summary": "Create a new task",
+        "description": "Create a task with automatic assignee resolution and RBAC validation. CRITICAL: Extract user_email from [Context] and use as requesting_user.",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "requesting_user",
+                  "title",
+                  "project_id"
+                ],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "project_id": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "assignee_email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "assignee_name": {
+                    "type": "string"
+                  },
+                  "priority": {
+                    "type": "string",
+                    "enum": [
+                      "Critical",
+                      "High",
+                      "Medium",
+                      "Low"
+                    ],
+                    "default": "Medium"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "To Do",
+                      "In Progress",
+                      "Dev Complete",
+                      "Testing",
+                      "Done"
+                    ],
+                    "default": "To Do"
+                  },
+                  "due_date": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "issue_type": {
+                    "type": "string",
+                    "enum": [
+                      "task",
+                      "bug",
+                      "feature",
+                      "improvement"
+                    ],
+                    "default": "task"
+                  },
+                  "labels": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Task created successfully"
+          },
+          "403": {
+            "description": "Permission denied"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/tasks/{task_id}/assign": {
+      "put": {
+        "operationId": "assignTask",
+        "summary": "Assign task to a user",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "requesting_user",
+                  "assignee_identifier"
+                ],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "assignee_identifier": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Task assigned successfully"
+          },
+          "403": {
+            "description": "Permission denied"
+          },
+          "404": {
+            "description": "Task or user not found"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/tasks/{task_id}": {
+      "put": {
+        "operationId": "updateTask",
+        "summary": "Update task details",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "requesting_user"
+                ],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "priority": {
+                    "type": "string",
+                    "enum": [
+                      "Critical",
+                      "High",
+                      "Medium",
+                      "Low"
+                    ]
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "To Do",
+                      "In Progress",
+                      "Dev Complete",
+                      "Testing",
+                      "Done"
+                    ]
+                  },
+                  "due_date": {
+                    "type": "string",
+                    "format": "date"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Task updated successfully"
+          },
+          "403": {
+            "description": "Permission denied"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteTask",
+        "summary": "Delete a task",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "requesting_user"
+                ],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Task deleted successfully"
+          },
+          "403": {
+            "description": "Only Admin users can delete tasks"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/tasks/{task_id}/status": {
+      "put": {
+        "operationId": "updateTaskStatus",
+        "summary": "Update task status",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "requesting_user",
+                  "status"
+                ],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "To Do",
+                      "In Progress",
+                      "Dev Complete",
+                      "Testing",
+                      "Done"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Status updated"
+          },
+          "403": {
+            "description": "Permission denied"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/tasks/{task_id}/priority": {
+      "put": {
+        "operationId": "updateTaskPriority",
+        "summary": "Update task priority",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "requesting_user",
+                  "priority"
+                ],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "priority": {
+                    "type": "string",
+                    "enum": [
+                      "Critical",
+                      "High",
+                      "Medium",
+                      "Low"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Priority updated"
+          },
+          "403": {
+            "description": "Permission denied"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/tasks/{task_id}/approve": {
+      "post": {
+        "operationId": "approveTask",
+        "summary": "Approve a completed task",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "requesting_user"
+                ],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "comment": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Task approved"
+          },
+          "403": {
+            "description": "Only Admin users can approve tasks"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/projects": {
+      "post": {
+        "operationId": "createProject",
+        "summary": "Create a new project",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "requesting_user",
+                  "name"
+                ],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "Active",
+                      "Planning",
+                      "On Hold",
+                      "Completed"
+                    ],
+                    "default": "Active"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Project created"
+          },
+          "403": {
+            "description": "Only Admin users can create projects"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/projects/{project_id}": {
+      "put": {
+        "operationId": "updateProject",
+        "summary": "Update project details",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "requesting_user"
+                ],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "Active",
+                      "Planning",
+                      "On Hold",
+                      "Completed"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Project updated"
+          },
+          "403": {
+            "description": "Only Admin users can update projects"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteProject",
+        "summary": "Delete a project",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "requesting_user"
+                ],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Project deleted"
+          },
+          "403": {
+            "description": "Only Admin users can delete projects"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/projects/{project_id}/members": {
+      "post": {
+        "operationId": "addProjectMember",
+        "summary": "Add member to project",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "requesting_user",
+                  "member_identifier"
+                ],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "member_identifier": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Member added"
+          },
+          "403": {
+            "description": "Only Admin users can add members"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/sprints": {
+      "post": {
+        "operationId": "createSprint",
+        "summary": "Create a new sprint",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "requesting_user",
+                  "name",
+                  "project_id",
+                  "start_date",
+                  "end_date"
+                ],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "project_id": {
+                    "type": "string"
+                  },
+                  "start_date": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "end_date": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "goal": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "Planning",
+                      "Active",
+                      "Completed"
+                    ],
+                    "default": "Planning"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sprint created"
+          },
+          "403": {
+            "description": "Only Admin users can create sprints"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/export-report": {
+      "post": {
+        "operationId": "exportReport",
+        "summary": "Generate structured report and return a real download URL",
+        "description": "Generate a structured report from analysis output and return a downloadable file URL in the API response. Prefer download_url/download_markdown for user-facing links; use pdf_base64 only as fallback. For email or Logic App handoff, set omit_pdf_base64=true and pass attachment_url/download_url to avoid 502 timeout due to large payloads. Do NOT assume SharePoint storage. CRITICAL: extract user_email from [Context] and pass it as requesting_user (query or body).",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "API authentication key"
+          },
+          {
+            "name": "requesting_user",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "email"
+            },
+            "description": "Optional duplicate of body.requesting_user for connector compatibility"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "report_title": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string",
+                    "description": "Alias for report_title"
+                  },
+                  "executive_summary": {
+                    "type": "string"
+                  },
+                  "summary": {
+                    "type": "string",
+                    "description": "Alias for executive_summary"
+                  },
+                  "key_insights": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "insights": {
+                    "type": "array",
+                    "description": "Alternative insight structure accepted",
+                    "items": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "title": {
+                              "type": "string"
+                            },
+                            "body": {
+                              "type": "string"
+                            },
+                            "text": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "kpis": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "label": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string",
+                          "description": "Alias for label"
+                        },
+                        "value": {
+                          "type": "string"
+                        },
+                        "score": {
+                          "type": "number"
+                        },
+                        "trend": {
+                          "type": "string",
+                          "enum": [
+                            "up",
+                            "down",
+                            "flat"
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  "recommendations": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "export_format": {
+                    "type": "string",
+                    "enum": [
+                      "pdf",
+                      "json",
+                      "both"
+                    ],
+                    "default": "pdf"
+                  },
+                  "omit_pdf_base64": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Set true when sending report through mail/Logic App to keep payload small and avoid timeout/502"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Report generated successfully (download_url + report payload)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "delivery_mode": {
+                      "type": "string",
+                      "example": "response_download"
+                    },
+                    "stored_to_sharepoint": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "pdf_generated": {
+                      "type": "boolean"
+                    },
+                    "pdf_size_bytes": {
+                      "type": "integer"
+                    },
+                    "file_name": {
+                      "type": "string",
+                      "description": "Generated PDF file name"
+                    },
+                    "download_path": {
+                      "type": "string",
+                      "description": "Relative path to downloadable PDF"
+                    },
+                    "download_url": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "Preferred absolute URL for clickable download"
+                    },
+                    "download_markdown": {
+                      "type": "string",
+                      "description": "Ready-to-use markdown link text for chat UIs"
+                    },
+                    "pdf_base64_included": {
+                      "type": "boolean",
+                      "description": "Indicates whether pdf_base64 is included in this response"
+                    },
+                    "email_handoff": {
+                      "type": "object",
+                      "description": "Compact payload for Mail_Agent / Logic App",
+                      "properties": {
+                        "mode": {
+                          "type": "string",
+                          "example": "url_only"
+                        },
+                        "to": {
+                          "type": "string",
+                          "format": "email"
+                        },
+                        "subject": {
+                          "type": "string"
+                        },
+                        "attachment_url": {
+                          "type": "string",
+                          "format": "uri"
+                        },
+                        "attachment_name": {
+                          "type": "string"
+                        },
+                        "notes": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "pdf_base64": {
+                      "type": "string",
+                      "description": "Base64-encoded PDF bytes for direct download"
+                    },
+                    "report": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Report generation failed"
+          }
+        }
+      }
+    },
+    "/api/document-intelligence/analyze": {
+      "post": {
+        "operationId": "analyzeDocument",
+        "summary": "Analyze a document or URL with Azure Document Intelligence + GPT-4o-mini",
+        "description": "PRIMARY document analysis endpoint. Upload a file (PDF, DOCX, XLSX, CSV, PPTX, TXT, images) OR pass a public URL. Parser priority: (1) Azure Document Intelligence for PDF/DOCX/images — extracts text, tables, key-value pairs via OCR; (2) Docling for PPTX/TXT/URLs; (3) Pandas for CSV/XLSX. GPT-4o-mini then generates KPIs, business insights, top/bottom performers, recommendations, and executive summary. Use this when the user uploads a document, asks to analyze a file, or wants insights from a URL. Returns a full InsightReport JSON.",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Document file to analyze. Supported: PDF, DOCX, DOC, PPTX, PPT, TXT, CSV, XLSX, XLS, JPEG, JPG, PNG, TIFF, BMP. Use this OR url, not both."
+                  },
+                  "url": {
+                    "type": "string",
+                    "description": "Publicly accessible URL of a document or webpage to analyze. Use this OR file, not both. Examples: annual report URL, news article, public PDF link."
+                  },
+                  "question": {
+                    "type": "string",
+                    "description": "Optional business question to focus the analysis. Leave empty for comprehensive analysis. Examples: 'What are the top revenue risks?', 'Who are the top 5 performers?', 'What is the sales trend?'"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "InsightReport JSON with full AI analysis",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "doc_name": {
+                      "type": "string",
+                      "description": "Name of the analyzed document or URL"
+                    },
+                    "question": {
+                      "type": "string",
+                      "description": "Business question used for analysis"
+                    },
+                    "summary": {
+                      "type": "string",
+                      "description": "3-4 sentence executive summary with specific numbers and key patterns"
+                    },
+                    "parser_used": {
+                      "type": "string",
+                      "description": "Parser that extracted the document: 'Azure Document Intelligence', 'Docling', or 'pandas'"
+                    },
+                    "generated_at": {
+                      "type": "string",
+                      "description": "Timestamp of report generation"
+                    },
+                    "kpis": {
+                      "type": "array",
+                      "description": "6-8 Key Performance Indicators extracted from the document",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string",
+                            "description": "Metric name e.g. 'Average Score', 'Total Revenue'"
+                          },
+                          "value": {
+                            "type": "string",
+                            "description": "Formatted value with units e.g. '78.5%', '$1.2M'"
+                          },
+                          "trend": {
+                            "type": "string",
+                            "enum": [
+                              "up",
+                              "down",
+                              "neutral"
+                            ],
+                            "description": "Performance trend direction"
+                          },
+                          "score": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100,
+                            "description": "Normalized score 0-100 for gauge display"
+                          }
+                        }
+                      }
+                    },
+                    "insights": {
+                      "type": "array",
+                      "description": "6-8 business insights with specific data references",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "category": {
+                            "type": "string",
+                            "enum": [
+                              "Strategic",
+                              "Financial",
+                              "Market",
+                              "Operational",
+                              "Performance",
+                              "Risk"
+                            ]
+                          },
+                          "priority": {
+                            "type": "string",
+                            "enum": [
+                              "HIGH",
+                              "MEDIUM",
+                              "LOW"
+                            ]
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "body": {
+                            "type": "string",
+                            "description": "3-4 sentences with specific names, numbers, and percentages from the data"
+                          }
+                        }
+                      }
+                    },
+                    "recommendations": {
+                      "type": "array",
+                      "description": "5-6 specific, time-bound, actionable recommendations",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "top_performers": {
+                      "type": "array",
+                      "description": "Top 5 individuals/entities ranked by primary metric (populated when names exist in data)",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "rank": {
+                            "type": "integer"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "score": {
+                            "type": "string"
+                          },
+                          "highlights": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "bottom_performers": {
+                      "type": "array",
+                      "description": "Bottom 5 individuals/entities needing attention",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "rank": {
+                            "type": "integer"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "score": {
+                            "type": "string"
+                          },
+                          "highlights": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "score_distribution": {
+                      "type": "object",
+                      "description": "Count of items in each performance band (populated for scored datasets)",
+                      "properties": {
+                        "excellent": {
+                          "type": "integer",
+                          "description": "Top 15%"
+                        },
+                        "proficient": {
+                          "type": "integer",
+                          "description": "Next 35%"
+                        },
+                        "developing": {
+                          "type": "integer",
+                          "description": "Next 35%"
+                        },
+                        "needs_improvement": {
+                          "type": "integer",
+                          "description": "Bottom 15%"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "doc_name": "Q1_Sales_Report.pdf",
+                  "question": "What are the top revenue risks?",
+                  "summary": "Q1 revenue reached $4.2M, 12% below target. Three regions underperformed: APAC (-23%), EMEA (-8%), and LATAM (-15%). Top performer was John Smith at $820K closed deals.",
+                  "parser_used": "Azure Document Intelligence",
+                  "generated_at": "March 25, 2026 10:30",
+                  "kpis": [
+                    {
+                      "label": "Total Revenue",
+                      "value": "$4.2M",
+                      "trend": "down",
+                      "score": 72
+                    },
+                    {
+                      "label": "Target Achievement",
+                      "value": "88%",
+                      "trend": "down",
+                      "score": 65
+                    }
+                  ],
+                  "insights": [
+                    {
+                      "category": "Financial",
+                      "priority": "HIGH",
+                      "title": "APAC Region Underperformance",
+                      "body": "APAC missed targets by 23% ($340K shortfall). Key contributors: pipeline delays in Singapore (3 deals, $180K) and team turnover in Sydney (2 senior reps departed Q4)."
+                    }
+                  ],
+                  "recommendations": [
+                    "Re-assign Singapore pipeline deals to top performer John Smith by April 1 to recover $180K at risk.",
+                    "Hire 2 replacement reps in Sydney within 30 days to prevent further Q2 revenue gap."
+                  ],
+                  "top_performers": [
+                    {
+                      "rank": 1,
+                      "name": "John Smith",
+                      "score": "$820K",
+                      "highlights": "Highest deal closure rate (94%), 3 enterprise deals this quarter"
+                    }
+                  ],
+                  "score_distribution": {
+                    "excellent": 3,
+                    "proficient": 8,
+                    "developing": 5,
+                    "needs_improvement": 2
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No file or URL provided, or unsupported file type"
+          },
+          "500": {
+            "description": "Azure DI or GPT processing failed"
+          }
+        }
+      }
+    },
+    "/api/document-intelligence/export-pdf": {
+      "post": {
+        "operationId": "exportInsightPDF",
+        "summary": "Export an InsightReport as a branded dark-themed PDF",
+        "description": "Convert a previously generated InsightReport JSON (from analyzeDocument) into a downloadable dark-branded PDF built with ReportLab. The PDF includes: executive summary, KPI cards, score distribution, top/bottom performer tables, business insights, and strategic recommendations. Use this when user asks to download, export, or save the analysis as a PDF.",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Full InsightReport object returned from analyzeDocument. Pass it back as-is.",
+                "required": [
+                  "doc_name",
+                  "question",
+                  "summary",
+                  "kpis",
+                  "insights",
+                  "recommendations",
+                  "generated_at"
+                ],
+                "properties": {
+                  "doc_name": {
+                    "type": "string"
+                  },
+                  "question": {
+                    "type": "string"
+                  },
+                  "summary": {
+                    "type": "string"
+                  },
+                  "parser_used": {
+                    "type": "string"
+                  },
+                  "generated_at": {
+                    "type": "string"
+                  },
+                  "kpis": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "insights": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "recommendations": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "top_performers": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "bottom_performers": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "score_distribution": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "PDF binary file download",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "headers": {
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "attachment; filename=insights_YYYYMMDD_HHMMSS.pdf"
+              }
+            }
+          },
+          "500": {
+            "description": "PDF generation failed"
+          }
+        }
+      }
+    },
+    "/api/document-intelligence/health": {
+      "get": {
+        "operationId": "documentIntelligenceHealth",
+        "summary": "Check Document Intelligence service status",
+        "description": "Returns status of Azure Document Intelligence, Azure OpenAI GPT, and parser availability. Use this before analyzeDocument to verify all services are configured.",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Service health status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "service": {
+                      "type": "string",
+                      "example": "Document Intelligence"
+                    },
+                    "supported_formats": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "azure_openai_key": {
+                      "type": "string",
+                      "enum": [
+                        "loaded",
+                        "missing"
+                      ]
+                    },
+                    "azure_openai_endpoint": {
+                      "type": "string"
+                    },
+                    "azure_openai_deployment": {
+                      "type": "string"
+                    },
+                    "azure_di_status": {
+                      "type": "string",
+                      "example": "ready ✅"
+                    },
+                    "azure_di_endpoint": {
+                      "type": "string"
+                    },
+                    "azure_di_key": {
+                      "type": "string",
+                      "enum": [
+                        "loaded",
+                        "missing"
+                      ]
+                    },
+                    "azure_di_formats": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "parser_priority": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/data-viz/upload": {
+      "post": {
+        "operationId": "uploadDataset",
+        "summary": "Upload a CSV or Excel dataset for visualization",
+        "description": "Upload a CSV or XLSX/XLS file. The backend parses it with Pandas, stores it in MongoDB, and returns metadata including column names, data types, row count, and a preview. ALWAYS call this first before analyzeDataset or visualizeDataset. Returns a dataset_id needed for subsequent calls. IMPORTANT: pass requesting_user from Context.user_email.",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "API authentication key"
+          },
+          {
+            "name": "requesting_user",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "email"
+            },
+            "description": "Email from Context.user_email for user-scoped dataset ownership"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "CSV or Excel file (CSV, XLSX, XLS). Max recommended size: 10MB."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Dataset uploaded and parsed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "dataset_id": {
+                      "type": "string",
+                      "description": "MongoDB ID for this dataset — use in analyzeDataset and visualizeDataset"
+                    },
+                    "filename": {
+                      "type": "string"
+                    },
+                    "rows": {
+                      "type": "integer",
+                      "description": "Total number of data rows"
+                    },
+                    "columns": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "List of column names"
+                    },
+                    "dtypes": {
+                      "type": "object",
+                      "description": "Column name → data type mapping e.g. {'Sales': 'float64', 'Region': 'object'}"
+                    },
+                    "preview": {
+                      "type": "array",
+                      "description": "First 5 rows as array of objects",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "numeric_columns": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Columns with numeric data — valid options for x/y in visualizeDataset"
+                    },
+                    "categorical_columns": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Columns with text/categorical data — valid options for color/group in visualizeDataset"
+                    }
+                  }
+                },
+                "example": {
+                  "dataset_id": "65f1a2b3c4d5e6f7g8h9i0j1",
+                  "filename": "sales_q1.csv",
+                  "rows": 250,
+                  "columns": [
+                    "Region",
+                    "Rep",
+                    "Revenue",
+                    "Deals",
+                    "Quarter"
+                  ],
+                  "dtypes": {
+                    "Region": "object",
+                    "Rep": "object",
+                    "Revenue": "float64",
+                    "Deals": "int64",
+                    "Quarter": "object"
+                  },
+                  "preview": [
+                    {
+                      "Region": "APAC",
+                      "Rep": "John Smith",
+                      "Revenue": 82000,
+                      "Deals": 4,
+                      "Quarter": "Q1"
+                    }
+                  ],
+                  "numeric_columns": [
+                    "Revenue",
+                    "Deals"
+                  ],
+                  "categorical_columns": [
+                    "Region",
+                    "Rep",
+                    "Quarter"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid file type. Only CSV, XLSX, XLS accepted."
+          },
+          "500": {
+            "description": "File parsing failed"
+          }
+        }
+      }
+    },
+    "/api/data-viz/datasets": {
+      "get": {
+        "operationId": "listDatasets",
+        "summary": "List all uploaded datasets for the current user",
+        "description": "Returns all datasets previously uploaded by the user, with metadata (filename, rows, columns, upload date). Use this to let the user pick a dataset without re-uploading. IMPORTANT: pass requesting_user from Context.user_email.",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "API authentication key"
+          },
+          {
+            "name": "requesting_user",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "email"
+            },
+            "description": "Email from Context.user_email for user-scoped dataset listing"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of user datasets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "dataset_id": {
+                        "type": "string"
+                      },
+                      "filename": {
+                        "type": "string"
+                      },
+                      "rows": {
+                        "type": "integer"
+                      },
+                      "columns": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "uploaded_at": {
+                        "type": "string",
+                        "format": "date-time"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/data-viz/analyze": {
+      "post": {
+        "operationId": "analyzeDataset",
+        "summary": "Run statistical analysis on an uploaded dataset",
+        "description": "Perform deep statistical analysis on a dataset using Pandas. Returns: descriptive statistics (mean, std, min, max, quartiles) for all numeric columns, correlation matrix between numeric columns, value distributions for categorical columns, and missing value counts. Use this to understand a dataset before choosing visualization type and axes. IMPORTANT: pass requesting_user from Context.user_email.",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "API authentication key"
+          },
+          {
+            "name": "requesting_user",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "email"
+            },
+            "description": "Email from Context.user_email for user-scoped dataset access"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "dataset_id"
+                ],
+                "properties": {
+                  "dataset_id": {
+                    "type": "string",
+                    "description": "Dataset ID from uploadDataset response"
+                  }
+                }
+              },
+              "example": {
+                "dataset_id": "65f1a2b3c4d5e6f7g8h9i0j1"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Statistical analysis results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "dataset_id": {
+                      "type": "string"
+                    },
+                    "rows": {
+                      "type": "integer"
+                    },
+                    "columns": {
+                      "type": "integer"
+                    },
+                    "descriptive_stats": {
+                      "type": "object",
+                      "description": "Per-column stats: count, mean, std, min, 25%, 50%, 75%, max"
+                    },
+                    "correlation_matrix": {
+                      "type": "object",
+                      "description": "Pearson correlation between all numeric column pairs (-1 to 1)"
+                    },
+                    "value_distributions": {
+                      "type": "object",
+                      "description": "For categorical columns: value counts and percentages"
+                    },
+                    "missing_values": {
+                      "type": "object",
+                      "description": "Per-column missing value counts"
+                    },
+                    "suggested_charts": {
+                      "type": "array",
+                      "description": "Agent-recommended chart types based on data shape",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Dataset not found"
+          }
+        }
+      }
+    },
+    "/api/data-viz/visualize": {
+      "post": {
+        "operationId": "visualizeDataset",
+        "summary": "Generate an interactive Plotly or static Seaborn chart from a dataset",
+        "description": "Create a chart from an uploaded dataset. Plotly charts are interactive HTML (hover, zoom, legend toggle) stored in MongoDB. Seaborn/Matplotlib charts are static PNG base64. IMPORTANT: x_column and y_column must be actual column names from the dataset (get them from uploadDataset or listDatasets). Returns a viz_id to retrieve the chart via getVisualization. IMPORTANT: pass requesting_user from Context.user_email.",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "API authentication key"
+          },
+          {
+            "name": "requesting_user",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "email"
+            },
+            "description": "Email from Context.user_email for user-scoped dataset access"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "dataset_id",
+                  "chart_type"
+                ],
+                "properties": {
+                  "dataset_id": {
+                    "type": "string",
+                    "description": "Dataset ID from uploadDataset"
+                  },
+                  "chart_type": {
+                    "type": "string",
+                    "enum": [
+                      "scatter",
+                      "line",
+                      "bar",
+                      "histogram",
+                      "box",
+                      "violin",
+                      "heatmap",
+                      "pie"
+                    ],
+                    "description": "Chart type to generate. scatter/line/bar for trend and comparison. histogram/box/violin for distribution. heatmap for correlations. pie for proportions."
+                  },
+                  "x_column": {
+                    "type": "string",
+                    "description": "Column name for X axis. Must be an actual column name from the dataset."
+                  },
+                  "y_column": {
+                    "type": "string",
+                    "description": "Column name for Y axis (numeric recommended). Must be an actual column name. Not required for histogram or pie."
+                  },
+                  "color_column": {
+                    "type": "string",
+                    "description": "Optional categorical column to color-code data points (e.g. 'Region', 'Category')"
+                  },
+                  "title": {
+                    "type": "string",
+                    "description": "Chart title. If omitted, auto-generated from column names."
+                  },
+                  "renderer": {
+                    "type": "string",
+                    "enum": [
+                      "plotly",
+                      "seaborn",
+                      "matplotlib"
+                    ],
+                    "default": "plotly",
+                    "description": "Rendering engine. plotly = interactive HTML. seaborn/matplotlib = static PNG."
+                  },
+                  "aggregation": {
+                    "type": "string",
+                    "enum": [
+                      "sum",
+                      "mean",
+                      "count",
+                      "max",
+                      "min"
+                    ],
+                    "description": "Optional aggregation for bar/line charts when multiple rows share the same x value."
+                  }
+                }
+              },
+              "example": {
+                "dataset_id": "65f1a2b3c4d5e6f7g8h9i0j1",
+                "chart_type": "bar",
+                "x_column": "Region",
+                "y_column": "Revenue",
+                "color_column": "Quarter",
+                "title": "Q1 Revenue by Region",
+                "renderer": "plotly",
+                "aggregation": "sum"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Visualization created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "viz_id": {
+                      "type": "string",
+                      "description": "Visualization ID — use in getVisualization or downloadVisualization"
+                    },
+                    "chart_type": {
+                      "type": "string"
+                    },
+                    "renderer": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "preview_url": {
+                      "type": "string",
+                      "description": "Direct URL to view/download the chart"
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                },
+                "example": {
+                  "viz_id": "viz_abc123",
+                  "chart_type": "bar",
+                  "renderer": "plotly",
+                  "title": "Q1 Revenue by Region",
+                  "preview_url": "/api/data-viz/download/viz_abc123",
+                  "created_at": "2026-03-25T10:30:00Z"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid column names or chart configuration"
+          },
+          "404": {
+            "description": "Dataset not found"
+          },
+          "500": {
+            "description": "Chart generation failed"
+          }
+        }
+      }
+    },
+    "/api/data-viz/visualizations": {
+      "get": {
+        "operationId": "listVisualizations",
+        "summary": "List all visualizations created by the current user",
+        "description": "Returns all charts previously generated by the user, with metadata (chart type, title, dataset, creation date). Use this to let the user browse and re-access past visualizations. IMPORTANT: pass requesting_user from Context.user_email.",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "API authentication key"
+          },
+          {
+            "name": "requesting_user",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "email"
+            },
+            "description": "Email from Context.user_email for user-scoped visualization listing"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of user visualizations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "viz_id": {
+                        "type": "string"
+                      },
+                      "chart_type": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "renderer": {
+                        "type": "string"
+                      },
+                      "dataset_id": {
+                        "type": "string"
+                      },
+                      "created_at": {
+                        "type": "string",
+                        "format": "date-time"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/data-viz/download/{viz_id}": {
+      "get": {
+        "operationId": "downloadVisualization",
+        "summary": "Download or view a generated chart",
+        "description": "Retrieve a previously generated chart by viz_id. Plotly charts return as interactive HTML (open in browser). Seaborn/Matplotlib charts return as PNG image. Use format query param to force PNG or HTML.",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "viz_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Visualization ID from visualizeDataset response"
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "png",
+                "html"
+              ],
+              "default": "html"
+            },
+            "description": "Output format. html for interactive Plotly chart. png for static image."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Chart file",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Visualization not found"
+          }
+        }
+      }
+    },
+    "/api/data-viz/datasets/{dataset_id}": {
+      "delete": {
+        "operationId": "deleteDataset",
+        "summary": "Delete a dataset and all its associated visualizations",
+        "description": "Permanently delete a dataset from MongoDB along with all charts generated from it. Use when the user wants to clean up or remove uploaded data. IMPORTANT: pass requesting_user from Context.user_email.",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Dataset ID to delete"
+          },
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "API authentication key"
+          },
+          {
+            "name": "requesting_user",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "email"
+            },
+            "description": "Email from Context.user_email for user-scoped dataset deletion"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dataset and associated visualizations deleted successfully"
+          },
+          "403": {
+            "description": "Not authorized to delete this dataset"
+          },
+          "404": {
+            "description": "Dataset not found"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "AgentAPIKey": {
+        "type": "apiKey",
+        "in": "query",
+        "name": "api_key",
+        "description": "Agent service authentication key (query parameter for Azure AI compatibility)",
+        "x-default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+      }
+    },
+    "schemas": {
+      "InsightReport": {
+        "type": "object",
+        "description": "Full document analysis result from analyzeDocument",
+        "properties": {
+          "doc_name": {
+            "type": "string"
+          },
+          "question": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "parser_used": {
+            "type": "string"
+          },
+          "generated_at": {
+            "type": "string"
+          },
+          "kpis": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KPI"
+            }
+          },
+          "insights": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Insight"
+            }
+          },
+          "recommendations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "top_performers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Performer"
+            }
+          },
+          "bottom_performers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Performer"
+            }
+          },
+          "score_distribution": {
+            "$ref": "#/components/schemas/ScoreDistribution"
+          }
+        }
+      },
+      "KPI": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "trend": {
+            "type": "string",
+            "enum": [
+              "up",
+              "down",
+              "neutral"
+            ]
+          },
+          "score": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          }
+        }
+      },
+      "Insight": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string",
+            "enum": [
+              "Strategic",
+              "Financial",
+              "Market",
+              "Operational",
+              "Performance",
+              "Risk"
+            ]
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "HIGH",
+              "MEDIUM",
+              "LOW"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          }
+        }
+      },
+      "Performer": {
+        "type": "object",
+        "properties": {
+          "rank": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "score": {
+            "type": "string"
+          },
+          "highlights": {
+            "type": "string"
+          }
+        }
+      },
+      "ScoreDistribution": {
+        "type": "object",
+        "properties": {
+          "excellent": {
+            "type": "integer"
+          },
+          "proficient": {
+            "type": "integer"
+          },
+          "developing": {
+            "type": "integer"
+          },
+          "needs_improvement": {
+            "type": "integer"
+          }
+        }
+      }
+    }
+  }
+}

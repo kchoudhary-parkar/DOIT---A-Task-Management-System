@@ -1,0 +1,725 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "version": "2.0.0",
+    "title": "codes_PRs_analyzing_action",
+    "description": "Direct OpenAPI tool for DOIT code review and ticket-linked Git analysis. Auth model aligned with working agent-api-extended connector pattern."
+  },
+  "servers": [
+    {
+      "url": "https://keaton-hyte-nonincidentally.ngrok-free.dev",
+      "description": "DOIT backend via ngrok"
+    }
+  ],
+  "x-ms-connector-auth": {
+    "type": "apiKey",
+    "apiKeyHeader": "X-Agent-Key"
+  },
+  "security": [
+    {
+      "AgentAPIKeyHeader": []
+    },
+    {
+      "AgentAPIKeyQuery": []
+    },
+    {
+      "BearerAuth": []
+    }
+  ],
+  "paths": {
+    "/api/agent/projects": {
+      "get": {
+        "operationId": "getAllProjectsForCodeReview",
+        "summary": "Get all projects",
+        "description": "Resolve project names to internal project_id values before review and git-analysis calls.",
+        "security": [
+          {
+            "AgentAPIKeyHeader": []
+          },
+          {
+            "AgentAPIKeyQuery": []
+          },
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "Agent service API key fallback"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Project list"
+          }
+        }
+      }
+    },
+    "/api/agent/tasks": {
+      "get": {
+        "operationId": "getAllTasksForCodeReview",
+        "summary": "Get tasks",
+        "description": "Find task context by project and filter by status/priority/assignee when needed. Use the returned task_id value (canonical Mongo identifier) for createCodeReviewFromPR.",
+        "security": [
+          {
+            "AgentAPIKeyHeader": []
+          },
+          {
+            "AgentAPIKeyQuery": []
+          },
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "Agent service API key fallback"
+          },
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "priority",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "assigned_to_email",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "email"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Task list"
+          }
+        }
+      }
+    },
+    "/api/agent/task/{task_id}": {
+      "get": {
+        "operationId": "getTaskDetailsForCodeReview",
+        "summary": "Get task details",
+        "security": [
+          {
+            "AgentAPIKeyHeader": []
+          },
+          {
+            "AgentAPIKeyQuery": []
+          },
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "Agent service API key fallback"
+          },
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Ticket ID or task _id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Task details"
+          }
+        }
+      }
+    },
+    "/api/agent/project/{project_id}": {
+      "get": {
+        "operationId": "getProjectDetailsForCodeReview",
+        "summary": "Get project details",
+        "security": [
+          {
+            "AgentAPIKeyHeader": []
+          },
+          {
+            "AgentAPIKeyQuery": []
+          },
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "Agent service API key fallback"
+          },
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Project details"
+          }
+        }
+      }
+    },
+    "/api/agent/health": {
+      "get": {
+        "operationId": "agentHealthForCodeReview",
+        "summary": "Health check",
+        "security": [
+          {
+            "AgentAPIKeyHeader": []
+          },
+          {
+            "AgentAPIKeyQuery": []
+          },
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "Agent service API key fallback"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Service health"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/code-review/create": {
+      "post": {
+        "operationId": "createCodeReviewFromPR",
+        "summary": "Create PR code review",
+        "description": "Create a code review from PR URL for a task and optionally trigger async analysis. Always provide requesting_user (testuser@gmail.com) in body or query when token auth is absent. Use wait_for_analysis_seconds to wait for Celery completion and return final scores/issues in the same response when available. If analysis_status/review_status is pending or in_progress, call getCodeReviewById or getCodeReviewsByTask to poll before giving a final assessment. Response includes git_activity_summary with branches_count, commits_count, and pull_requests_count; always include these counts in user-facing summary.",
+        "security": [
+          {
+            "AgentAPIKeyHeader": []
+          },
+          {
+            "AgentAPIKeyQuery": []
+          },
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "Agent service API key fallback"
+          },
+          {
+            "name": "sig",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Compatibility auth key for legacy connector connections"
+          },
+          {
+            "name": "X-Tab-Session-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional session scoping key"
+          },
+          {
+            "name": "requesting_user",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "email"
+            },
+            "description": "Fallback requesting user email when body field is omitted by the connector"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "requesting_user",
+                  "project_id",
+                  "task_id",
+                  "pr_url"
+                ],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "project_id": {
+                    "type": "string"
+                  },
+                  "task_id": {
+                    "type": "string"
+                  },
+                  "pr_url": {
+                    "type": "string"
+                  },
+                  "trigger_analysis": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "wait_for_analysis_seconds": {
+                    "type": "integer",
+                    "default": 35,
+                    "minimum": 0,
+                    "maximum": 120,
+                    "description": "How long to wait for Celery analysis completion before responding. Use 35 for typical runs."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Code review created"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/code-review/review/{review_id}": {
+      "get": {
+        "operationId": "getCodeReviewById",
+        "summary": "Get code review by ID",
+        "description": "Use this endpoint to check latest review_status after createCodeReviewFromPR. Only treat quality/security scores and issue counts as final when review_status is completed.",
+        "security": [
+          {
+            "AgentAPIKeyHeader": []
+          },
+          {
+            "AgentAPIKeyQuery": []
+          },
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "Agent service API key fallback"
+          },
+          {
+            "name": "review_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Code review details"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/code-review/task/{task_id}": {
+      "get": {
+        "operationId": "getCodeReviewsByTask",
+        "summary": "Get code reviews for task",
+        "description": "Use this after createCodeReviewFromPR to fetch latest reviews and git_activity_summary. If latest review_status is pending/in_progress, poll up to 2 times (8-12s spacing) before finalizing summary. Always report branches_count, commits_count, and pull_requests_count from git_activity_summary in the user-facing final response.",
+        "security": [
+          {
+            "AgentAPIKeyHeader": []
+          },
+          {
+            "AgentAPIKeyQuery": []
+          },
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "Agent service API key fallback"
+          },
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Task code reviews"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/code-review/project/{project_id}": {
+      "get": {
+        "operationId": "getCodeReviewsByProject",
+        "summary": "Get project code reviews",
+        "security": [
+          {
+            "AgentAPIKeyHeader": []
+          },
+          {
+            "AgentAPIKeyQuery": []
+          },
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "Agent service API key fallback"
+          },
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "in_progress",
+                "completed",
+                "failed"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Project code reviews"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/code-review/project/{project_id}/statistics": {
+      "get": {
+        "operationId": "getCodeReviewStatisticsByProject",
+        "summary": "Get code review statistics",
+        "security": [
+          {
+            "AgentAPIKeyHeader": []
+          },
+          {
+            "AgentAPIKeyQuery": []
+          },
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "Agent service API key fallback"
+          },
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Project review statistics"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/code-review/retry": {
+      "post": {
+        "operationId": "retryFailedCodeReview",
+        "summary": "Retry failed code review",
+        "security": [
+          {
+            "AgentAPIKeyHeader": []
+          },
+          {
+            "AgentAPIKeyQuery": []
+          },
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "Agent service API key fallback"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "review_id"
+                ],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "review_id": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Retry queued"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/code-review/health": {
+      "get": {
+        "operationId": "codeReviewHealthCheck",
+        "summary": "Code review pipeline health",
+        "security": [
+          {
+            "AgentAPIKeyHeader": []
+          },
+          {
+            "AgentAPIKeyQuery": []
+          },
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "Agent service API key fallback"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Code review subsystem health"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/tasks/{task_id}/git-activity": {
+      "get": {
+        "operationId": "getTaskGitActivity",
+        "summary": "Get ticket-linked git activity",
+        "description": "Return branches, commits, and pull requests related to the provided ticket/task ID.",
+        "security": [
+          {
+            "AgentAPIKeyHeader": []
+          },
+          {
+            "AgentAPIKeyQuery": []
+          },
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "Agent service API key fallback"
+          },
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Task _id or ticket ID"
+          },
+          {
+            "name": "requesting_user",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "email"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ticket-linked branch, commit, and PR activity"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "AgentAPIKeyHeader": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Agent-Key",
+        "description": "Preferred auth key transport for Foundry connector"
+      },
+      "AgentAPIKeyQuery": {
+        "type": "apiKey",
+        "in": "query",
+        "name": "api_key",
+        "description": "Agent service authentication key in query parameter",
+        "x-default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+      },
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Bearer token compatibility channel"
+      }
+    }
+  }
+}

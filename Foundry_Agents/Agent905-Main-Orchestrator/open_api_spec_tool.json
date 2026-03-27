@@ -1,0 +1,2298 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "DOIT Agent API - Extended",
+    "version": "2.0.0",
+    "description": "Complete API for Azure AI Agent with read and write operations for MongoDB data. IMPORTANT: Every message includes a [Context: {...}] section with user_email field. When calling write operations (createTask, assignTask, createSprint, etc.), ALWAYS extract user_email from the Context and use it as the requesting_user parameter. IMPORTANT SPRINT WORKFLOW: for active sprint detection, first call getSprints with project_id only and NO status filter, then detect active sprint case-insensitively from returned status values (active/Active/ACTIVE)."
+  },
+  "servers": [
+    {
+      "url": "https://keaton-hyte-nonincidentally.ngrok-free.dev",
+      "description": "Public tunnel to development server via ngrok"
+    }
+  ],
+  "security": [
+    {
+      "AgentAPIKey": []
+    }
+  ],
+  "x-ms-connector-auth": {
+    "type": "apiKey",
+    "apiKeyHeader": "X-Agent-Key"
+  },
+  "paths": {
+    "/api/agent/projects": {
+      "get": {
+        "operationId": "getAllProjects",
+        "summary": "Get all projects",
+        "description": "ALWAYS call this FIRST to get project list with internal project_id values. Each project has a 'name' field (human-readable) and 'project_id' field (internal MongoDB ID). When user mentions a project name, use this endpoint to find and extract the project_id field.",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "API authentication key"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response with project list"
+          }
+        }
+      }
+    },
+    "/api/agent/tasks": {
+      "get": {
+        "operationId": "getAllTasks",
+        "summary": "Get tasks with filters",
+        "description": "Retrieve tasks from MongoDB with optional filters for project, status, priority, and assignee. Use assigned_to_email parameter to filter by user email address.",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "API authentication key"
+          },
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter tasks by project ID"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "To Do",
+                "In Progress",
+                "Dev Complete",
+                "Testing",
+                "Done"
+              ]
+            }
+          },
+          {
+            "name": "priority",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Critical",
+                "High",
+                "Medium",
+                "Low"
+              ]
+            }
+          },
+          {
+            "name": "assignee_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by assignee user ID (MongoDB ObjectId)"
+          },
+          {
+            "name": "assigned_to_email",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "email"
+            },
+            "description": "Filter by assigned user email address (recommended - easier than using user ID)"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response with task list"
+          }
+        }
+      }
+    },
+    "/api/agent/users": {
+      "get": {
+        "operationId": "getAllUsers",
+        "summary": "Get all users",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "description": "Retrieve all users (excluding sensitive information like passwords and tokens)",
+        "responses": {
+          "200": {
+            "description": "Successful response with user list"
+          }
+        }
+      }
+    },
+    "/api/agent/sprints": {
+      "get": {
+        "operationId": "getSprints",
+        "summary": "Get sprints",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "description": "Retrieve sprints with optional filters for project and status. IMPORTANT: for active sprint checks, first call with project_id only and no status filter, then detect active sprint case-insensitively from returned values.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "planned",
+                "active",
+                "completed",
+                "Planning",
+                "Active",
+                "Completed"
+              ]
+            },
+            "description": "Optional status filter. Prefer first call without this filter."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response with sprint list"
+          }
+        }
+      }
+    },
+    "/api/agent/statistics": {
+      "get": {
+        "operationId": "getStatistics",
+        "summary": "Get project statistics",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "description": "Retrieve aggregated statistics including total counts, task distributions by status and priority, users by role, and projects by status",
+        "responses": {
+          "200": {
+            "description": "Successful response with statistics"
+          }
+        }
+      }
+    },
+    "/api/agent/task/{task_id}": {
+      "get": {
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "operationId": "getTaskDetails",
+        "summary": "Get specific task details",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response with task details"
+          }
+        }
+      }
+    },
+    "/api/agent/project/{project_id}": {
+      "get": {
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "operationId": "getProjectDetails",
+        "summary": "Get specific project details by internal ID",
+        "description": "Get details for a specific project using its internal project_id (MongoDB ObjectId format like '507f1f77bcf86cd799439011'). NEVER use project name here - always use the project_id field from getAllProjects response.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Internal MongoDB project ID (like '507f1f77bcf86cd799439011'), NOT the project name. Get this from getAllProjects response."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response with project details"
+          }
+        }
+      }
+    },
+    "/api/agent/health": {
+      "get": {
+        "operationId": "healthCheck",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "summary": "Health check",
+        "description": "Check if the agent API and database connection are healthy",
+        "responses": {
+          "200": {
+            "description": "Service is healthy"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/send-report-email": {
+      "post": {
+        "operationId": "sendReportEmailAutomation",
+        "summary": "Send generated report link by email",
+        "description": "Fallback email endpoint for Agent905. Use this when Mail_Agent/Logic App fails (for example missing 'sig' query parameter). Sends a compact link-only email via SMTP to avoid payload timeouts.",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "API authentication key"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "requesting_user",
+                  "to_email",
+                  "report_url"
+                ],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Email from Context.user_email"
+                  },
+                  "to_email": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Recipient email"
+                  },
+                  "report_url": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "Download URL returned by export-report"
+                  },
+                  "subject": {
+                    "type": "string",
+                    "description": "Email subject",
+                    "default": "Structured Report"
+                  },
+                  "message": {
+                    "type": "string",
+                    "description": "Email body text"
+                  }
+                }
+              },
+              "example": {
+                "requesting_user": "anage@parkar.in",
+                "to_email": "kchoudhary@parkar.in",
+                "report_url": "https://keaton-hyte-nonincidentally.ngrok-free.dev/uploads/ai_attachments/report_123.pdf",
+                "subject": "Intern Toastmaster Report",
+                "message": "Please find your generated report below."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Report email sent successfully"
+          },
+          "500": {
+            "description": "Email send failed"
+          },
+          "504": {
+            "description": "Email send timed out"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/tasks": {
+      "post": {
+        "operationId": "createTask",
+        "summary": "Create a new task",
+        "description": "Create a task with automatic assignee resolution and RBAC validation. CRITICAL WORKFLOW: 1) Extract user_email from the [Context: {...}] section in the message, 2) Call getAllProjects to get project_id from project name, 3) Use project_id (MongoDB ObjectId) in this request, 4) Use user_email as requesting_user field, 5) Optionally provide assignee_email or assignee_name. Example: If Context contains 'user_email': 'admin@doit.com', use requesting_user: 'admin@doit.com'.",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "API authentication key"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "requesting_user",
+                  "title",
+                  "project_id"
+                ],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Email of the user making this request (for permission validation)"
+                  },
+                  "title": {
+                    "type": "string",
+                    "description": "Task title"
+                  },
+                  "project_id": {
+                    "type": "string",
+                    "description": "Internal project ID from getAllProjects response (MongoDB ObjectId format like '507f1f77bcf86cd799439011'). NEVER use project name - always use project_id field."
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "Task description"
+                  },
+                  "assignee_email": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Email of user to assign task to"
+                  },
+                  "assignee_name": {
+                    "type": "string",
+                    "description": "Name of user to assign task to (alternative to email)"
+                  },
+                  "priority": {
+                    "type": "string",
+                    "enum": [
+                      "Critical",
+                      "High",
+                      "Medium",
+                      "Low"
+                    ],
+                    "default": "Medium"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "To Do",
+                      "In Progress",
+                      "Dev Complete",
+                      "Testing",
+                      "Done"
+                    ],
+                    "default": "To Do"
+                  },
+                  "due_date": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "issue_type": {
+                    "type": "string",
+                    "enum": [
+                      "task",
+                      "bug",
+                      "feature",
+                      "improvement"
+                    ],
+                    "default": "task"
+                  },
+                  "labels": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "example": {
+                "requesting_user": "testuser@gmail.com",
+                "title": "Implement user authentication",
+                "project_id": "65f1a2b3c4d5e6f7g8h9i0j1",
+                "description": "Add OAuth 2.0 authentication",
+                "assignee_email": "developer@doit.com",
+                "priority": "High",
+                "status": "To Do"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Task created successfully"
+          },
+          "403": {
+            "description": "User does not have permission to create tasks"
+          },
+          "404": {
+            "description": "Requesting user or assignee not found"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/tasks/bulk-update-due-date": {
+      "post": {
+        "operationId": "bulkUpdateTaskDueDate",
+        "summary": "Bulk update due dates for one or many tasks",
+        "description": "Use this endpoint when user requests due-date updates for multiple tasks in one prompt. Supports ticket IDs (AA-003) and Mongo _id values. Also supports single-task updates (task_identifiers with one item).",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "API authentication key"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "requesting_user",
+                  "project_id",
+                  "due_date",
+                  "task_identifiers"
+                ],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Email from Context.user_email for RBAC validation"
+                  },
+                  "project_id": {
+                    "type": "string",
+                    "description": "Internal project ID"
+                  },
+                  "due_date": {
+                    "type": "string",
+                    "description": "Target due date (YYYY-MM-DD preferred; common natural formats also accepted)"
+                  },
+                  "task_identifiers": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Task identifiers as ticket IDs (AA-003) and/or internal Mongo _id values"
+                  }
+                }
+              },
+              "example": {
+                "requesting_user": "testuser@gmail.com",
+                "project_id": "69bcefe30cf6a24973dff554",
+                "due_date": "2026-03-28",
+                "task_identifiers": [
+                  "AA-003",
+                  "AA-007",
+                  "AA-008"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bulk update completed with per-task result details"
+          },
+          "403": {
+            "description": "Permission denied"
+          },
+          "404": {
+            "description": "Requesting user or project not found"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/tasks/bulk-update": {
+      "post": {
+        "operationId": "bulkUpdateTasks",
+        "summary": "Bulk update allowed fields for one or many tasks",
+        "description": "Use this endpoint when the same non-sprint update payload should be applied to multiple tasks in one prompt. Supports ticket IDs (AA-003) and Mongo _id values. Allowed update fields: title, description, priority, status, assignee_id, due_date, issue_type, labels, comment. IMPORTANT: for sprint membership changes, use addTaskToSprintAutomation / bulkAddTasksToSprintAutomation for add and removeTaskFromSprintAutomation / bulkRemoveTasksFromSprintAutomation for remove; do not use this endpoint for sprint add/remove.",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "API authentication key"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "requesting_user",
+                  "project_id",
+                  "task_identifiers",
+                  "updates"
+                ],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Email from Context.user_email for RBAC validation"
+                  },
+                  "project_id": {
+                    "type": "string",
+                    "description": "Internal project ID"
+                  },
+                  "task_identifiers": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Task identifiers as ticket IDs (AA-003) and/or internal Mongo _id values"
+                  },
+                  "updates": {
+                    "type": "object",
+                    "description": "Shared update payload applied to each task identifier",
+                    "properties": {
+                      "title": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": "string"
+                      },
+                      "priority": {
+                        "type": "string",
+                        "enum": [
+                          "Low",
+                          "Medium",
+                          "High"
+                        ]
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "To Do",
+                          "In Progress",
+                          "Dev Complete",
+                          "Testing",
+                          "Done",
+                          "Closed"
+                        ]
+                      },
+                      "assignee_id": {
+                        "type": "string",
+                        "description": "Assignee user ID (Mongo ObjectId)"
+                      },
+                      "due_date": {
+                        "type": "string",
+                        "description": "Target due date (YYYY-MM-DD preferred; common natural formats also accepted)"
+                      },
+                      "issue_type": {
+                        "type": "string",
+                        "enum": [
+                          "task",
+                          "bug",
+                          "story",
+                          "epic"
+                        ]
+                      },
+                      "labels": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "comment": {
+                        "type": "string",
+                        "description": "Optional comment to log in task activity when provided"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "example": {
+                "requesting_user": "testuser@gmail.com",
+                "project_id": "69bcefe30cf6a24973dff554",
+                "task_identifiers": [
+                  "AA-003",
+                  "AA-007",
+                  "AA-008"
+                ],
+                "updates": {
+                  "status": "In Progress",
+                  "priority": "High",
+                  "due_date": "2026-03-28"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bulk update completed with per-task result details"
+          },
+          "400": {
+            "description": "Invalid update payload or unsupported fields"
+          },
+          "403": {
+            "description": "Permission denied"
+          },
+          "404": {
+            "description": "Requesting user or project not found"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/tasks/{task_id}/assign": {
+      "put": {
+        "operationId": "assignTask",
+        "summary": "Assign task to a user",
+        "description": "Assign a task to a user by email or name with RBAC validation. Requires requesting_user for permission check. Admin or Member can assign tasks.",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Task ID to assign"
+          },
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "API authentication key"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "requesting_user",
+                  "assignee_identifier"
+                ],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Email of the user making this request"
+                  },
+                  "assignee_identifier": {
+                    "type": "string",
+                    "description": "Email or name of user to assign to"
+                  }
+                }
+              },
+              "example": {
+                "requesting_user": "admin@example.com",
+                "assignee_identifier": "john@example.com"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Task assigned successfully"
+          },
+          "403": {
+            "description": "User does not have permission to assign tasks"
+          },
+          "404": {
+            "description": "Task or user not found"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/tasks/{task_id}/labels": {
+      "post": {
+        "operationId": "addTaskLabelAutomation",
+        "summary": "Add label to task",
+        "description": "Add a single label to a task. Use this endpoint for label updates instead of embedding label text in description.",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Task identifier: ticket ID (AA-004) or Mongo _id"
+          },
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "API authentication key"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "requesting_user",
+                  "label"
+                ],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "label": {
+                    "type": "string"
+                  }
+                }
+              },
+              "example": {
+                "requesting_user": "testuser@gmail.com",
+                "label": "backend"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Label added successfully"
+          },
+          "403": {
+            "description": "Permission denied"
+          },
+          "404": {
+            "description": "Task or user not found"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/tasks/{task_id}/attachments": {
+      "post": {
+        "operationId": "addTaskAttachmentAutomation",
+        "summary": "Add attachment link/document to task",
+        "description": "Add an attachment entry to a task using a URL (or data URL). Use this endpoint for attachments instead of writing attachment text into description.",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Task identifier: ticket ID (AA-004) or Mongo _id"
+          },
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "API authentication key"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "requesting_user",
+                  "name",
+                  "url"
+                ],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string"
+                  },
+                  "fileName": {
+                    "type": "string"
+                  },
+                  "fileType": {
+                    "type": "string"
+                  },
+                  "fileSize": {
+                    "type": "integer"
+                  }
+                }
+              },
+              "example": {
+                "requesting_user": "testuser@gmail.com",
+                "name": "API contract",
+                "url": "https://example.com/spec.pdf"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Attachment added successfully"
+          },
+          "403": {
+            "description": "Permission denied"
+          },
+          "404": {
+            "description": "Task or user not found"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/tasks/{task_id}/comments": {
+      "post": {
+        "operationId": "addTaskCommentAutomation",
+        "summary": "Add comment to task",
+        "description": "Add a comment activity entry to the task timeline.",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Task identifier: ticket ID (AA-004) or Mongo _id"
+          },
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "API authentication key"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "requesting_user",
+                  "comment"
+                ],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "comment": {
+                    "type": "string"
+                  }
+                }
+              },
+              "example": {
+                "requesting_user": "testuser@gmail.com",
+                "comment": "Please prioritize this for today."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Comment added successfully"
+          },
+          "403": {
+            "description": "Permission denied"
+          },
+          "404": {
+            "description": "Task or user not found"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/tasks/{task_id}/links": {
+      "post": {
+        "operationId": "addTaskLinkAutomation",
+        "summary": "Add linked-ticket relationship",
+        "description": "Create a relationship between tasks (blocks, blocked-by, relates-to, duplicates). Provide linked_ticket_id or linked_task_id.",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Source task identifier: ticket ID (AA-004) or Mongo _id"
+          },
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "API authentication key"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "requesting_user",
+                  "type"
+                ],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "blocks",
+                      "blocked-by",
+                      "relates-to",
+                      "duplicates"
+                    ]
+                  },
+                  "linked_task_id": {
+                    "type": "string"
+                  },
+                  "linked_ticket_id": {
+                    "type": "string"
+                  }
+                }
+              },
+              "example": {
+                "requesting_user": "testuser@gmail.com",
+                "type": "blocks",
+                "linked_ticket_id": "AA-021"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Link added successfully"
+          },
+          "403": {
+            "description": "Permission denied"
+          },
+          "404": {
+            "description": "Task/user/linked task not found"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/projects": {
+      "post": {
+        "operationId": "createProject",
+        "summary": "Create a new project",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "description": "Create a project with RBAC validation. Requires requesting_user email. Only Admin users can create projects.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "requesting_user",
+                  "name"
+                ],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Email of the user making this request (must be Admin)"
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "Project name"
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "Project description"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "Active",
+                      "Planning",
+                      "On Hold",
+                      "Completed"
+                    ],
+                    "default": "Active"
+                  }
+                }
+              },
+              "example": {
+                "requesting_user": "admin@example.com",
+                "name": "Mobile App Development",
+                "description": "iOS and Android application",
+                "status": "Active"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Project created successfully"
+          },
+          "403": {
+            "description": "Only Admin users can create projects"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/sprints": {
+      "post": {
+        "operationId": "createSprint",
+        "summary": "Create a new sprint",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "description": "Create a sprint with RBAC validation. Requires requesting_user email from message Context.user_email. Only Admin and Super-Admin users can create sprints. ALWAYS resolve and send project_id (not project name).",
+        "parameters": [
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "API authentication key"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "requesting_user",
+                  "name",
+                  "project_id",
+                  "start_date",
+                  "end_date"
+                ],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Email of the user making this request (must be Admin)"
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "Sprint name"
+                  },
+                  "project_id": {
+                    "type": "string",
+                    "description": "Target project ID"
+                  },
+                  "start_date": {
+                    "type": "string",
+                    "format": "date",
+                    "description": "Sprint start date"
+                  },
+                  "end_date": {
+                    "type": "string",
+                    "format": "date",
+                    "description": "Sprint end date"
+                  },
+                  "goal": {
+                    "type": "string",
+                    "description": "Sprint goal"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "planned",
+                      "active",
+                      "completed",
+                      "Planning",
+                      "Active",
+                      "Completed"
+                    ],
+                    "default": "planned"
+                  }
+                }
+              },
+              "example": {
+                "requesting_user": "admin@example.com",
+                "name": "Sprint 1",
+                "project_id": "proj_123",
+                "start_date": "2026-02-15",
+                "end_date": "2026-03-01",
+                "goal": "Complete user authentication",
+                "status": "planned"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sprint created successfully"
+          },
+          "403": {
+            "description": "Only Admin and Super-Admin users can create sprints"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/sprints/start": {
+      "post": {
+        "operationId": "startSprintAutomation",
+        "summary": "Start a sprint in a project",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "description": "Start a planned sprint using api_key auth with RBAC checks. Requires requesting_user from Context.user_email, project_id, and either sprint_id or sprint_name.",
+        "parameters": [
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "API authentication key"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "requesting_user",
+                  "project_id"
+                ],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Email from Context.user_email for RBAC validation"
+                  },
+                  "project_id": {
+                    "type": "string",
+                    "description": "Internal project ID"
+                  },
+                  "sprint_id": {
+                    "type": "string",
+                    "description": "Internal sprint _id (preferred when available)"
+                  },
+                  "sprint_name": {
+                    "type": "string",
+                    "description": "Sprint name fallback (case-insensitive match within project)"
+                  }
+                }
+              },
+              "example": {
+                "requesting_user": "testuser@gmail.com",
+                "project_id": "69bcefe30cf6a24973dff554",
+                "sprint_name": "DEVELOPMENT_SPRINT"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sprint started successfully"
+          },
+          "403": {
+            "description": "Access denied: requesting user not allowed for this project"
+          },
+          "404": {
+            "description": "Sprint or project not found"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/sprints/complete": {
+      "post": {
+        "operationId": "completeSprintAutomation",
+        "summary": "Complete or end a sprint in a project",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "description": "Complete an active sprint using api_key auth with RBAC checks. Requires requesting_user from Context.user_email, project_id, and either sprint_id or sprint_name.",
+        "parameters": [
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "API authentication key"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "requesting_user",
+                  "project_id"
+                ],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Email from Context.user_email for RBAC validation"
+                  },
+                  "project_id": {
+                    "type": "string",
+                    "description": "Internal project ID"
+                  },
+                  "sprint_id": {
+                    "type": "string",
+                    "description": "Internal sprint _id (preferred when available)"
+                  },
+                  "sprint_name": {
+                    "type": "string",
+                    "description": "Sprint name fallback (case-insensitive match within project)"
+                  }
+                }
+              },
+              "example": {
+                "requesting_user": "testuser@gmail.com",
+                "project_id": "69bcefe30cf6a24973dff554",
+                "sprint_name": "DEVELOPMENT_SPRINT"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sprint completed successfully"
+          },
+          "403": {
+            "description": "Access denied: requesting user not allowed for this project"
+          },
+          "404": {
+            "description": "Sprint or project not found"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/sprints/add-task": {
+      "post": {
+        "operationId": "addTaskToSprintAutomation",
+        "summary": "Add a task to a sprint",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "description": "Add a single task to a sprint using api_key auth with RBAC checks. Requires requesting_user from Context.user_email, project_id, task_identifier, and either sprint_id or sprint_name. task_identifier supports ticket ID (AA-009) and Mongo _id. IMPORTANT: if user asks to add multiple tasks in one prompt, use bulkAddTasksToSprintAutomation.",
+        "parameters": [
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "API authentication key"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "requesting_user",
+                  "project_id",
+                  "task_identifier"
+                ],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Email from Context.user_email for RBAC validation"
+                  },
+                  "project_id": {
+                    "type": "string",
+                    "description": "Internal project ID"
+                  },
+                  "task_identifier": {
+                    "type": "string",
+                    "description": "Task identifier: ticket ID (AA-009) or internal Mongo _id"
+                  },
+                  "sprint_id": {
+                    "type": "string",
+                    "description": "Internal sprint _id (preferred when available)"
+                  },
+                  "sprint_name": {
+                    "type": "string",
+                    "description": "Sprint name fallback (case-insensitive match within project)"
+                  }
+                }
+              },
+              "example": {
+                "requesting_user": "testuser@gmail.com",
+                "project_id": "69bcefe30cf6a24973dff554",
+                "task_identifier": "AA-009",
+                "sprint_name": "Langchain_Chatbot_Creation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Task added to sprint successfully"
+          },
+          "400": {
+            "description": "Invalid request or project/task mismatch"
+          },
+          "403": {
+            "description": "Access denied: requesting user not allowed for this project"
+          },
+          "404": {
+            "description": "Task, sprint, project, or user not found"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/sprints/bulk-add-tasks": {
+      "post": {
+        "operationId": "bulkAddTasksToSprintAutomation",
+        "summary": "Add multiple tasks to a sprint",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "description": "Use this endpoint when user requests adding multiple tasks to the same sprint in one prompt. Requires requesting_user from Context.user_email, project_id, task_identifiers array, and either sprint_id or sprint_name. task_identifiers supports ticket IDs (AA-009) and Mongo _id values.",
+        "parameters": [
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "API authentication key"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "requesting_user",
+                  "project_id",
+                  "task_identifiers"
+                ],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Email from Context.user_email for RBAC validation"
+                  },
+                  "project_id": {
+                    "type": "string",
+                    "description": "Internal project ID"
+                  },
+                  "task_identifiers": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Task identifiers as ticket IDs (AA-009) and/or internal Mongo _id values"
+                  },
+                  "sprint_id": {
+                    "type": "string",
+                    "description": "Internal sprint _id (preferred when available)"
+                  },
+                  "sprint_name": {
+                    "type": "string",
+                    "description": "Sprint name fallback (case-insensitive match within project)"
+                  }
+                }
+              },
+              "example": {
+                "requesting_user": "testuser@gmail.com",
+                "project_id": "69bcefe30cf6a24973dff554",
+                "task_identifiers": [
+                  "AA-003",
+                  "AA-010"
+                ],
+                "sprint_name": "Langchain_Chatbot_Creation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bulk add tasks to sprint completed with per-task results"
+          },
+          "400": {
+            "description": "Invalid request or project/task mismatch"
+          },
+          "403": {
+            "description": "Access denied: requesting user not allowed for this project"
+          },
+          "404": {
+            "description": "Task, sprint, project, or user not found"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/sprints/remove-task": {
+      "post": {
+        "operationId": "removeTaskFromSprintAutomation",
+        "summary": "Remove a task from a sprint",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "description": "Remove a single task from a sprint using api_key auth with RBAC checks. Requires requesting_user from Context.user_email, project_id, task_identifier, and either sprint_id or sprint_name. task_identifier supports ticket ID (AA-010) and Mongo _id. IMPORTANT: if user asks to remove multiple tasks in one prompt, use bulkRemoveTasksFromSprintAutomation.",
+        "parameters": [
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "API authentication key"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "requesting_user",
+                  "project_id",
+                  "task_identifier"
+                ],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Email from Context.user_email for RBAC validation"
+                  },
+                  "project_id": {
+                    "type": "string",
+                    "description": "Internal project ID"
+                  },
+                  "task_identifier": {
+                    "type": "string",
+                    "description": "Task identifier: ticket ID (AA-010) or internal Mongo _id"
+                  },
+                  "sprint_id": {
+                    "type": "string",
+                    "description": "Internal sprint _id (preferred when available)"
+                  },
+                  "sprint_name": {
+                    "type": "string",
+                    "description": "Sprint name fallback (case-insensitive match within project)"
+                  }
+                }
+              },
+              "example": {
+                "requesting_user": "testuser@gmail.com",
+                "project_id": "69bcefe30cf6a24973dff554",
+                "task_identifier": "AA-010",
+                "sprint_name": "Langchain_Chatbot_Creation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Task removed from sprint successfully"
+          },
+          "400": {
+            "description": "Invalid request or project/task mismatch"
+          },
+          "403": {
+            "description": "Access denied: requesting user not allowed for this project"
+          },
+          "404": {
+            "description": "Task, sprint, project, or user not found"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/sprints/bulk-remove-tasks": {
+      "post": {
+        "operationId": "bulkRemoveTasksFromSprintAutomation",
+        "summary": "Remove multiple tasks from a sprint",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "description": "Use this endpoint when user requests removing multiple tasks from the same sprint in one prompt. Requires requesting_user from Context.user_email, project_id, task_identifiers array, and either sprint_id or sprint_name. task_identifiers supports ticket IDs (AA-010) and Mongo _id values.",
+        "parameters": [
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "API authentication key"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "requesting_user",
+                  "project_id",
+                  "task_identifiers"
+                ],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Email from Context.user_email for RBAC validation"
+                  },
+                  "project_id": {
+                    "type": "string",
+                    "description": "Internal project ID"
+                  },
+                  "task_identifiers": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Task identifiers as ticket IDs (AA-010) and/or internal Mongo _id values"
+                  },
+                  "sprint_id": {
+                    "type": "string",
+                    "description": "Internal sprint _id (preferred when available)"
+                  },
+                  "sprint_name": {
+                    "type": "string",
+                    "description": "Sprint name fallback (case-insensitive match within project)"
+                  }
+                }
+              },
+              "example": {
+                "requesting_user": "testuser@gmail.com",
+                "project_id": "69bcefe30cf6a24973dff554",
+                "task_identifiers": [
+                  "AA-003",
+                  "AA-010"
+                ],
+                "sprint_name": "Langchain_Chatbot_Creation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bulk remove tasks from sprint completed with per-task results"
+          },
+          "400": {
+            "description": "Invalid request or project/task mismatch"
+          },
+          "403": {
+            "description": "Access denied: requesting user not allowed for this project"
+          },
+          "404": {
+            "description": "Task, sprint, project, or user not found"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/tasks/{task_id}": {
+      "put": {
+        "operationId": "updateTask",
+        "summary": "Update task details",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "description": "Update task with RBAC validation. Requires requesting_user email. Admin, Member, and Super-Admin can update tasks. task_id can be either ticket ID (e.g., AA-003) or internal Mongo _id.",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Task identifier: ticket ID (AA-003) or internal Mongo _id"
+          },
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "API authentication key"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "requesting_user"
+                ],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "priority": {
+                    "type": "string",
+                    "enum": [
+                      "Critical",
+                      "High",
+                      "Medium",
+                      "Low"
+                    ]
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "To Do",
+                      "In Progress",
+                      "Dev Complete",
+                      "Testing",
+                      "Done"
+                    ]
+                  },
+                  "due_date": {
+                    "type": "string",
+                    "format": "date"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Task updated successfully"
+          },
+          "403": {
+            "description": "Permission denied"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteTask",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "summary": "Delete a task",
+        "description": "Delete task with RBAC validation. Requires requesting_user email. Only Admin users can delete tasks.",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "requesting_user"
+                ],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Email of the user making this request (must be Admin)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Task deleted successfully"
+          },
+          "403": {
+            "description": "Only Admin users can delete tasks"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/tasks/{task_id}/status": {
+      "put": {
+        "operationId": "updateTaskStatus",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "summary": "Update task status",
+        "description": "Update task status with RBAC validation. Admin can set any status. Member can set most statuses except 'Done' (approval required).",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "requesting_user",
+                  "status"
+                ],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "To Do",
+                      "In Progress",
+                      "Dev Complete",
+                      "Testing",
+                      "Done"
+                    ]
+                  }
+                }
+              },
+              "example": {
+                "requesting_user": "member@example.com",
+                "status": "In Progress"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Task status updated successfully"
+          },
+          "403": {
+            "description": "Permission denied. Members cannot set status to 'Done'."
+          }
+        }
+      }
+    },
+    "/api/agent/automation/tasks/{task_id}/priority": {
+      "put": {
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "operationId": "updateTaskPriority",
+        "summary": "Update task priority",
+        "description": "Update task priority with RBAC validation. Admin or Member can update priority.",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "requesting_user",
+                  "priority"
+                ],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "priority": {
+                    "type": "string",
+                    "enum": [
+                      "Critical",
+                      "High",
+                      "Medium",
+                      "Low"
+                    ]
+                  }
+                }
+              },
+              "example": {
+                "requesting_user": "member@example.com",
+                "priority": "High"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Task priority updated successfully"
+          },
+          "403": {
+            "description": "Permission denied"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/tasks/{task_id}/approve": {
+      "post": {
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "operationId": "approveTask",
+        "summary": "Approve a completed task",
+        "description": "Approve task and set status to 'Done'. Only Admin users can approve tasks.",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "requesting_user"
+                ],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Email of the user making this request (must be Admin)"
+                  },
+                  "comment": {
+                    "type": "string",
+                    "description": "Optional approval comment"
+                  }
+                }
+              },
+              "example": {
+                "requesting_user": "admin@example.com",
+                "comment": "Looks good, approved!"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Task approved successfully"
+          },
+          "403": {
+            "description": "Only Admin users can approve tasks"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/projects/{project_id}/members": {
+      "post": {
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "operationId": "addProjectMember",
+        "summary": "Add member to project",
+        "description": "Add a user as a member to a project. Only Admin users can add members.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "requesting_user",
+                  "member_identifier"
+                ],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Email of the user making this request (must be Admin)"
+                  },
+                  "member_identifier": {
+                    "type": "string",
+                    "description": "Email or name of user to add as member"
+                  }
+                }
+              },
+              "example": {
+                "requesting_user": "admin@example.com",
+                "member_identifier": "dev@example.com"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Member added successfully"
+          },
+          "403": {
+            "description": "Only Admin users can add project members"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/projects/{project_id}": {
+      "put": {
+        "operationId": "updateProject",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "summary": "Update project details",
+        "description": "Update project with RBAC validation. Only Admin users can update projects.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "API authentication key"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "requesting_user"
+                ],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "Active",
+                      "Planning",
+                      "On Hold",
+                      "Completed"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Project updated successfully"
+          },
+          "403": {
+            "description": "Only Admin users can update projects"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteProject",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "summary": "Delete a project",
+        "description": "Delete project with RBAC validation. Only Admin users can delete projects.",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "API authentication key"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "requesting_user"
+                ],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Project deleted successfully"
+          },
+          "403": {
+            "description": "Only Admin users can delete projects"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "AgentAPIKey": {
+        "type": "apiKey",
+        "in": "query",
+        "name": "api_key",
+        "description": "Agent service authentication key (query parameter for better Azure AI compatibility)",
+        "x-default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+      }
+    }
+  }
+}

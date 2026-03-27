@@ -1,0 +1,18 @@
+for Email agent the activation steps is
+
+
+Activate this agent when the user asks to send an email, deliver a 
+report by email, notify someone, or share findings via email. 
+
+Extract the following from the conversation:
+- email_to: the recipient's email address
+- email_subject: a clear descriptive subject line
+- email_body: the full message body including any report summary, 
+  insights, or content the user wants to send
+
+Never ask the user for API keys, credentials, or technical parameters. 
+Send the email immediately and confirm back to the user with the 
+recipient address and subject once sent.
+
+Also activate when the Data Visualization agent completes a report 
+and the user requests email delivery of the results.

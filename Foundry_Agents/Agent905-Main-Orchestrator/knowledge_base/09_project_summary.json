@@ -1,0 +1,413 @@
+{
+  "project": {
+    "name": "DOIT",
+    "description": "Comprehensive project management and task tracking system with AI-powered assistance",
+    "version": "1.0.0",
+    "type": "Full-Stack Web Application",
+    "status": "Active Development"
+  },
+  
+  "technology_stack": {
+    "backend": {
+      "framework": "FastAPI",
+      "language": "Python 3.9+",
+      "server": "Uvicorn with auto-reload",
+      "database": "MongoDB (Atlas Cloud)",
+      "authentication": "JWT tokens with tab session key",
+      "real_time": "WebSocket"
+    },
+    "frontend": {
+      "framework": "React.js",
+      "routing": "React Router",
+      "state_management": "Context API",
+      "styling": "Custom CSS with animations",
+      "http": "Fetch API"
+    },
+    "ai_services": {
+      "chat": "Azure OpenAI (GPT-5.2-chat)",
+      "image_generation": "Azure AI Foundry (FLUX-1.1-pro)",
+      "additional": "Google Gemini API"
+    }
+  },
+  
+  "server_configuration": {
+    "backend_url": "http://localhost:8000",
+    "frontend_url": "http://localhost:3000",
+    "api_prefix": "/api",
+    "docs_url": "http://localhost:8000/docs",
+    "redoc_url": "http://localhost:8000/redoc"
+  },
+  
+  "core_features": [
+    "User Management & Authentication",
+    "Project Management",
+    "Task Management with Kanban Board",
+    "Sprint Planning & Tracking",
+    "Team Collaboration Chat",
+    "AI Assistant (Chat, Image Gen, File Analysis)",
+    "Data Visualization & Analytics",
+    "Calendar & Timeline View",
+    "GitHub Integration",
+    "Real-time WebSocket Updates"
+  ],
+  
+  "user_roles": [
+    {
+      "role": "super_admin",
+      "level": 5,
+      "permissions": ["Full system access", "User management", "System dashboard", "All data operations"]
+    },
+    {
+      "role": "admin",
+      "level": 4,
+      "permissions": ["User management", "All projects access", "Delete operations", "System reports"]
+    },
+    {
+      "role": "manager",
+      "level": 3,
+      "permissions": ["Project creation", "Team management", "Sprint planning", "Edit all tasks"]
+    },
+    {
+      "role": "team_member",
+      "level": 2,
+      "permissions": ["Task CRUD", "Update own tasks", "Team chat", "View projects"]
+    },
+    {
+      "role": "viewer",
+      "level": 1,
+      "permissions": ["Read-only access", "View all content", "Use AI assistant"]
+    }
+  ],
+  
+  "database_collections": [
+    "users",
+    "projects",
+    "tasks",
+    "sprints",
+    "ai_conversations",
+    "ai_messages",
+    "channels",
+    "messages",
+    "profiles",
+    "git_activities"
+  ],
+  
+  "api_endpoints": {
+    "authentication": [
+      "POST /api/auth/register",
+      "POST /api/auth/login",
+      "GET /api/auth/profile"
+    ],
+    "users": [
+      "GET /api/users",
+      "POST /api/users",
+      "PUT /api/users/{id}",
+      "DELETE /api/users/{id}"
+    ],
+    "projects": [
+      "GET /api/projects",
+      "POST /api/projects",
+      "GET /api/projects/{id}",
+      "PUT /api/projects/{id}",
+      "DELETE /api/projects/{id}"
+    ],
+    "tasks": [
+      "GET /api/tasks",
+      "POST /api/tasks",
+      "GET /api/tasks/{id}",
+      "PUT /api/tasks/{id}",
+      "DELETE /api/tasks/{id}",
+      "POST /api/tasks/{id}/upload"
+    ],
+    "sprints": [
+      "GET /api/sprints",
+      "POST /api/sprints",
+      "GET /api/sprints/{id}",
+      "PUT /api/sprints/{id}",
+      "POST /api/sprints/{id}/add-task",
+      "DELETE /api/sprints/{id}"
+    ],
+    "ai_assistant": [
+      "GET /api/ai-assistant/conversations",
+      "POST /api/ai-assistant/conversations",
+      "GET /api/ai-assistant/conversations/{id}/messages",
+      "POST /api/ai-assistant/conversations/{id}/messages",
+      "POST /api/ai-assistant/conversations/{id}/generate-image",
+      "POST /api/ai-assistant/conversations/{id}/upload",
+      "DELETE /api/ai-assistant/conversations/{id}"
+    ],
+    "analytics": [
+      "GET /api/dashboard/stats",
+      "GET /api/dashboard/task-distribution",
+      "GET /api/dashboard/project-progress"
+    ],
+    "team_chat": [
+      "GET /api/chat/channels",
+      "GET /api/chat/channels/{id}/messages",
+      "POST /api/chat/channels/{id}/messages"
+    ]
+  },
+  
+  "ai_capabilities": {
+    "conversational_ai": {
+      "model": "GPT-5.2-chat",
+      "features": ["Question answering", "Code assistance", "Project management advice", "General knowledge"],
+      "context_window": "Large",
+      "max_tokens": 4096,
+      "temperature": 1.0
+    },
+    "image_generation": {
+      "model": "FLUX-1.1-pro",
+      "features": ["Text-to-image", "High quality", "Fast generation"],
+      "format": "PNG",
+      "speed": "10-30 seconds",
+      "limitation": "n=1 only"
+    },
+    "file_analysis": {
+      "supported_formats": ["PDF", "CSV", "DOCX", "TXT", "JSON", "MD"],
+      "features": ["Text extraction", "Data parsing", "Content summarization", "Question answering about files"]
+    }
+  },
+  
+  "task_statuses": [
+    "to_do",
+    "in_progress",
+    "in_review",
+    "done",
+    "blocked"
+  ],
+  
+  "task_priorities": [
+    "low",
+    "medium",
+    "high",
+    "critical"
+  ],
+  
+  "project_statuses": [
+    "planning",
+    "active",
+    "on_hold",
+    "completed",
+    "archived"
+  ],
+  
+  "sprint_statuses": [
+    "planning",
+    "active",
+    "completed",
+    "cancelled"
+  ],
+  
+  "security_features": [
+    "JWT authentication",
+    "Tab session key validation",
+    "Bcrypt password hashing",
+    "Role-based access control",
+    "CORS configuration",
+    "Input validation",
+    "File upload security"
+  ],
+  
+  "file_storage": {
+    "chat_attachments": "uploads/chat_attachments/",
+    "ai_attachments": "uploads/ai_attachments/",
+    "ai_images": "uploads/ai_images/",
+    "naming_convention": "timestamp_filename"
+  },
+  
+  "environment_variables": {
+    "backend": [
+      "MONGO_URI",
+      "JWT_SECRET",
+      "AZURE_OPENAI_ENDPOINT",
+      "AZURE_OPENAI_KEY",
+      "AZURE_OPENAI_DEPLOYMENT",
+      "AZURE_OPENAI_API_VERSION",
+      "AZURE_FLUX_ENDPOINT",
+      "AZURE_FLUX_KEY",
+      "AZURE_FLUX_MODEL",
+      "GOOGLE_GEMINI_API_KEY",
+      "GITHUB_TOKEN",
+      "CLERK_SECRET_KEY",
+      "SADMIN_EMAIL",
+      "SADMIN_PASSWORD"
+    ],
+    "frontend": [
+      "REACT_APP_API_URL",
+      "REACT_APP_CLERK_PUBLISHABLE_KEY",
+      "REACT_APP_GITHUB_TOKEN"
+    ]
+  },
+  
+  "default_credentials": {
+    "super_admin": {
+      "email": "Set via SADMIN_EMAIL environment variable",
+      "password": "Set via SADMIN_PASSWORD environment variable",
+      "note": "IMPORTANT: Configure via environment variables before deployment. Never use default values in production!"
+    }
+  },
+  
+  "development_commands": {
+    "backend": {
+      "start": "python main.py",
+      "install_dependencies": "pip install -r requirements.txt",
+      "directory": "backend-2/"
+    },
+    "frontend": {
+      "start": "npm start",
+      "install_dependencies": "npm install",
+      "build": "npm run build",
+      "directory": "frontend/"
+    }
+  },
+  
+  "architecture_patterns": {
+    "backend": ["MVC Pattern", "Router-Controller-Model", "Dependency Injection", "Middleware"],
+    "frontend": ["Component-Based", "Context API for State", "Custom Hooks", "Route-Based Code Splitting"]
+  },
+  
+  "real_time_features": {
+    "kanban_board": {
+      "technology": "WebSocket",
+      "endpoint": "ws://localhost:8000/ws/kanban/{project_id}",
+      "events": ["task_moved", "task_created", "task_updated", "task_deleted"]
+    },
+    "team_chat": {
+      "technology": "WebSocket",
+      "features": ["Real-time messaging", "Typing indicators", "Online status"]
+    }
+  },
+  
+  "data_visualization": {
+    "charts": [
+      "Task Status Distribution (Pie Chart)",
+      "Task Priority Chart (Bar Chart)",
+      "Project Progress (Line Chart)",
+      "Sprint Burndown Chart",
+      "Team Performance Metrics"
+    ],
+    "export_formats": ["PDF", "Excel", "CSV"]
+  },
+  
+  "integration_capabilities": {
+    "github": {
+      "features": ["Link commits to tasks", "View commit details", "Track code changes"],
+      "authentication": "Personal Access Token"
+    },
+    "future_integrations": ["Slack", "Jira", "Trello", "Microsoft Teams"]
+  },
+  
+  "performance_optimizations": {
+    "frontend": ["Code splitting", "Lazy loading", "Memoization", "Request caching"],
+    "backend": ["Database indexing", "Response caching", "Pagination", "Connection pooling"]
+  },
+  
+  "browser_support": [
+    "Chrome (latest)",
+    "Firefox (latest)",
+    "Safari (latest)",
+    "Edge (latest)",
+    "Mobile browsers"
+  ],
+  
+  "accessibility": {
+    "mobile_responsive": true,
+    "touch_friendly": true,
+    "keyboard_navigation": "Partial",
+    "screen_reader": "Basic support"
+  },
+  
+  "testing": {
+    "backend": "pytest (planned)",
+    "frontend": "Jest & React Testing Library (planned)",
+    "api_testing": "Available via /docs endpoint"
+  },
+  
+  "deployment": {
+    "backend_platforms": ["AWS", "Azure", "GCP", "Heroku", "DigitalOcean"],
+    "frontend_platforms": ["Vercel", "Netlify", "GitHub Pages", "AWS S3"],
+    "database": "MongoDB Atlas (Cloud)",
+    "containerization": "Docker support planned"
+  },
+  
+  "documentation": {
+    "api_docs": "http://localhost:8000/docs (Swagger)",
+    "redoc": "http://localhost:8000/redoc",
+    "knowledge_base": "agent_knowledge/ folder"
+  },
+  
+  "future_roadmap": [
+    "Mobile app (iOS & Android)",
+    "Advanced AI analytics",
+    "Gantt chart visualization",
+    "Multi-language support",
+    "Voice commands for AI",
+    "Automated testing suite",
+    "CI/CD pipeline",
+    "Docker containerization",
+    "Kubernetes deployment",
+    "Advanced reporting",
+    "Custom dashboards",
+    "API rate limiting",
+    "Notification system",
+    "Email integration"
+  ],
+  
+  "known_limitations": {
+    "ai": [
+      "GPT-5.2-chat only supports temperature=1.0",
+      "FLUX only generates 1 image at a time (n=1)",
+      "File analysis limited to first 50 rows for CSV",
+      "PDF extraction limited to first 20 pages"
+    ],
+    "features": [
+      "No mobile native app yet",
+      "No multi-language support",
+      "No email notifications yet",
+      "No gantt chart view yet"
+    ]
+  },
+  
+  "common_workflows": {
+    "create_and_track_task": [
+      "1. Create project",
+      "2. Add team members",
+      "3. Create tasks",
+      "4. Assign tasks to members",
+      "5. Move tasks through Kanban board",
+      "6. Track progress on dashboard"
+    ],
+    "sprint_planning": [
+      "1. Create sprint with dates",
+      "2. Add tasks to sprint backlog",
+      "3. Estimate story points",
+      "4. Start sprint",
+      "5. Track burndown chart",
+      "6. Complete sprint review"
+    ],
+    "use_ai_assistant": [
+      "1. Click DOIT-AI button",
+      "2. Create new conversation or select existing",
+      "3. Ask question or upload file",
+      "4. Receive AI response",
+      "5. Continue conversation with context"
+    ]
+  },
+  
+  "system_requirements": {
+    "backend": {
+      "python": "3.9 or higher",
+      "memory": "512MB minimum",
+      "storage": "1GB minimum (for uploads)"
+    },
+    "frontend": {
+      "node": "14.x or higher",
+      "npm": "6.x or higher"
+    },
+    "database": {
+      "mongodb": "4.4 or higher",
+      "cloud": "MongoDB Atlas recommended"
+    }
+  }
+}

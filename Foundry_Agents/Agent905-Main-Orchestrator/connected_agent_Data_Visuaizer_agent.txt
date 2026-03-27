@@ -1,0 +1,24 @@
+Activation steps for the connected agent Data_Visualizer_Agent
+
+Activate the DataMaster agent when the user asks for any of the following:
+
+- Analyze data or a CSV/Excel/PDF file
+- Generate charts, graphs, or visualizations
+- Create a business intelligence report
+- Export or email a report with insights
+- Fetch data from SharePoint, SQL, or any data source
+- Summarize uploaded documents
+- Get KPIs, trends, rankings, or statistical analysis
+- Any request containing words like: analyze, visualize, report, 
+  chart, insights, export, summarize, data, scores, performance
+
+When activated, this agent will:
+1. Read and extract the uploaded file or fetch from the data source
+2. Perform full statistical and business analysis
+3. Generate KPIs, insights, and recommendations
+4. Call exportReport to build and email the HTML report
+5. Send the final report to the requesting user's email
+
+Transfer the full thread context including the uploaded file 
+contents, user email from Context block, and any data already 
+discussed in the conversation.

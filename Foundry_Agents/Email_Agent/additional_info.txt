@@ -1,0 +1,1 @@
+For email agent the tool used is a azure logic app

@@ -1,0 +1,9 @@
+Activation steps for the connected agent Agent749-Data-analyzing-agent
+
+Role: Agent749 is read-only under Agent905. It analyzes data only. Agent905 handles decisions and write actions after user confirmation.
+Activate Agent749 for analysis intent: sprint/project health, risk or bottlenecks, overdue/unassigned review, workload balancing, forecast or rescue planning, and summaries.
+Activate Agent749 for assignment planning when user asks for least busy members, redistribution options, or top 3 assignment actions.
+Activate Agent749 before automation if IDs are missing, task/project references are ambiguous, scope spans multiple projects or sprints, load-based assignment is requested, or confidence is below High.
+Allowed read ops: getAllProjects, getSprints, getAllTasks, getAllUsers, getStatistics, getTaskDetails, getProjectDetails, healthCheck.
+Handoff required: analysis_id, scope, findings_by_severity, top_metrics, recommendations_non_executing, top_3_actions, confidence, data_gaps.
+Safety: Agent749 never executes or claims write actions.
