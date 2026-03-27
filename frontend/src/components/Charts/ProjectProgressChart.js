@@ -1,50 +1,69 @@
 import React, { memo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  Tooltip, Legend, ResponsiveContainer, Cell
+} from 'recharts';
 import './Charts.css';
 
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
+/* DOIT brand palette — blue→green accent system */
+const PROJECT_COLORS = [
+  '#4f8ef7', '#00c896', '#a855f7', '#f59e0b',
+  '#f472b6', '#22d3ee', '#f87171', '#34d399'
+];
 
 const ProjectProgressChart = memo(({ data }) => {
-  console.log("[ProjectProgressChart] Received data:", data);
-  console.log("[ProjectProgressChart] Data type:", typeof data);
-  console.log("[ProjectProgressChart] Is array:", Array.isArray(data));
-  console.log("[ProjectProgressChart] Length:", data?.length);
-  
   if (!data || data.length === 0) {
-    console.log("[ProjectProgressChart] No data to display");
     return (
-      <div className="chart-container">
-        <h3 className="chart-title">Project Progress</h3>
+      <div className="chart-container wide">
+        <h3 className="chart-title">Project Progress Overview</h3>
         <div className="no-data">No projects to display</div>
       </div>
     );
   }
 
-  // Limit to top 8 projects for better visibility
   const chartData = data.slice(0, 8);
-  console.log("[ProjectProgressChart] Chart data:", chartData);
 
   return (
     <div className="chart-container wide">
       <h3 className="chart-title">Project Progress Overview</h3>
-      <ResponsiveContainer width="100%" height={350}>
+      <ResponsiveContainer width="100%" height={340}>
         <BarChart
           data={chartData}
-          margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+          margin={{ top: 16, right: 24, left: 16, bottom: 64 }}
+          barGap={4}
         >
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis 
-            dataKey="project_name" 
-            angle={-45}
+          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+          <XAxis
+            dataKey="project_name"
+            angle={-40}
             textAnchor="end"
-            height={100}
+            height={96}
             interval={0}
+            tick={{ fontSize: 11 }}
           />
-          <YAxis label={{ value: 'Tasks', angle: -90, position: 'insideLeft' }} />
-          <Tooltip />
-          <Legend />
-          <Bar dataKey="completed_tasks" name="Completed" fill="#10b981" />
-          <Bar dataKey="total_tasks" name="Total" fill="#94a3b8" />
+          <YAxis
+            label={{ value: 'Tasks', angle: -90, position: 'insideLeft', fontSize: 12 }}
+            tick={{ fontSize: 11 }}
+          />
+          <Tooltip
+            cursor={{ fill: 'rgba(79,142,247,0.06)' }}
+            contentStyle={{ borderRadius: 10, fontSize: 13 }}
+          />
+          <Legend wrapperStyle={{ paddingTop: 16 }} />
+          <Bar
+            dataKey="completed_tasks"
+            name="Completed"
+            fill="#00c896"
+            radius={[4, 4, 0, 0]}
+            maxBarSize={40}
+          />
+          <Bar
+            dataKey="total_tasks"
+            name="Total"
+            fill="rgba(79,142,247,0.3)"
+            radius={[4, 4, 0, 0]}
+            maxBarSize={40}
+          />
         </BarChart>
       </ResponsiveContainer>
     </div>
