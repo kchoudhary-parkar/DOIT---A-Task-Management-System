@@ -1,0 +1,210 @@
+.user-management-page .users-table-container {
+  background: var(--dash-bg-card);
+  border-radius: 14px;
+  box-shadow: var(--dash-shadow-sm);
+  overflow: auto;
+  border: 1px solid var(--dash-border-primary);
+  margin-top: 24px;
+}
+
+.user-management-page .users-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 980px;
+}
+
+.user-management-page .users-table thead {
+  background: var(--dash-bg-tertiary);
+  border-bottom: 2px solid var(--dash-border-primary);
+}
+
+.user-management-page .users-table th {
+  padding: 14px 16px;
+  text-align: left;
+  font-weight: 700;
+  color: var(--dash-text-secondary);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.user-management-page .users-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--dash-border-primary);
+  color: var(--dash-text-primary);
+  vertical-align: top;
+}
+
+.user-management-page .users-table tbody tr:hover {
+  background: var(--dash-bg-tertiary);
+}
+
+.role-badge {
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.role-badge.super-admin {
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--dash-warning);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.role-badge.admin {
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--dash-primary);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+}
+
+.role-badge.member {
+  background: rgba(148, 163, 184, 0.16);
+  color: var(--dash-text-secondary);
+  border: 1px solid var(--dash-border-secondary);
+}
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btn-promote,
+.btn-demote,
+.btn-delete-user {
+  border: none;
+  border-radius: 8px;
+  padding: 7px 11px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-promote {
+  background: var(--dash-success);
+  color: #fff;
+}
+
+.btn-demote {
+  background: var(--dash-warning);
+  color: #111827;
+}
+
+.btn-delete-user {
+  background: var(--dash-danger);
+  color: #fff;
+}
+
+.btn-promote:hover,
+.btn-demote:hover,
+.btn-delete-user:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--dash-shadow-sm);
+}
+
+.btn-delete-user:disabled,
+.btn-promote:disabled,
+.btn-demote:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.text-muted {
+  color: var(--dash-text-muted);
+  font-size: 12px;
+}
+
+.error-message {
+  color: var(--dash-danger);
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-top: 16px;
+}
+
+.umodal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2100;
+}
+
+.umodal {
+  width: min(460px, calc(100vw - 32px));
+  background: var(--dash-bg-card);
+  border: 1px solid var(--dash-border-primary);
+  border-radius: 14px;
+  box-shadow: var(--dash-shadow-lg);
+  padding: 18px;
+}
+
+.umodal h3 {
+  margin: 0 0 10px;
+  font-size: 18px;
+  color: var(--dash-text-primary);
+}
+
+.umodal p {
+  margin: 0 0 12px;
+  color: var(--dash-text-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.umodal-input {
+  width: 100%;
+  border: 1px solid var(--dash-border-secondary);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 14px;
+  color: var(--dash-text-primary);
+  background: var(--dash-bg-secondary);
+}
+
+.umodal-actions {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.umodal-cancel,
+.umodal-delete,
+.umodal-primary {
+  border: none;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.umodal-cancel {
+  background: var(--dash-bg-tertiary);
+  color: var(--dash-text-primary);
+}
+
+.umodal-delete {
+  background: var(--dash-danger);
+  color: #fff;
+}
+
+.umodal-primary {
+  background: var(--dash-primary);
+  color: #fff;
+}
+
+.umodal-delete:disabled,
+.umodal-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
