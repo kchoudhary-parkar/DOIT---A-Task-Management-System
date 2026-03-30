@@ -141,6 +141,10 @@ class UpdateUserRoleRequest(BaseModel):
     user_id: str
     role: str
 
+
+class DeleteUserRequest(BaseModel):
+    confirmation_text: str
+
 # ============= CHAT SCHEMAS =============
 class ChatAskRequest(BaseModel):
     message: str

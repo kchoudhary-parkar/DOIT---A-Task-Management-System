@@ -19,6 +19,7 @@ import { TasksPage } from "./pages/Tasks";
 import { MyTasksPage } from "./pages/MyTasks";
 import SprintPage from "./pages/Sprints/SprintPage";
 import UsersPage from "./pages/Users/UsersPage";
+import UserManagementPage from "./pages/UserManagement/UserManagementPage";
 import { SuperAdminDashboard } from "./pages/SuperAdminDashboard";
 import SystemDashboardPage from "./pages/SystemDashboard/SystemDashboardPage";
 import ProfilePage from "./pages/Profile/ProfilePage";
@@ -211,6 +212,7 @@ function AuthenticatedApp({ user, theme, toggleTheme, logout }) {
             <Route path="/my-tasks" element={<MyTasksPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/users" element={<UsersPage />} />
+            <Route path="/user-management" element={<UserManagementPage />} />
             <Route path="/system-dashboard" element={<SystemDashboardPage />} />
             <Route path="/data-viz" element={<DataVisualization />} />
             <Route path="/ai-assistant" element={<AIAssistantPage />} />

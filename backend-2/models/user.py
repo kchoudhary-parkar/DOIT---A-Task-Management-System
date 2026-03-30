@@ -51,6 +51,11 @@ class User:
             {"_id": ObjectId(user_id)},
             {"$set": update_data}
         )
+
+    @staticmethod
+    def delete_by_id(user_id):
+        """Delete user by ID"""
+        return users.delete_one({"_id": ObjectId(user_id)})
     
     @staticmethod
     def find_super_admins():

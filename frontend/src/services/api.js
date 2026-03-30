@@ -595,6 +595,15 @@ export const userAPI = {
     return data;
   },
 
+  getUserManagementData: async () => {
+    const response = await fetch(`${API_BASE_URL}/api/users/management`, {
+      headers: getAuthHeaders(),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Failed to fetch user management data");
+    return data;
+  },
+
   updateUserRole: async (userId, role) => {
     const response = await fetch(`${API_BASE_URL}/api/users/role`, {
       method: "PUT",
@@ -603,6 +612,26 @@ export const userAPI = {
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Failed to update user role");
+    return data;
+  },
+
+  deleteUser: async (userId, confirmationText) => {
+    const response = await fetch(`${API_BASE_URL}/api/users/${userId}`, {
+      method: "DELETE",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ confirmation_text: confirmationText }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Failed to delete user");
+    return data;
+  },
+
+  getAdminProjects: async (adminUserId) => {
+    const response = await fetch(`${API_BASE_URL}/api/users/admins/${adminUserId}/projects`, {
+      headers: getAuthHeaders(),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Failed to fetch admin projects");
     return data;
   },
 };

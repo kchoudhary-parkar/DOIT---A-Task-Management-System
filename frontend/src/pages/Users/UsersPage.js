@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useContext } from "react";
+import React, { useContext, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../../context/AuthContext";
-import { userAPI } from "../../services/api";
+import { memberAPI, projectAPI, userAPI } from "../../services/api";
 import "../Dashboard/DashboardPage.css";
 import "./UsersPage.css";
 import Loader from "../../components/Loader/Loader";
@@ -9,88 +9,133 @@ import Loader from "../../components/Loader/Loader";
 const UsersPage = () => {
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [stats, setStats] = useState({
-    total: 0,
-    superAdmins: 0,
-    admins: 0,
-    members: 0,
-  });
 
   const isSuperAdmin = user?.role === "super-admin";
-  const isAdmin = user?.role === "admin" || user?.role === "super-admin";
+  const isAdmin = user?.role === "admin";
+  const canAccess = isSuperAdmin || isAdmin;
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  // Admin mode
+  const [adminProjects, setAdminProjects] = useState([]);
+  const [selectedAdminProject, setSelectedAdminProject] = useState(null);
+  const [selectedAdminProjectMembers, setSelectedAdminProjectMembers] = useState([]);
+
+  // Super-admin mode
+  const [admins, setAdmins] = useState([]);
+  const [selectedAdmin, setSelectedAdmin] = useState(null);
+  const [selectedAdminProjects, setSelectedAdminProjects] = useState([]);
+  const [selectedSuperAdminProject, setSelectedSuperAdminProject] = useState(null);
+  const [selectedSuperAdminMembers, setSelectedSuperAdminMembers] = useState([]);
 
   useEffect(() => {
-    if (!isAdmin) {
+    if (!canAccess) {
       navigate("/");
       return;
     }
-    fetchUsers();
-  }, [isAdmin, navigate]);
 
-  const fetchUsers = async () => {
+    if (isAdmin) {
+      loadAdminView();
+    } else if (isSuperAdmin) {
+      loadSuperAdminView();
+    }
+  }, [canAccess, isAdmin, isSuperAdmin, navigate]);
+
+  const loadAdminView = async () => {
     try {
       setLoading(true);
       setError("");
-      const response = await userAPI.getAllUsers();
-      const usersList = response.users || [];
-      setUsers(usersList);
 
-      // Calculate stats
-      setStats({
-        total: usersList.length,
-        superAdmins: usersList.filter((u) => u.role === "super-admin").length,
-        admins: usersList.filter((u) => u.role === "admin").length,
-        members: usersList.filter((u) => u.role === "member").length,
-      });
+      const data = await projectAPI.getAll();
+      const projects = (data.projects || []).filter((project) => project.is_owner);
+      setAdminProjects(projects);
+
+      setSelectedAdminProject(null);
+      setSelectedAdminProjectMembers([]);
     } catch (err) {
-      console.error("Failed to fetch users:", err);
-      setError(err.message || "Failed to load users");
+      setError(err.message || "Failed to load admin projects");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRoleChange = async (userId, newRole) => {
-    if (!isSuperAdmin) {
-      alert("Only super-admins can change user roles");
-      return;
-    }
-
-    if (!window.confirm(`Are you sure you want to change this user's role to ${newRole}?`)) {
-      return;
-    }
-
+  const loadSuperAdminView = async () => {
     try {
-      await userAPI.updateUserRole(userId, newRole);
-      // Refresh users list
-      fetchUsers();
+      setLoading(true);
+      setError("");
+
+      const usersResponse = await userAPI.getAllUsers();
+      const adminUsers = (usersResponse.users || []).filter((u) => u.role === "admin");
+      setAdmins(adminUsers);
+
+      setSelectedAdmin(null);
+      setSelectedAdminProjects([]);
+      setSelectedSuperAdminProject(null);
+      setSelectedSuperAdminMembers([]);
     } catch (err) {
-      console.error("Failed to update role:", err);
-      alert(err.message || "Failed to update user role");
+      setError(err.message || "Failed to load admin list");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const getRoleBadgeClass = (role) => {
-    switch (role) {
-      case "super-admin":
-        return "role-badge super-admin";
-      case "admin":
-        return "role-badge admin";
-      case "member":
-        return "role-badge member";
-      default:
-        return "role-badge";
+  const handleSelectAdminProject = async (project) => {
+    try {
+      setLoading(true);
+      setError("");
+      setSelectedAdminProject(project);
+      const membersResponse = await memberAPI.getMembers(project._id || project.id);
+      setSelectedAdminProjectMembers(membersResponse.members || []);
+    } catch (err) {
+      setError(err.message || "Failed to load project members");
+      setSelectedAdminProjectMembers([]);
+    } finally {
+      setLoading(false);
     }
   };
 
-  if (loading) {
+  const handleSelectAdmin = async (adminUser) => {
+    try {
+      setLoading(true);
+      setError("");
+      setSelectedAdmin(adminUser);
+      setSelectedSuperAdminProject(null);
+      setSelectedSuperAdminMembers([]);
+
+      const response = await userAPI.getAdminProjects(adminUser.id);
+      setSelectedAdminProjects(response.projects || []);
+    } catch (err) {
+      setError(err.message || "Failed to load admin projects");
+      setSelectedAdminProjects([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSelectSuperAdminProject = (project) => {
+    setSelectedSuperAdminProject(project);
+
+    // Exclude selected admin from members list by requirement.
+    const filtered = (project.members || []).filter(
+      (member) => member.user_id !== selectedAdmin?.id
+    );
+
+    setSelectedSuperAdminMembers(filtered);
+  };
+
+  const treeTitle = useMemo(() => {
+    if (isAdmin) {
+      return "My Admin Projects";
+    }
+    return "Admin Project Hierarchy";
+  }, [isAdmin]);
+
+  if (loading && !error && ((isAdmin && adminProjects.length === 0 && !selectedAdminProject) || (isSuperAdmin && admins.length === 0 && !selectedAdmin))) {
     return (
       <div className="dashboard-page">
         <div className="dashboard-container">
-          <div style={{ position: 'relative', minHeight: '400px' }}>
+          <div style={{ position: "relative", minHeight: "360px" }}>
             <Loader />
           </div>
         </div>
@@ -98,7 +143,7 @@ const UsersPage = () => {
     );
   }
 
-  if (error) {
+  if (error && !loading) {
     return (
       <div className="dashboard-page">
         <div className="dashboard-container">
@@ -113,112 +158,112 @@ const UsersPage = () => {
       <div className="dashboard-container">
         <div className="dashboard-header">
           <div className="header-content">
-            <h1>👥 User Management</h1>
-            <p className="dashboard-subtitle">
-              {isSuperAdmin ? "Manage user roles and permissions" : "View all users"}
-            </p>
+            <h1>Users</h1>
+            <p className="dashboard-subtitle">{treeTitle}</p>
           </div>
         </div>
 
-        <div className="project-stats-cards">
-          <div className="project-stat-card project-stat-card-total">
-            <div className="pstat-icon pstat-icon-purple">
-              👥
+        {isAdmin && (
+          <>
+            <h3 className="users-section-title">Projects Where You Are Admin</h3>
+            <div className="users-card-grid">
+              {adminProjects.length === 0 ? (
+                <div className="users-empty">No projects found where you are the owner/admin.</div>
+              ) : (
+                adminProjects.map((project) => (
+                  <button
+                    key={project._id}
+                    className={`users-node-card ${selectedAdminProject?._id === project._id ? "active" : ""}`}
+                    onClick={() => handleSelectAdminProject(project)}
+                  >
+                    <div className="users-node-title">{project.name}</div>
+                    <div className="users-node-subtitle">{project.description || "No description"}</div>
+                  </button>
+                ))
+              )}
             </div>
-            <div className="pstat-content">
-              <div className="pstat-value">{stats.total}</div>
-              <div className="pstat-label">Total Users</div>
-            </div>
-          </div>
-          <div className="project-stat-card project-stat-card-owned">
-            <div className="pstat-icon pstat-icon-pink">
-              ⭐
-            </div>
-            <div className="pstat-content">
-              <div className="pstat-value">{stats.superAdmins}</div>
-              <div className="pstat-label">Super Admins</div>
-            </div>
-          </div>
-          <div className="project-stat-card project-stat-card-member">
-            <div className="pstat-icon pstat-icon-blue">
-              🛡️
-            </div>
-            <div className="pstat-content">
-              <div className="pstat-value">{stats.admins}</div>
-              <div className="pstat-label">Admins</div>
-            </div>
-          </div>
-          <div className="project-stat-card project-stat-card-active">
-            <div className="pstat-icon pstat-icon-green">
-              👤
-            </div>
-            <div className="pstat-content">
-              <div className="pstat-value">{stats.members}</div>
-              <div className="pstat-label">Members</div>
-            </div>
-          </div>
-        </div>
 
-      {users.length === 0 ? (
-        <div className="no-users">No users found</div>
-      ) : (
-        <div className="users-table-container">
-          <table className="users-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Role</th>
-                {isSuperAdmin && <th>Actions</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((u) => (
-                <tr key={u.id} className={u.id === user?.id ? "current-user" : ""}>
-                  <td>
-                    {u.name}
-                    {u.id === user?.id && <span className="you-badge">YOU</span>}
-                  </td>
-                  <td>{u.email}</td>
-                  <td>
-                    <span className={getRoleBadgeClass(u.role)}>
-                      {u.role === "super-admin" ? "Super Admin" : u.role.charAt(0).toUpperCase() + u.role.slice(1)}
-                    </span>
-                  </td>
-                  {isSuperAdmin && (
-                    <td>
-                      {u.id === user?.id ? (
-                        <span className="text-muted">Cannot modify yourself</span>
-                      ) : u.role === "super-admin" ? (
-                        <span className="text-muted">Cannot modify super-admin</span>
-                      ) : (
-                        <div className="action-buttons">
-                          {u.role === "member" && (
-                            <button
-                              className="btn-promote"
-                              onClick={() => handleRoleChange(u.id, "admin")}
-                            >
-                              Promote to Admin
-                            </button>
-                          )}
-                          {u.role === "admin" && (
-                            <button
-                              className="btn-demote"
-                              onClick={() => handleRoleChange(u.id, "member")}
-                            >
-                              Demote to Member
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </td>
+            {selectedAdminProject && (
+              <div className="users-tree-panel">
+                <h4 className="users-tree-heading">Members in {selectedAdminProject.name}</h4>
+                <div className="users-member-list">
+                  {selectedAdminProjectMembers.length === 0 ? (
+                    <div className="users-empty">No members found in this project.</div>
+                  ) : (
+                    selectedAdminProjectMembers.map((member) => (
+                      <div key={`${selectedAdminProject._id}-${member.user_id}`} className="users-member-item">
+                        <div className="users-member-name">{member.name}</div>
+                        <div className="users-member-email">{member.email}</div>
+                      </div>
+                    ))
                   )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {isSuperAdmin && (
+          <>
+            <h3 className="users-section-title">Admins</h3>
+            <div className="users-card-grid">
+              {admins.length === 0 ? (
+                <div className="users-empty">No admin users found.</div>
+              ) : (
+                admins.map((adminUser) => (
+                  <button
+                    key={adminUser.id}
+                    className={`users-node-card ${selectedAdmin?.id === adminUser.id ? "active" : ""}`}
+                    onClick={() => handleSelectAdmin(adminUser)}
+                  >
+                    <div className="users-node-title">{adminUser.name}</div>
+                    <div className="users-node-subtitle">{adminUser.email}</div>
+                  </button>
+                ))
+              )}
+            </div>
+
+            {selectedAdmin && (
+              <>
+                <h3 className="users-section-title">Projects Created By {selectedAdmin.name}</h3>
+                <div className="users-card-grid nested">
+                  {selectedAdminProjects.length === 0 ? (
+                    <div className="users-empty">No projects created by this admin.</div>
+                  ) : (
+                    selectedAdminProjects.map((project) => (
+                      <button
+                        key={project.id}
+                        className={`users-node-card ${selectedSuperAdminProject?.id === project.id ? "active" : ""}`}
+                        onClick={() => handleSelectSuperAdminProject(project)}
+                      >
+                        <div className="users-node-title">{project.name}</div>
+                        <div className="users-node-subtitle">{project.description || "No description"}</div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </>
+            )}
+
+            {selectedSuperAdminProject && (
+              <div className="users-tree-panel">
+                <h4 className="users-tree-heading">Members in {selectedSuperAdminProject.name}</h4>
+                <div className="users-member-list">
+                  {selectedSuperAdminMembers.length === 0 ? (
+                    <div className="users-empty">No members found in this project.</div>
+                  ) : (
+                    selectedSuperAdminMembers.map((member) => (
+                      <div key={`${selectedSuperAdminProject.id}-${member.user_id}`} className="users-member-item">
+                        <div className="users-member-name">{member.name}</div>
+                        <div className="users-member-email">{member.email}</div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );

@@ -20,9 +20,33 @@ def generate_token_id(user_id: str, timestamp: str) -> str:
     unique_string = f"{user_id}:{timestamp}"
     return hashlib.sha256(unique_string.encode()).hexdigest()[:32]
 
+
+def _normalize_ip_address(ip_address: str) -> str:
+    """Normalize loopback/proxy IP formats so same browser session hashes consistently."""
+    if not ip_address:
+        return "unknown"
+
+    normalized = str(ip_address).split(",")[0].strip().lower()
+
+    if normalized.startswith("::ffff:"):
+        normalized = normalized.replace("::ffff:", "")
+
+    if normalized in {"127.0.0.1", "::1", "localhost", "0:0:0:0:0:0:0:1"}:
+        return "loopback"
+
+    return normalized or "unknown"
+
+
+def _normalize_user_agent(user_agent: str) -> str:
+    if not user_agent:
+        return "unknown"
+    return " ".join(str(user_agent).strip().split())
+
 def generate_device_fingerprint(ip_address: str, user_agent: str) -> str:
     """Generate unique device fingerprint for strict session binding"""
-    fingerprint_data = f"{ip_address}:{user_agent}"
+    normalized_ip = _normalize_ip_address(ip_address)
+    normalized_ua = _normalize_user_agent(user_agent)
+    fingerprint_data = f"{normalized_ip}:{normalized_ua}"
     return hashlib.sha256(fingerprint_data.encode()).hexdigest()[:32]
 
 def generate_session_id() -> str:

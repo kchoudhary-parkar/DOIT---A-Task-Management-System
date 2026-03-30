@@ -49,7 +49,7 @@ function SuperAdminDashboard() {
   }
 
   return (
-    <div className="dashboard-page">
+    <div className="dashboard-page super-admin-dashboard-page">
       <div className="dashboard-container">
         {/* Header */}
         <div className="dashboard-header">
@@ -62,7 +62,7 @@ function SuperAdminDashboard() {
         </div>
 
         {/* Stats Overview */}
-        <div className="project-stats-cards">
+        <div className="project-stats-row superadmin-stats-row">
           <div className="project-stat-card project-stat-card-total">
             <div className="pstat-icon pstat-icon-purple">
               👥
@@ -112,10 +112,10 @@ function SuperAdminDashboard() {
           <div className="management-cards">
             <div
               className="management-card user-management"
-              onClick={() => navigate("/users")}
+              onClick={() => navigate("/user-management")}
               role="button"
               tabIndex={0}
-              onKeyPress={(e) => e.key === 'Enter' && navigate("/users")}
+              onKeyPress={(e) => e.key === 'Enter' && navigate("/user-management")}
             >
               <div className="card-icon">👥</div>
               <div className="card-content">

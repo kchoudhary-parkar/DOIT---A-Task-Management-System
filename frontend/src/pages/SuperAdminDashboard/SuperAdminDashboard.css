@@ -7,6 +7,17 @@
   padding: 32px 40px;
 }
 
+.super-admin-dashboard-page .superadmin-stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.super-admin-dashboard-page .superadmin-stats-row .project-stat-card {
+  min-width: 0;
+}
+
 /* Management Section */
 .management-section {
   margin: 40px 0;
@@ -192,7 +203,17 @@
     grid-template-columns: 1fr;
   }
 
+  .super-admin-dashboard-page .superadmin-stats-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .management-card {
     padding: 20px;
+  }
+}
+
+@media (max-width: 520px) {
+  .super-admin-dashboard-page .superadmin-stats-row {
+    grid-template-columns: 1fr;
   }
 }
