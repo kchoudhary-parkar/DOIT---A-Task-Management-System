@@ -1,24 +1,28 @@
 /* MicButton.css */
 /* Styles for the microphone input button and voice modal */
 
-/* ── Trigger button in the chat input bar ─────────────────────────────────── */
+/* ── Trigger button — floats inside textarea ──────────────────────────────── */
 .mic-btn {
-  position: relative;
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   border: none;
-  border-radius: 50%;
+  border-radius: 8px;
   background: transparent;
   color: #8892a4;
   cursor: pointer;
   padding: 0;
-  transition: all 0.2s ease;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   flex-shrink: 0;
   outline: none;
   overflow: visible;
+  z-index: 2;
 }
 
 .mic-btn:hover:not(:disabled) {

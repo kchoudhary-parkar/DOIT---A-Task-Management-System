@@ -322,19 +322,12 @@ const SprintPage = () => {
           <span className="breadcrumb-current">Sprints</span>
         </div>
         
-        <h1 className="sprint-page-title">Sprint Management</h1>
+        <div className="sprint-page-title-row">
+  <h1 className="sprint-page-title">Sprint Management</h1>
+  {isOwner && <button className="create-sprint-btn" onClick={setShowSprintForm} disabled={setShowSprintForm}>+ Create Sprint</button>}
+  </div>
         
         {error && <div className="sprint-page-error">{error}</div>}
-        
-        {isOwner && (
-          <button 
-            className="create-sprint-btn"
-            onClick={() => setShowSprintForm(true)}
-            disabled={showSprintForm}
-          >
-            + Create Sprint
-          </button>
-        )}
       </div>
 
       {showSprintForm && (

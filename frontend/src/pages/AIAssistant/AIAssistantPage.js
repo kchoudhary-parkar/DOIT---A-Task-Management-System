@@ -387,14 +387,6 @@ const AIAssistantPage = () => {
   }, [localHealth]);
 
   useEffect(() => {
-    loadDoitConversations();
-    loadFoundryConversations();
-    loadLocalConversations();
-    loadLanggraphConversations();
-    loadMcpConversations();
-  }, [loadDoitConversations, loadFoundryConversations, loadLocalConversations, loadLanggraphConversations, loadMcpConversations]);
-
-  useEffect(() => {
     if (isLocal) checkLocalHealth();
   }, [isLocal, checkLocalHealth]);
 
@@ -1113,27 +1105,29 @@ const AIAssistantPage = () => {
           {activeMessages.length === 0 ? (
             <div className="ai-empty-state">
               <div className={`ai-empty-icon ${isFoundry ? 'foundry' : isLocal ? 'local' : isLangGraph ? 'langgraph' : isMcp ? 'mcp' : ''}`}>
-                {isFoundry ? <Zap size={52} color="#7C3AED" /> : isLocal ? <Shield size={52} color="#059669" /> : isLangGraph ? (
-                  <Zap size={52} color="#7C3AED" />
+                {isFoundry ? <Zap size={44} color="#7C3AED" /> : isLocal ? <Shield size={44} color="#059669" /> : isLangGraph ? (
+                  <Zap size={44} color="#7C3AED" />
                 ) : isMcp ? (
-                  <Target size={52} color="#C2410C" />
-                ) : <Bot size={52} color="#667eea" />}
+                  <Target size={44} color="#C2410C" />
+                ) : <Bot size={44} color="#667eea" />}
               </div>
               <div className="ai-empty-title">
-                {isFoundry ? 'Azure AI Foundry Agent' : isLocal ? 'Local AI — 100% On-Premise' : isLangGraph
-                  ? 'LangGraph AI Agent — Multi-Agent System' : isMcp
-                  ? 'MCP Agent — Tool-Only Automation' : 'Welcome to DOIT AI Assistant'}
+                {isFoundry ? 'Azure AI Foundry Agent'
+                  : isLocal ? 'Local AI — 100% On-Premise'
+                  : isLangGraph ? 'LangGraph AI Agent'
+                  : isMcp ? 'MCP Automation Agent'
+                  : `Hey ${user?.name?.split(' ')[0] || 'there'}, how can I help?`}
               </div>
               <div className="ai-empty-subtitle">
                 {isFoundry
                   ? 'Pre-configured with your DOIT context, Foundry tools, and full multi-turn memory. Ask about your tasks, projects, sprints, or anything else.'
                   : isLocal
-                  ? `Powered by Ollama + LlamaIndex + ChromaDB. All data stays on your infrastructure — nothing is sent to external APIs. RAG retrieves relevant context from your live DOIT data.${localHealth && !localHealth.healthy ? `\n\n⚠️ ${localHealth.error}` : ''}`
+                  ? `Powered by Ollama + LlamaIndex + ChromaDB. All data stays on your infrastructure — nothing is sent to external APIs.${localHealth && !localHealth.healthy ? `\n\n⚠️ ${localHealth.error}` : ''}`
                   : isLangGraph
-                  ? 'Advanced multi-agent system powered by Azure OpenAI and LangGraph. Can execute complex workflows, manage tasks/sprints/projects, and reason across multiple steps. Has access to powerful tools for task automation.'
+                  ? 'Multi-step reasoning with Azure OpenAI and LangGraph. Manages tasks, sprints, and projects with powerful tool-calling automation.'
                   : isMcp
-                  ? 'Pure MCP orchestration mode. Commands are executed using MCP tools backed by DOIT controllers for task, sprint, project, and member automation with role-aware access.'
-                  : 'Get personalized insights, task analytics, and intelligent recommendations based on your project data and team performance. I can also help you create, assign, and manage tasks automatically!'}
+                  ? 'MCP orchestration mode — executes commands via Task, Sprint, Project, and Member MCP servers with role-aware access.'
+                  : 'Get AI-powered insights, manage tasks with natural language, and unlock intelligent recommendations from your project data.'}
               </div>
               {isLocal && localHealth && !localHealth.healthy && (
                 <div className="ai-local-offline-banner">
@@ -1222,11 +1216,11 @@ const AIAssistantPage = () => {
               {isTyping && (
                 <div className="ai-message assistant">
                   <div className={`ai-message-avatar ${isFoundry ? 'foundry' : isLocal ? 'local' : isLangGraph ? 'langgraph' : isMcp ? 'mcp' : ''}`}>
-                    {isFoundry ? <Zap size={20} /> : isLocal ? <Shield size={20} /> : isLangGraph ? (
-                      <Zap size={20} style={{color: '#7C3AED'}} />
+                    {isFoundry ? <Zap size={18} /> : isLocal ? <Shield size={18} /> : isLangGraph ? (
+                      <Zap size={18} style={{color: '#7C3AED'}} />
                     ) : isMcp ? (
-                      <Target size={20} style={{ color: '#C2410C' }} />
-                    ): <Bot size={20} />}
+                      <Target size={18} style={{ color: '#C2410C' }} />
+                    ): <Bot size={18} />}
                   </div>
                   <div className="ai-message-content">
                     <div className="ai-message-bubble">
@@ -1234,6 +1228,9 @@ const AIAssistantPage = () => {
                         <div className="ai-loading-dot"></div>
                         <div className="ai-loading-dot"></div>
                         <div className="ai-loading-dot"></div>
+                        <span style={{ fontSize: 12, color: 'var(--text-secondary)', marginLeft: 8, fontWeight: 500 }}>
+                          {isFoundry ? 'Foundry is thinking…' : isLocal ? 'Ollama is processing…' : isLangGraph ? 'Agent reasoning…' : isMcp ? 'Executing MCP tools…' : 'Thinking…'}
+                        </span>
                       </div>
                     </div>
                   </div>
