@@ -5,6 +5,7 @@ import {
   FiCode, FiArrowRight, FiPlay, FiCheckCircle,
 } from 'react-icons/fi';
 import { BsStars } from 'react-icons/bs';
+import doitLogo from '../../doit.png';
 import './LandingPage.css';
 
 /* ══════════════════════════════════════════════════════════════════════
@@ -156,9 +157,7 @@ export default function LandingPage() {
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <header className="landing-header" ref={headerRef}>
         <div className="landing-brand" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-          <div className="brand-icon-wrap">
-            <FiZap size={16} />
-          </div>
+          <img src={doitLogo} alt="DOIT Logo" style={{ width: 32, height: 32, objectFit: 'contain' }} />
           DOIT
         </div>
 
@@ -463,9 +462,7 @@ export default function LandingPage() {
         <div className="landing-container">
           <div className="landing-footer-inner">
             <div className="footer-brand">
-              <div className="brand-icon-wrap" style={{ width: 22, height: 22 }}>
-                <FiZap size={12} />
-              </div>
+              <img src={doitLogo} alt="DOIT Logo" style={{ width: 24, height: 24, objectFit: 'contain' }} />
               DOIT
             </div>
             <div className="footer-copy">© 2025 DOIT · AI-Powered Task Management</div>

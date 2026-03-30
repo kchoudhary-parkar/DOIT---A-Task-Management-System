@@ -1,3 +1,4 @@
+// frontend/src/services/foundryAgentAPI.js
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
 
 const getToken = () => localStorage.getItem("token");
@@ -12,7 +13,21 @@ const getTabSessionKey = () => {
 };
 
 const getAuthHeaders = () => {
-  const headers = { "Content-Type": "application/json" };
+  const headers = {
+    "Content-Type": "application/json",
+    "ngrok-skip-browser-warning": "true",
+  };
+  const token = getToken();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  headers["X-Tab-Session-Key"] = getTabSessionKey();
+  return headers;
+};
+
+// For file uploads — no Content-Type (browser sets multipart boundary)
+const getUploadHeaders = () => {
+  const headers = {
+    "ngrok-skip-browser-warning": "true",
+  };
   const token = getToken();
   if (token) headers["Authorization"] = `Bearer ${token}`;
   headers["X-Tab-Session-Key"] = getTabSessionKey();
@@ -72,18 +87,12 @@ export const foundryAgentAPI = {
   },
 
   uploadFile: async (conversationId, file) => {
-    const token = getToken();
-    const tabSessionKey = getTabSessionKey();
     const formData = new FormData();
     formData.append("file", file);
 
     const res = await fetch(`${BASE}/conversations/${conversationId}/upload`, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "X-Tab-Session-Key": tabSessionKey,
-        // No Content-Type here — browser sets multipart boundary automatically
-      },
+      headers: getUploadHeaders(),
       body: formData,
     });
     const data = await res.json();
