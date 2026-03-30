@@ -8,7 +8,7 @@ import {
 } from "react-router-dom";
 import AboutPage from "./pages/About/AboutPage";
 import LandingAuth from "./pages/Auth/LandingAuth";  // adjust path
-
+import LandingPage from "./pages/Landing/LandingPage";
 import { FiActivity } from 'react-icons/fi';
 import { BsStars, BsBriefcase } from 'react-icons/bs';  // For AI Assistant and PM icons
 import { AuthContext } from "./context/AuthContext";
@@ -405,7 +405,11 @@ function App() {
             logout={logout} 
           />
         ) : (
-          <LandingAuth login={login} register={register} />
+          <Routes>
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/login" element={<LandingAuth login={login} register={register} />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
         )}
       </div>
     </Router>
