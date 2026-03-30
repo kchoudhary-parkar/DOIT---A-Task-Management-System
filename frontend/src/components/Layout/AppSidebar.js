@@ -1,7 +1,13 @@
 import React from "react";
-import { Link } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 
 const AppSidebar = ({ user, navLinks, sidebarOpen, setSidebarOpen, logout }) => {
+  const handleNavClick = () => {
+    if (typeof window !== "undefined" && window.innerWidth <= 992) {
+      setSidebarOpen(false);
+    }
+  };
+
   return (
     <>
       <div
@@ -9,7 +15,7 @@ const AppSidebar = ({ user, navLinks, sidebarOpen, setSidebarOpen, logout }) => 
         onClick={() => setSidebarOpen(false)}
       />
 
-      <aside className={`app-sidebar${sidebarOpen ? " open" : ""}`}>
+      <aside className={`app-sidebar ${sidebarOpen ? "expanded" : "collapsed"}`}>
         <div className="sidebar-header">
           <div className="sidebar-brand">
             <svg
@@ -24,7 +30,13 @@ const AppSidebar = ({ user, navLinks, sidebarOpen, setSidebarOpen, logout }) => 
             </svg>
             <span className="sidebar-brand-name">DOIT</span>
           </div>
-          <button className="sidebar-close-btn" onClick={() => setSidebarOpen(false)}>
+
+          <button
+            className="sidebar-toggle-btn"
+            onClick={() => setSidebarOpen((prev) => !prev)}
+            aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+            title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+          >
             <svg
               width="18"
               height="18"
@@ -35,8 +47,7 @@ const AppSidebar = ({ user, navLinks, sidebarOpen, setSidebarOpen, logout }) => 
               strokeLinejoin="round"
               viewBox="0 0 24 24"
             >
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
+              <path d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
         </div>
@@ -55,15 +66,18 @@ const AppSidebar = ({ user, navLinks, sidebarOpen, setSidebarOpen, logout }) => 
 
         <nav className="sidebar-nav">
           {navLinks.map((link) => (
-            <Link
+            <NavLink
               key={link.path}
               to={link.path}
-              className="sidebar-nav-link"
-              onClick={() => setSidebarOpen(false)}
+              end={link.path === "/"}
+              className={({ isActive }) =>
+                `sidebar-nav-link${isActive ? " active" : ""}`
+              }
+              onClick={handleNavClick}
             >
               <span className="sidebar-nav-icon">{link.icon}</span>
-              <span>{link.label}</span>
-            </Link>
+              <span className="sidebar-nav-label">{link.label}</span>
+            </NavLink>
           ))}
         </nav>
 
@@ -83,7 +97,7 @@ const AppSidebar = ({ user, navLinks, sidebarOpen, setSidebarOpen, logout }) => 
               <polyline points="16 17 21 12 16 7" />
               <line x1="21" y1="12" x2="9" y2="12" />
             </svg>
-            Logout
+            <span className="sidebar-logout-text">Logout</span>
           </button>
         </div>
       </aside>

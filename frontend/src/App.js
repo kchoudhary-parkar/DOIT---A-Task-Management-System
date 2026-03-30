@@ -36,6 +36,23 @@ function AuthenticatedApp({ user, theme, toggleTheme, logout }) {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 992px)");
+
+    const handleScreenChange = (e) => {
+      if (e.matches) {
+        setSidebarOpen(false);
+      }
+    };
+
+    if (mediaQuery.matches) {
+      setSidebarOpen(false);
+    }
+
+    mediaQuery.addEventListener("change", handleScreenChange);
+    return () => mediaQuery.removeEventListener("change", handleScreenChange);
+  }, []);
+
   const navLinks = [
     { label: 'Dashboard', path: '/', icon: (
       <svg width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
@@ -101,27 +118,18 @@ function AuthenticatedApp({ user, theme, toggleTheme, logout }) {
         logout={logout}
       />
 
-      {/* Navbar */}
-      <nav className="app-navbar">
-        <div className="nav-inner">
+      <div className={`app-shell ${sidebarOpen ? "sidebar-expanded" : "sidebar-collapsed"}`}>
+        {/* Navbar */}
+        <nav className="app-navbar">
+          <div className="nav-inner">
 
-          {/* Brand — clicking opens sidebar */}
-          <button className="nav-brand-btn" onClick={() => setSidebarOpen(true)}>
-            <svg
-  xmlns="http://www.w3.org/2000/svg"
-  fill="none"
-  stroke="currentColor"
-  strokeWidth="2"
-  className="nav-brand-icon"
-  viewBox="0 0 24 24"
->
-  <path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round" />
-</svg>
-            <span className="nav-brand-text">DOIT</span>
-          </button>
+            {/* Brand — clicking toggles sidebar */}
+            <button className="nav-brand-btn" onClick={() => setSidebarOpen((prev) => !prev)}>
+              <span className="nav-brand-text">DOIT</span>
+            </button>
 
-          {/* Right actions */}
-          <div className="nav-actions">
+            {/* Right actions */}
+            <div className="nav-actions">
 
             {/* Theme Toggle */}
             <button
@@ -189,28 +197,29 @@ function AuthenticatedApp({ user, theme, toggleTheme, logout }) {
               </svg>
             </button>
 
+            </div>
           </div>
-        </div>
-      </nav>
+        </nav>
 
-      <main style={{ minHeight: 'calc(100vh - 80px)' }}>
-        <Routes>
-          <Route path="/" element={user.role === 'super-admin' ? <SuperAdminDashboard /> : <DashboardPage />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/projects" element={<ProjectsPage />} />
-          <Route path="/projects/:projectId/tasks" element={<TasksPage />} />
-          <Route path="/projects/:projectId/sprints" element={<SprintPage />} />
-          <Route path="/my-tasks" element={<MyTasksPage />} />
-          <Route path="/profile" element={<ProfilePage />} />
-          <Route path="/users" element={<UsersPage />} />
-          <Route path="/system-dashboard" element={<SystemDashboardPage />} />
-          <Route path="/data-viz" element={<DataVisualization />} />
-          <Route path="/ai-assistant" element={<AIAssistantPage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-          <Route path="/about" element={<AboutPage />} />
+        <main style={{ minHeight: 'calc(100vh - 80px)' }}>
+          <Routes>
+            <Route path="/" element={user.role === 'super-admin' ? <SuperAdminDashboard /> : <DashboardPage />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/projects" element={<ProjectsPage />} />
+            <Route path="/projects/:projectId/tasks" element={<TasksPage />} />
+            <Route path="/projects/:projectId/sprints" element={<SprintPage />} />
+            <Route path="/my-tasks" element={<MyTasksPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/users" element={<UsersPage />} />
+            <Route path="/system-dashboard" element={<SystemDashboardPage />} />
+            <Route path="/data-viz" element={<DataVisualization />} />
+            <Route path="/ai-assistant" element={<AIAssistantPage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="/about" element={<AboutPage />} />
 
-        </Routes>
-      </main>
+          </Routes>
+        </main>
+      </div>
 
       <AIChatbot user={user} />
       <TeamChat userId="current-user-id" apiEndpoint="/api" />

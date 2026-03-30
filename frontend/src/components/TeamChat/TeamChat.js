@@ -380,7 +380,7 @@ export default function TeamChat() {
           style={{
             position: 'fixed',
             bottom: '24px',
-            left: '24px',
+            left: '96px',
             width: '52px',
             height: '52px',
             borderRadius: '50%',
@@ -392,7 +392,7 @@ export default function TeamChat() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 999,
+            zIndex: 1400,
             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
           }}
         >
@@ -421,10 +421,10 @@ export default function TeamChat() {
 
       {/* Chat Window - COMPACT & PROFESSIONAL */}
       {isOpen && (
-        <div style={{
+        <div className="team-chat-window" style={{
           position: 'fixed',
           bottom: '20px',
-          left: '20px',
+          left: '96px',
           width: '380px',
           height: '540px',
           background: 'white',
@@ -432,7 +432,7 @@ export default function TeamChat() {
           boxShadow: '0 12px 48px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05)',
           display: 'flex',
           flexDirection: 'column',
-          zIndex: 1000,
+          zIndex: 1400,
           overflow: 'hidden',
           fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
         }}>
@@ -1495,6 +1495,18 @@ export default function TeamChat() {
         .team-chat-btn:hover {
           transform: scale(1.1);
           box-shadow: 0 6px 24px rgba(102, 126, 234, 0.5);
+        }
+        @media (max-width: 992px) {
+          .team-chat-btn {
+            left: 58px !important;
+            bottom: 20px !important;
+          }
+          .team-chat-window {
+            left: 58px !important;
+            width: min(360px, calc(100vw - 70px)) !important;
+            height: min(540px, calc(100vh - 32px)) !important;
+            bottom: 12px !important;
+          }
         }
       `}</style>
     </>
