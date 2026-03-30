@@ -16,7 +16,8 @@ async def get_current_user(
     token = authorization[7:]
     
     # Get IP and User-Agent for security
-    ip_address = request.client.host if request.client else None
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    ip_address = forwarded_for.split(",")[0].strip() if forwarded_for else (request.headers.get("X-Real-IP") or (request.client.host if request.client else "unknown"))
     user_agent = request.headers.get("User-Agent", "Unknown")
     
     # Check if this is refresh-session endpoint

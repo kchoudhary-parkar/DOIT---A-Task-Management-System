@@ -34,7 +34,8 @@ def handle_controller_response(response):
 @router.post("/register")
 async def register(request: Request, data: RegisterRequest):
     """Register a new user"""
-    ip_address = request.client.host if request.client else None
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    ip_address = forwarded_for.split(",")[0].strip() if forwarded_for else (request.headers.get("X-Real-IP") or (request.client.host if request.client else "unknown"))
     user_agent = request.headers.get("User-Agent", "Unknown")
     
     body = json.dumps(data.model_dump())
@@ -44,7 +45,8 @@ async def register(request: Request, data: RegisterRequest):
 @router.post("/login")
 async def login(request: Request, data: LoginRequest):
     """Login user"""
-    ip_address = request.client.host if request.client else None
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    ip_address = forwarded_for.split(",")[0].strip() if forwarded_for else (request.headers.get("X-Real-IP") or (request.client.host if request.client else "unknown"))
     user_agent = request.headers.get("User-Agent", "Unknown")
     
     body = json.dumps(data.model_dump())
@@ -54,7 +56,8 @@ async def login(request: Request, data: LoginRequest):
 @router.post("/clerk-sync")
 async def clerk_sync(request: Request, data: ClerkSyncRequest):
     """Sync Clerk user with backend"""
-    ip_address = request.client.host if request.client else None
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    ip_address = forwarded_for.split(",")[0].strip() if forwarded_for else (request.headers.get("X-Real-IP") or (request.client.host if request.client else "unknown"))
     user_agent = request.headers.get("User-Agent", "Unknown")
     
     body = json.dumps(data.model_dump())
@@ -83,7 +86,8 @@ async def logout_all(user_id: str = Depends(get_current_user)):
 @router.post("/refresh-session")
 async def refresh_session(request: Request, user_id: str = Depends(get_current_user)):
     """Create new tab session"""
-    ip_address = request.client.host if request.client else None
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    ip_address = forwarded_for.split(",")[0].strip() if forwarded_for else (request.headers.get("X-Real-IP") or (request.client.host if request.client else "unknown"))
     user_agent = request.headers.get("User-Agent", "Unknown")
     
     response = auth_controller.refresh_session(user_id, ip_address, user_agent)
