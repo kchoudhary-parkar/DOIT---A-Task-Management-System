@@ -18,16 +18,6 @@ const AppSidebar = ({ user, navLinks, sidebarOpen, setSidebarOpen, logout }) => 
       <aside className={`app-sidebar ${sidebarOpen ? "expanded" : "collapsed"}`}>
         <div className="sidebar-header">
           <div className="sidebar-brand">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              className="nav-brand-icon"
-              viewBox="0 0 24 24"
-            >
-              <path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round" />
-            </svg>
             <span className="sidebar-brand-name">DOIT</span>
           </div>
 

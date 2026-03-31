@@ -194,7 +194,7 @@ function AuthenticatedApp({ user, theme, toggleTheme, logout }) {
           <div className="nav-inner">
 
             {/* Brand — clicking toggles sidebar */}
-            <button className="nav-brand-btn" onClick={() => setSidebarOpen((prev) => !prev)}>
+            <button className="nav-brand-btn">
               <span className="nav-brand-text">DOIT</span>
             </button>
 
