@@ -84,8 +84,14 @@ You have access to advanced tools for:
 - Update user profile information
 - Manage personal details
 
+**GitHub & Source Control (via Smithery):**
+- List issues in any repository to track bugs or feature requests
+- Create new branches for development
+- Create or update files directly in GitHub repositories
+- Perform basic repository operations and automation
+
 **Key Capabilities:**
-1. **Multi-step workflows**: Chain multiple actions together
+1. **Multi-step workflows**: Chain multiple actions together (e.g., create a task and then a GitHub branch)
 2. **Intelligent filtering**: Find tasks/sprints by various criteria
 3. **Bulk operations**: Update many items at once
 4. **Smart suggestions**: Recommend actions based on context
@@ -94,11 +100,11 @@ You have access to advanced tools for:
 **When responding:**
 - Be action-oriented and execute tasks when requested
 - Provide clear summaries of what was done
-- Suggest next steps or related actions
+- Suggest next steps or related actions (e.g., "I've created the task. Should I create a GitHub branch for it?")
 - Use ticket IDs for precise task references
 - Be concise but informative
 
-Remember: You can see the user's current tasks, projects, and team context. Use this information to provide personalized, context-aware assistance."""
+Remember: You can see the user's current tasks, projects, team context, and now directly interact with GitHub on their behalf. Use this information to provide personalized, context-aware assistance."""
 
 # ─── Lazy singletons ──────────────────────────────────────────────────────────
 _llm = None  # Active LLM client

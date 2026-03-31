@@ -1622,8 +1622,188 @@ def update_user_profile_tool(
         return f"❌ Failed to update profile: {str(e)}"
 
 
-# ─── Register all tools ────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+# SMITHERY / GITHUB TOOLS (Via Smithery CLI)
+# ═══════════════════════════════════════════════════════════════════════════════
 
+import subprocess
+import json
+
+def call_smithery_tool(server_id: str, tool_name: str, args: dict) -> str:
+    """Helper to call any Smithery tool via CLI with Windows-safe quoting."""
+    try:
+        # Compact common separators (remove spaces) to avoid argument count errors on Windows shells
+        json_args = json.dumps(args, separators=(",", ":"))
+        
+        # Build the command string. We escape double quotes for the Windows shell wrapper " "
+        escaped_json = json_args.replace('"', '\\"')
+        cmd = f'npx -y @smithery/cli@latest tool call {server_id} {tool_name} "{escaped_json}"'
+        
+        logger.info(f"🛠️ Executing Smithery: {cmd}")
+        
+        result = subprocess.run(
+            cmd, 
+            capture_output=True, 
+            text=True, 
+            shell=True,  # Mandatory for command resolution and correct quoting on Windows
+        )
+        
+        if result.returncode != 0:
+            error_output = result.stderr or result.stdout
+            logger.error(f"❌ Smithery CLI error ({result.returncode}): {error_output}")
+            return f"❌ Smithery Error: {error_output}"
+            
+        return result.stdout
+    except Exception as e:
+        logger.error(f"❌ Unexpected smithery error: {e}")
+        return f"❌ Backend Error: {str(e)}"
+# ═══════════════════════════════════════════════════════════════════════════════
+# GITHUB TOOLS (Direct GitHub REST API — no Smithery CLI subprocess)
+# Set in your .env:
+#   GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx   ← github.com → Settings → Developer settings → PAT
+# ═══════════════════════════════════════════════════════════════════════════════
+
+import httpx
+
+GITHUB_API_BASE = "https://api.github.com"
+
+
+def _github_headers() -> dict:
+    token = os.environ.get("GITHUB_TOKEN")
+    if not token:
+        raise RuntimeError(
+            "GITHUB_TOKEN not set. Create a Personal Access Token at "
+            "github.com → Settings → Developer settings → Personal access tokens."
+        )
+    return {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+
+
+@tool
+def github_list_issues_tool(repo: str, state: str = "open") -> str:
+    """
+    List issues in a GitHub repository.
+
+    Args:
+        repo: Repository in 'owner/repo' format (e.g., 'kchoudhary-parkar/Github_Testing_Project')
+        state: 'open', 'closed', or 'all'
+    """
+    try:
+        url = f"{GITHUB_API_BASE}/repos/{repo}/issues"
+        resp = httpx.get(url, headers=_github_headers(), params={"state": state, "per_page": 20})
+        resp.raise_for_status()
+        issues = resp.json()
+
+        if not issues:
+            return f"No {state} issues found in {repo}."
+
+        result = f"📋 {len(issues)} {state} issue(s) in {repo}:\n\n"
+        for issue in issues:
+            result += f"• #{issue['number']} {issue['title']}\n"
+            result += f"  State: {issue['state']} | By: {issue['user']['login']}\n"
+            if issue.get("assignees"):
+                assignees = ", ".join(a["login"] for a in issue["assignees"])
+                result += f"  Assigned to: {assignees}\n"
+            result += "\n"
+        return result
+
+    except httpx.HTTPStatusError as e:
+        return f"❌ GitHub API error {e.response.status_code}: {e.response.text}"
+    except Exception as e:
+        logger.error(f"github_list_issues_tool error: {e}")
+        return f"❌ Failed to list issues: {str(e)}"
+
+
+@tool
+def github_create_branch_tool(repo: str, branch: str, from_branch: str = "main") -> str:
+    """
+    Create a new branch in a GitHub repository.
+
+    Args:
+        repo: Repository in 'owner/repo' format
+        branch: Name of the new branch to create
+        from_branch: Branch to branch from (default: 'main')
+    """
+    try:
+        headers = _github_headers()
+
+        # 1. Get the SHA of the source branch tip
+        ref_url = f"{GITHUB_API_BASE}/repos/{repo}/git/ref/heads/{from_branch}"
+        ref_resp = httpx.get(ref_url, headers=headers)
+        ref_resp.raise_for_status()
+        sha = ref_resp.json()["object"]["sha"]
+
+        # 2. Create new branch ref
+        create_url = f"{GITHUB_API_BASE}/repos/{repo}/git/refs"
+        payload = {"ref": f"refs/heads/{branch}", "sha": sha}
+        create_resp = httpx.post(create_url, headers=headers, json=payload)
+        create_resp.raise_for_status()
+
+        return f"✅ Branch '{branch}' created from '{from_branch}' in {repo}."
+
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 422:
+            return f"❌ Branch '{branch}' already exists in {repo}."
+        return f"❌ GitHub API error {e.response.status_code}: {e.response.text}"
+    except Exception as e:
+        logger.error(f"github_create_branch_tool error: {e}")
+        return f"❌ Failed to create branch: {str(e)}"
+
+
+@tool
+def github_create_or_update_file_tool(
+    repo: str,
+    path: str,
+    content: str,
+    message: str,
+    branch: Optional[str] = None,
+) -> str:
+    """
+    Create or update a file in a GitHub repository.
+
+    Args:
+        repo: Repository in 'owner/repo' format
+        path: File path in the repo (e.g., 'docs/TEST_LOG.md')
+        content: The file content (plain text — will be base64 encoded automatically)
+        message: Commit message
+        branch: Target branch (optional, defaults to the repo's default branch)
+    """
+    try:
+        import base64 as b64
+
+        headers = _github_headers()
+        file_url = f"{GITHUB_API_BASE}/repos/{repo}/contents/{path}"
+
+        # Check if file exists (need its SHA to update)
+        existing_sha = None
+        params = {"ref": branch} if branch else {}
+        check_resp = httpx.get(file_url, headers=headers, params=params)
+        if check_resp.status_code == 200:
+            existing_sha = check_resp.json().get("sha")
+
+        # Build payload
+        encoded = b64.b64encode(content.encode("utf-8")).decode("utf-8")
+        payload: dict = {"message": message, "content": encoded}
+        if branch:
+            payload["branch"] = branch
+        if existing_sha:
+            payload["sha"] = existing_sha
+
+        resp = httpx.put(file_url, headers=headers, json=payload)
+        resp.raise_for_status()
+
+        action = "updated" if existing_sha else "created"
+        commit_url = resp.json()["commit"]["html_url"]
+        return f"✅ File '{path}' {action} in {repo}.\nCommit: {commit_url}"
+
+    except httpx.HTTPStatusError as e:
+        return f"❌ GitHub API error {e.response.status_code}: {e.response.text}"
+    except Exception as e:
+        logger.error(f"github_create_or_update_file_tool error: {e}")
+        return f"❌ Failed to create/update file: {str(e)}"
 
 def get_all_langgraph_tools():
     """Return all available LangGraph tools."""
@@ -1655,4 +1835,8 @@ def get_all_langgraph_tools():
         # Profile Management
         update_user_profile_tool,
         generate_pdf_report_tool,
+        # GitHub (Via Smithery)
+        github_list_issues_tool,
+        github_create_branch_tool,
+        github_create_or_update_file_tool,
     ]
