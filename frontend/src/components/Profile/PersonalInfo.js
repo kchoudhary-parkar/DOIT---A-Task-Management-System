@@ -99,7 +99,7 @@ const PersonalInfo = ({ data, user, onUpdate }) => {
               </div>
 
               <div className="form-group">
-                <label htmlFor="mobile">Mobile Number *</label>
+                <label htmlFor="mobile">Mobile Number</label>
                 <input
                   id="mobile"
                   type="tel"
@@ -114,7 +114,7 @@ const PersonalInfo = ({ data, user, onUpdate }) => {
               </div>
 
               <div className="form-group">
-                <label htmlFor="country">Country *</label>
+                <label htmlFor="country">Country</label>
                 <input
                   id="country"
                   type="text"
@@ -129,7 +129,7 @@ const PersonalInfo = ({ data, user, onUpdate }) => {
               </div>
 
               <div className="form-group">
-                <label htmlFor="address">Address *</label>
+                <label htmlFor="address">Address</label>
                 <textarea
                   id="address"
                   name="address"
@@ -144,7 +144,7 @@ const PersonalInfo = ({ data, user, onUpdate }) => {
               </div>
 
               <div className="form-group">
-                <label htmlFor="city">City *</label>
+                <label htmlFor="city">City</label>
                 <input
                   id="city"
                   type="text"

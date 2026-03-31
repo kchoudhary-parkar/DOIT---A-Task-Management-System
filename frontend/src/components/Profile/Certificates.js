@@ -213,10 +213,6 @@ const Certificates = ({ data, onUpdate }) => {
             <div key={index} className="certificate-card">
               <div className="card-header">
                 <Award className="card-icon" size={24} />
-                <div className="card-title">
-                  <h4>{cert.name}</h4>
-                  <span className="card-issuer">{cert.issuedBy}</span>
-                </div>
                 <div className="card-actions">
                   <button
                     className="btn-icon"
@@ -237,6 +233,10 @@ const Certificates = ({ data, onUpdate }) => {
                 </div>
               </div>
               <div className="card-body">
+                <p className="certificate-meta">
+                  <span className="certificate-name">{cert.name}</span>
+                  <span className="card-issuer">{cert.issuedBy}</span>
+                </p>
                 <p className="issue-date">
                   <Calendar size={16} /> Issued: {new Date(cert.issueDate).toLocaleDateString('en-US', { 
                     month: 'long', 
