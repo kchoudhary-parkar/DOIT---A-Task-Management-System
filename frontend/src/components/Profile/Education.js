@@ -240,10 +240,6 @@ const Education = ({ data, onUpdate }) => {
             <div key={index} className="education-card">
               <div className="card-header">
                 <GraduationCap className="card-icon" size={24} />
-                <div className="card-title">
-                  <h4>{edu.type}</h4>
-                  <span className="card-year">{edu.yearOfPassing}</span>
-                </div>
                 <div className="card-actions">
                   <button
                     className="btn-icon"
@@ -264,6 +260,10 @@ const Education = ({ data, onUpdate }) => {
                 </div>
               </div>
               <div className="card-body">
+                <p className="education-meta">
+                  <span className="education-level">{edu.type}</span>
+                  <span className="card-year">{edu.yearOfPassing}</span>
+                </p>
                 <p className="institution">{edu.institution}</p>
                 <p className="board">{edu.board}</p>
                 {edu.stream && <p className="stream">Stream: {edu.stream}</p>}

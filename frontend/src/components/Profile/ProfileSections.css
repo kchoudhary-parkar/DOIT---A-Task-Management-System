@@ -302,7 +302,9 @@ select.form-input {
 }
 
 .personal-section textarea.form-input {
-  min-height: 58px;
+  min-height: 0;
+  height: 35px;
+  resize: none;
 }
 
 .personal-section .form-hint,
@@ -375,26 +377,15 @@ select.form-input {
 
 .card-header {
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 12px;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
 }
 
 .card-icon {
   flex-shrink: 0;
   color: var(--profile-primary);
-  margin-top: 2px;
-}
-
-.card-title {
-  flex: 1;
-}
-
-.card-title h4 {
-  margin: 0 0 8px;
-  font-size: 16px;
-  color: var(--profile-text-primary);
-  font-weight: 700;
+  margin-top: 0;
 }
 
 .card-year,
@@ -407,12 +398,34 @@ select.form-input {
   border-radius: 999px;
   background: rgba(37, 99, 235, 0.12);
   color: var(--profile-primary);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .card-actions {
   display: flex;
   gap: 8px;
-  margin-left: auto;
+  margin-left: 0;
+  flex-shrink: 0;
+}
+
+.education-meta,
+.certificate-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 8px;
+  flex-wrap: wrap;
+}
+
+.education-level,
+.certificate-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--profile-text-primary);
+  line-height: 1.2;
 }
 
 .btn-icon {
@@ -781,14 +794,9 @@ select.form-input {
     gap: 10px;
   }
 
-  .card-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
   .card-actions {
-    width: 100%;
-    justify-content: flex-end;
+    margin-left: 0;
+    justify-content: flex-start;
   }
 
   .summary-card {

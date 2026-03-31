@@ -90,7 +90,7 @@ const Organization = ({ data, onUpdate }) => {
             <form onSubmit={handleSubmit} className="profile-form">
               <div className="form-grid">
                 <div className="form-group">
-                  <label htmlFor="name">Organization Name *</label>
+                  <label htmlFor="name">Organization Name</label>
                   <input
                     id="name"
                     type="text"
@@ -104,7 +104,7 @@ const Organization = ({ data, onUpdate }) => {
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="role">Role/Position *</label>
+                  <label htmlFor="role">Role/Position</label>
                   <input
                     id="role"
                     type="text"
