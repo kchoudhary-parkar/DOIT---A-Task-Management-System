@@ -58,7 +58,13 @@ async def verify_agent_token(
         # Bearer JWT (normal user auth)
         from utils.auth_utils import verify_token
 
-        user_id = verify_token(token)
+        # Get IP and User-Agent for security
+        forwarded_for = request.headers.get("X-Forwarded-For")
+        ip_address = forwarded_for.split(",")[0].strip() if forwarded_for else (request.headers.get("X-Real-IP") or (request.client.host if request.client else "unknown"))
+        user_agent = request.headers.get("User-Agent", "Unknown")
+        x_tab_session_key = request.headers.get("X-Tab-Session-Key")
+
+        user_id = verify_token(token, ip_address, user_agent, x_tab_session_key)
         if user_id:
             return user_id
 
