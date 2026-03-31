@@ -5,6 +5,7 @@ import { memberAPI, projectAPI, userAPI } from "../../services/api";
 import "../Dashboard/DashboardPage.css";
 import "./UsersPage.css";
 import Loader from "../../components/Loader/Loader";
+import { Search, X } from "lucide-react";
 
 const UsersPage = () => {
   const navigate = useNavigate();
@@ -21,6 +22,9 @@ const UsersPage = () => {
   const [adminProjects, setAdminProjects] = useState([]);
   const [selectedAdminProject, setSelectedAdminProject] = useState(null);
   const [selectedAdminProjectMembers, setSelectedAdminProjectMembers] = useState([]);
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [memberSearch, setMemberSearch] = useState("");
+  const [isMembersDrawerOpen, setIsMembersDrawerOpen] = useState(false);
 
   // Super-admin mode
   const [admins, setAdmins] = useState([]);
@@ -53,6 +57,8 @@ const UsersPage = () => {
 
       setSelectedAdminProject(null);
       setSelectedAdminProjectMembers([]);
+      setMemberSearch("");
+      setIsMembersDrawerOpen(false);
     } catch (err) {
       setError(err.message || "Failed to load admin projects");
     } finally {
@@ -73,6 +79,8 @@ const UsersPage = () => {
       setSelectedAdminProjects([]);
       setSelectedSuperAdminProject(null);
       setSelectedSuperAdminMembers([]);
+      setMemberSearch("");
+      setIsMembersDrawerOpen(false);
     } catch (err) {
       setError(err.message || "Failed to load admin list");
     } finally {
@@ -82,16 +90,18 @@ const UsersPage = () => {
 
   const handleSelectAdminProject = async (project) => {
     try {
-      setLoading(true);
+      setMembersLoading(true);
       setError("");
       setSelectedAdminProject(project);
+      setMemberSearch("");
+      setIsMembersDrawerOpen(true);
       const membersResponse = await memberAPI.getMembers(project._id || project.id);
       setSelectedAdminProjectMembers(membersResponse.members || []);
     } catch (err) {
       setError(err.message || "Failed to load project members");
       setSelectedAdminProjectMembers([]);
     } finally {
-      setLoading(false);
+      setMembersLoading(false);
     }
   };
 
@@ -102,6 +112,8 @@ const UsersPage = () => {
       setSelectedAdmin(adminUser);
       setSelectedSuperAdminProject(null);
       setSelectedSuperAdminMembers([]);
+      setMemberSearch("");
+      setIsMembersDrawerOpen(false);
 
       const response = await userAPI.getAdminProjects(adminUser.id);
       setSelectedAdminProjects(response.projects || []);
@@ -114,7 +126,10 @@ const UsersPage = () => {
   };
 
   const handleSelectSuperAdminProject = (project) => {
+    setMembersLoading(true);
     setSelectedSuperAdminProject(project);
+    setMemberSearch("");
+    setIsMembersDrawerOpen(true);
 
     // Exclude selected admin from members list by requirement.
     const filtered = (project.members || []).filter(
@@ -122,6 +137,63 @@ const UsersPage = () => {
     );
 
     setSelectedSuperAdminMembers(filtered);
+    setMembersLoading(false);
+  };
+
+  const selectedProject = isAdmin ? selectedAdminProject : selectedSuperAdminProject;
+  const selectedMembers = isAdmin ? selectedAdminProjectMembers : selectedSuperAdminMembers;
+
+  const normalizedMembers = useMemo(
+    () =>
+      (selectedMembers || []).map((member) => {
+        const roleLabel =
+          member.role || member.user_role || member.member_role || member.project_role || "Member";
+
+        return {
+          ...member,
+          roleLabel,
+        };
+      }),
+    [selectedMembers]
+  );
+
+  const roleSummary = useMemo(() => {
+    const counts = new Map();
+
+    normalizedMembers.forEach((member) => {
+      const key = member.roleLabel;
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+
+    return Array.from(counts.entries());
+  }, [normalizedMembers]);
+
+  const filteredMembers = useMemo(() => {
+    const search = memberSearch.trim().toLowerCase();
+    if (!search) {
+      return normalizedMembers;
+    }
+
+    return normalizedMembers.filter((member) => {
+      const name = (member.name || "").toLowerCase();
+      const email = (member.email || "").toLowerCase();
+      const role = (member.roleLabel || "").toLowerCase();
+      return name.includes(search) || email.includes(search) || role.includes(search);
+    });
+  }, [memberSearch, normalizedMembers]);
+
+  const handleCloseMembersPanel = () => {
+    setIsMembersDrawerOpen(false);
+    setMemberSearch("");
+
+    if (isAdmin) {
+      setSelectedAdminProject(null);
+      setSelectedAdminProjectMembers([]);
+      return;
+    }
+
+    setSelectedSuperAdminProject(null);
+    setSelectedSuperAdminMembers([]);
   };
 
   const treeTitle = useMemo(() => {
@@ -153,6 +225,81 @@ const UsersPage = () => {
     );
   }
 
+  const renderMembersPanelContent = () => {
+    if (!selectedProject) {
+      return null;
+    }
+
+    return (
+      <>
+        <div className="users-members-header">
+          <div>
+            <h4 className="users-tree-heading">{selectedProject.name}</h4>
+            <p className="users-members-subheading">
+              {normalizedMembers.length} member{normalizedMembers.length === 1 ? "" : "s"}
+            </p>
+          </div>
+          <button
+            type="button"
+            className="users-drawer-close"
+            onClick={handleCloseMembersPanel}
+            aria-label="Close members panel"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="users-member-search-wrap">
+          <Search size={16} className="users-member-search-icon" />
+          <input
+            type="text"
+            value={memberSearch}
+            onChange={(e) => setMemberSearch(e.target.value)}
+            className="users-member-search"
+            placeholder="Search members by name, email, or role"
+            aria-label="Search members"
+          />
+        </div>
+
+        {roleSummary.length > 0 && (
+          <div className="users-role-chips">
+            {roleSummary.map(([role, count]) => (
+              <span key={role} className="users-role-chip">
+                {role} ({count})
+              </span>
+            ))}
+          </div>
+        )}
+
+        <div className="users-member-list users-member-list-cards">
+          {membersLoading ? (
+            <div className="users-empty">Loading members...</div>
+          ) : filteredMembers.length === 0 ? (
+            <div className="users-empty">
+              {normalizedMembers.length === 0
+                ? "No members found in this project."
+                : "No members match your search."}
+            </div>
+          ) : (
+            filteredMembers.map((member) => (
+              <div
+                key={`${selectedProject._id || selectedProject.id}-${member.user_id}`}
+                className="users-member-item users-member-card"
+              >
+                <div className="users-member-avatar">{(member.name || "U").charAt(0).toUpperCase()}</div>
+                <div className="users-member-meta">
+                  <div className="users-member-name">{member.name}</div>
+                  <div className="users-member-email">{member.email}</div>
+                  <span className="users-member-role-chip">{member.roleLabel}</span>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </>
+    );
+  };
+
   return (
     <div className="dashboard-page">
       <div className="dashboard-container">
@@ -165,41 +312,33 @@ const UsersPage = () => {
 
         {isAdmin && (
           <>
-            <h3 className="users-section-title">Projects Where You Are Admin</h3>
-            <div className="users-card-grid">
-              {adminProjects.length === 0 ? (
-                <div className="users-empty">No projects found where you are the owner/admin.</div>
-              ) : (
-                adminProjects.map((project) => (
-                  <button
-                    key={project._id}
-                    className={`users-node-card ${selectedAdminProject?._id === project._id ? "active" : ""}`}
-                    onClick={() => handleSelectAdminProject(project)}
-                  >
-                    <div className="users-node-title">{project.name}</div>
-                    <div className="users-node-subtitle">{project.description || "No description"}</div>
-                  </button>
-                ))
-              )}
-            </div>
-
-            {selectedAdminProject && (
-              <div className="users-tree-panel">
-                <h4 className="users-tree-heading">Members in {selectedAdminProject.name}</h4>
-                <div className="users-member-list">
-                  {selectedAdminProjectMembers.length === 0 ? (
-                    <div className="users-empty">No members found in this project.</div>
+            <div className="users-master-detail">
+              <div className="users-master-content">
+                <h3 className="users-section-title">Projects Where You Are Admin</h3>
+                <div className="users-card-grid">
+                  {adminProjects.length === 0 ? (
+                    <div className="users-empty">No projects found where you are the owner/admin.</div>
                   ) : (
-                    selectedAdminProjectMembers.map((member) => (
-                      <div key={`${selectedAdminProject._id}-${member.user_id}`} className="users-member-item">
-                        <div className="users-member-name">{member.name}</div>
-                        <div className="users-member-email">{member.email}</div>
-                      </div>
+                    adminProjects.map((project) => (
+                      <button
+                        key={project._id}
+                        className={`users-node-card ${selectedAdminProject?._id === project._id ? "active" : ""}`}
+                        onClick={() => handleSelectAdminProject(project)}
+                      >
+                        <div className="users-node-title">{project.name}</div>
+                        <div className="users-node-subtitle">{project.description || "No description"}</div>
+                      </button>
                     ))
                   )}
                 </div>
               </div>
-            )}
+
+              {selectedProject && (
+                <aside className="users-tree-panel users-detail-panel">
+                  {renderMembersPanelContent()}
+                </aside>
+              )}
+            </div>
           </>
         )}
 
@@ -225,43 +364,47 @@ const UsersPage = () => {
 
             {selectedAdmin && (
               <>
-                <h3 className="users-section-title">Projects Created By {selectedAdmin.name}</h3>
-                <div className="users-card-grid nested">
-                  {selectedAdminProjects.length === 0 ? (
-                    <div className="users-empty">No projects created by this admin.</div>
-                  ) : (
-                    selectedAdminProjects.map((project) => (
-                      <button
-                        key={project.id}
-                        className={`users-node-card ${selectedSuperAdminProject?.id === project.id ? "active" : ""}`}
-                        onClick={() => handleSelectSuperAdminProject(project)}
-                      >
-                        <div className="users-node-title">{project.name}</div>
-                        <div className="users-node-subtitle">{project.description || "No description"}</div>
-                      </button>
-                    ))
+                <div className="users-master-detail">
+                  <div className="users-master-content">
+                    <h3 className="users-section-title">Projects Created By {selectedAdmin.name}</h3>
+                    <div className="users-card-grid nested">
+                      {selectedAdminProjects.length === 0 ? (
+                        <div className="users-empty">No projects created by this admin.</div>
+                      ) : (
+                        selectedAdminProjects.map((project) => (
+                          <button
+                            key={project.id}
+                            className={`users-node-card ${selectedSuperAdminProject?.id === project.id ? "active" : ""}`}
+                            onClick={() => handleSelectSuperAdminProject(project)}
+                          >
+                            <div className="users-node-title">{project.name}</div>
+                            <div className="users-node-subtitle">{project.description || "No description"}</div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  {selectedProject && (
+                    <aside className="users-tree-panel users-detail-panel">
+                      {renderMembersPanelContent()}
+                    </aside>
                   )}
                 </div>
               </>
             )}
+          </>
+        )}
 
-            {selectedSuperAdminProject && (
-              <div className="users-tree-panel">
-                <h4 className="users-tree-heading">Members in {selectedSuperAdminProject.name}</h4>
-                <div className="users-member-list">
-                  {selectedSuperAdminMembers.length === 0 ? (
-                    <div className="users-empty">No members found in this project.</div>
-                  ) : (
-                    selectedSuperAdminMembers.map((member) => (
-                      <div key={`${selectedSuperAdminProject.id}-${member.user_id}`} className="users-member-item">
-                        <div className="users-member-name">{member.name}</div>
-                        <div className="users-member-email">{member.email}</div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
+        {selectedProject && (
+          <>
+            <div
+              className={`users-drawer-backdrop ${isMembersDrawerOpen ? "open" : ""}`}
+              onClick={handleCloseMembersPanel}
+            ></div>
+            <div className={`users-mobile-drawer ${isMembersDrawerOpen ? "open" : ""}`}>
+              {renderMembersPanelContent()}
+            </div>
           </>
         )}
       </div>
