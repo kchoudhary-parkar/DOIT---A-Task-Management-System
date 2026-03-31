@@ -1415,12 +1415,7 @@ function DashboardPage() {
   return (
     <div className="dashboard-page">
       <div className="dashboard-container">
-        <div style={{
-          position: 'absolute',
-          top: '32px',
-          right: '32px',
-          zIndex: 10000
-        }}>
+        <div className="dashboard-export-wrap">
           <ExportButtons
             onExportPDF={handleExportPDF}
             onExportExcel={handleExportExcel}
@@ -1446,15 +1441,10 @@ function DashboardPage() {
         <TaskStatsCard stats={analytics.task_stats} />
 
         {/* Project Statistics Cards */}
-        <div style={{
-  display: 'flex',
-  flexWrap: 'wrap',
-  margin: '0 -12px',
-  textAlign: 'center',
-}}>
+        <div className="project-stats-grid" style={{ textAlign: 'center' }}>
 
   {/* Total Projects */}
-  <div style={{ padding: 12, width: '20%', minWidth: 160, boxSizing: 'border-box' }}>
+  <div className="project-stat-col">
     <div
       onClick={() => navigate("/projects")}
       role="button"
@@ -1496,7 +1486,7 @@ function DashboardPage() {
   </div>
 
   {/* Owned Projects */}
-  <div style={{ padding: 12, width: '20%', minWidth: 160, boxSizing: 'border-box' }}>
+  <div className="project-stat-col">
     <div
       role="button"
       tabIndex={0}
@@ -1529,7 +1519,7 @@ function DashboardPage() {
   </div>
 
   {/* Member Of */}
-  <div style={{ padding: 12, width: '20%', minWidth: 160, boxSizing: 'border-box' }}>
+  <div className="project-stat-col">
     <div
       role="button"
       tabIndex={0}
@@ -1562,7 +1552,7 @@ function DashboardPage() {
   </div>
 
   {/* Pending Approval */}
-  <div style={{ padding: 12, width: '20%', minWidth: 160, boxSizing: 'border-box' }}>
+  <div className="project-stat-col">
     <div
       onClick={handleShowPendingTasks}
       role="button"
@@ -1604,7 +1594,7 @@ function DashboardPage() {
   </div>
 
   {/* Closed Tickets */}
-  <div style={{ padding: 12, width: '20%', minWidth: 160, boxSizing: 'border-box' }}>
+  <div className="project-stat-col">
     <div
       onClick={handleShowClosedTasks}
       role="button"

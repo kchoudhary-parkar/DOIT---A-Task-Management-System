@@ -31,11 +31,41 @@ export default function TeamChat() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [messageMenuOpen, setMessageMenuOpen] = useState(null);
+  const [layoutState, setLayoutState] = useState({
+    isMobile: false,
+    sidebarExpanded: false
+  });
   
   const chatEndRef = useRef(null);
   const dropdownRef = useRef(null);
   const fileInputRef = useRef(null);
   const emojiPickerRef = useRef(null);
+
+  useEffect(() => {
+    const updateLayoutState = () => {
+      const shell = document.querySelector('.app-shell');
+      const sidebarExpanded = shell?.classList.contains('sidebar-expanded') || false;
+      const isMobile = window.matchMedia('(max-width: 992px)').matches;
+      setLayoutState({ isMobile, sidebarExpanded });
+    };
+
+    updateLayoutState();
+
+    const shell = document.querySelector('.app-shell');
+    const observer = shell ? new MutationObserver(updateLayoutState) : null;
+
+    if (observer && shell) {
+      observer.observe(shell, { attributes: true, attributeFilter: ['class'] });
+    }
+
+    window.addEventListener('resize', updateLayoutState);
+    return () => {
+      if (observer) {
+        observer.disconnect();
+      }
+      window.removeEventListener('resize', updateLayoutState);
+    };
+  }, []);
 
   // Common emojis for quick access
   const commonEmojis = ['👍', '❤️', '😊', '🎉', '👏', '🔥', '✅', '👀'];
@@ -364,6 +394,10 @@ export default function TeamChat() {
   const currentProjectData = projects.find(p => p.id === currentProject);
   const currentChannelData = channels.find(ch => ch.id === currentChannel);
   const totalUnread = projects.reduce((sum, p) => sum + (p.unread || 0), 0);
+  const sidebarOffset = layoutState.isMobile
+    ? (layoutState.sidebarExpanded ? 172 : 45)
+    : (layoutState.sidebarExpanded ? 270 : 74);
+  const launcherLeft = sidebarOffset + 16;
 
   const getCurrentUserId = () => {
     // Get from localStorage or context
@@ -380,7 +414,7 @@ export default function TeamChat() {
           style={{
             position: 'fixed',
             bottom: '24px',
-            left: '96px',
+            left: `${launcherLeft}px`,
             width: '52px',
             height: '52px',
             borderRadius: '50%',
@@ -424,8 +458,9 @@ export default function TeamChat() {
         <div className="team-chat-window" style={{
           position: 'fixed',
           bottom: '20px',
-          left: '96px',
-          width: '380px',
+          left: `${launcherLeft}px`,
+          width: layoutState.isMobile ? `calc(100vw - ${launcherLeft + 16}px)` : '380px',
+          maxWidth: layoutState.isMobile ? 'calc(100vw - 16px)' : '380px',
           height: '540px',
           background: 'white',
           borderRadius: '12px',

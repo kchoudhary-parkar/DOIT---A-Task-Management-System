@@ -540,7 +540,7 @@ html, body {
   }
 
   .app-sidebar.expanded {
-    width: 270px;
+    width: 172px;
     transform: translateX(0);
   }
 

@@ -133,6 +133,27 @@
   z-index: 1;
 }
 
+.dashboard-export-wrap {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+  position: relative;
+  z-index: 5;
+}
+
+.project-stats-grid {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0 -12px;
+}
+
+.project-stat-col {
+  padding: 12px;
+  width: 20%;
+  min-width: 160px;
+  box-sizing: border-box;
+}
+
 /* ══════════════════════════════════════════════════════════════════
    HEADER
    ══════════════════════════════════════════════════════════════════ */
@@ -968,6 +989,15 @@
   .dashboard-header { padding: 20px; }
   .header-content h1 { font-size: 22px; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .dashboard-export-wrap {
+    justify-content: flex-start;
+    margin-bottom: 10px;
+  }
+  .project-stat-col {
+    width: 50%;
+    min-width: 0;
+    padding: 8px;
+  }
   .project-stats-row { gap: 10px; }
   .task-modal-content { width: 95%; max-height: 90vh; }
   .task-modal-header { padding: 16px 20px; }
@@ -976,6 +1006,15 @@
 
 @media (max-width: 480px) {
   .stats-grid { grid-template-columns: 1fr; }
+  .dashboard-export-wrap {
+    margin-bottom: 8px;
+  }
+  .project-stat-col {
+    width: 50%;
+  }
+  .project-stat-col:last-child {
+    width: 100%;
+  }
   .stat-value { font-size: 26px; }
 }
 
