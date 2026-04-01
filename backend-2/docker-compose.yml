@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - PORT=8000
+    volumes:
+      - ./uploads:/app/uploads
+    restart: always
+
+# Note: Celery worker could also be run as a separate service if needed
+# worker:
+#   build:
+#     context: .
+#     dockerfile: Dockerfile
+#   command: celery -A celery_app worker --loglevel=info -Q code_review
+#   env_file:
+#     - .env
+#   volumes:
+#     - ./uploads:/app/uploads
+#   depends_on:
+#     - backend

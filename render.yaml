@@ -1,0 +1,37 @@
+services:
+  # ── Backend Web Service (FastAPI) ───────────────────────────────────────────
+  - type: web
+    name: doit-backend
+    env: docker
+    dockerContext: backend-2
+    dockerfilePath: Dockerfile
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 8000
+      - fromGroup: doit-secrets
+
+  # ── Celery Worker (Background Tasks) ────────────────────────────────────────
+  - type: worker
+    name: doit-worker
+    env: docker
+    dockerContext: backend-2
+    dockerfilePath: Dockerfile
+    dockerCommand: celery -A celery_app worker --loglevel=info -Q code_review
+    plan: free
+    envVars:
+      - fromGroup: doit-secrets
+
+  # ── Frontend Static Site (React) ────────────────────────────────────────────
+  - type: static
+    name: doit-frontend
+    env: node
+    buildCommand: cd frontend && npm install && npm run build
+    publishDir: frontend/build
+    envVars:
+      - key: REACT_APP_API_URL
+        fromService:
+          type: web
+          name: doit-backend
+          property: host
