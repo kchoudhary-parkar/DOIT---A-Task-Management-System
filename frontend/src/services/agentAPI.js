@@ -222,7 +222,7 @@
 // frontend/src/services/agentAPI.js
 import { requestCache } from '../utils/requestCache';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://doit-a-task-management-system-j593.onrender.com';
 
 const getToken = () => localStorage.getItem("token");
 

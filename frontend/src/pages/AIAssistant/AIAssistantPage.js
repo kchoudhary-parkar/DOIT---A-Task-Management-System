@@ -16,7 +16,7 @@ import { langgraphAgentAPI } from '../../services/langgraphAgentAPI';
 import { mcpAgentAPI } from '../../services/mcpAgentAPI';
 
 
-const API_BASE = process.env.REACT_APP_API_URL;
+const API_BASE = process.env.REACT_APP_API_URL || 'https://doit-a-task-management-system-j593.onrender.com';
 
 const getTabSessionKey = () => {
   let key = sessionStorage.getItem("tab_session_key");

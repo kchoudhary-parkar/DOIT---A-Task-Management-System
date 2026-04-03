@@ -1312,7 +1312,7 @@
 import { requestCache, cachedFetch, createCacheKey } from '../utils/requestCache';
 import { agentAPI } from './agentAPI';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://doit-a-task-management-system-j593.onrender.com';
 
 // Get token from localStorage
 const getToken = () => localStorage.getItem("token");

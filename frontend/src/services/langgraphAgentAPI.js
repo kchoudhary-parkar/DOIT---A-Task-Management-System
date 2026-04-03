@@ -166,7 +166,7 @@
  * Frontend service layer for LangGraph Agent (Azure OpenAI + LangChain Tools)
  */
 
-const API_BASE = process.env.REACT_APP_API_BASE_URL || process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const API_BASE = process.env.REACT_APP_API_BASE_URL || process.env.REACT_APP_API_URL || 'https://doit-a-task-management-system-j593.onrender.com';
 
 const getTabSessionKey = () => {
   let key = sessionStorage.getItem('tab_session_key');
