@@ -1,5 +1,6 @@
 import React, { useContext, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useRef } from "react";
 import { AuthContext } from "../../context/AuthContext";
 import { memberAPI, projectAPI, userAPI } from "../../services/api";
 import "../Dashboard/DashboardPage.css";
@@ -138,6 +139,29 @@ const UsersPage = () => {
 
     setSelectedSuperAdminMembers(filtered);
     setMembersLoading(false);
+  };
+
+  /* ── Animation Observer ───────────────────────────────────────────── */
+  const sectionsRef = useRef([]);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("about-visible");
+          }
+        });
+      },
+      { threshold: 0.1 }
+    );
+
+    sectionsRef.current.forEach((el) => el && observer.observe(el));
+    return () => observer.disconnect();
+  }, [loading, adminProjects, admins, selectedAdminProject, selectedAdmin]);
+
+  const addRef = (el) => {
+    if (el && !sectionsRef.current.includes(el)) sectionsRef.current.push(el);
   };
 
   const selectedProject = isAdmin ? selectedAdminProject : selectedSuperAdminProject;
@@ -302,16 +326,25 @@ const UsersPage = () => {
 
   return (
     <div className="dashboard-page">
+      {/* ── Background Decoration ────────────────────────────────────── */}
+      <div className="users-hero-bg" aria-hidden="true">
+        <div className="hero-orb hero-orb-1" />
+        <div className="hero-orb hero-orb-2" />
+        <div className="hero-grid" />
+      </div>
+
       <div className="dashboard-container">
-        <div className="dashboard-header">
-          <div className="header-content">
-            <h1>Users</h1>
-            <p className="dashboard-subtitle">{treeTitle}</p>
+        <header className="dashboard-header about-fade-up" ref={addRef}>
+          <div className="users-hero-badge">
+            <Search size={12} />
+            <span>User Intelligence Console</span>
           </div>
-        </div>
+          <h1>Users Control</h1>
+          <p className="dashboard-subtitle">{treeTitle}</p>
+        </header>
 
         {isAdmin && (
-          <>
+          <section className="about-fade-up" ref={addRef}>
             <div className="users-master-detail">
               <div className="users-master-content">
                 <h3 className="users-section-title">Projects Where You Are Admin</h3>
@@ -334,16 +367,16 @@ const UsersPage = () => {
               </div>
 
               {selectedProject && (
-                <aside className="users-tree-panel users-detail-panel">
+                <aside className="users-tree-panel users-detail-panel about-fade-up" ref={addRef}>
                   {renderMembersPanelContent()}
                 </aside>
               )}
             </div>
-          </>
+          </section>
         )}
 
         {isSuperAdmin && (
-          <>
+          <section className="about-fade-up" ref={addRef}>
             <h3 className="users-section-title">Admins</h3>
             <div className="users-card-grid">
               {admins.length === 0 ? (
@@ -363,11 +396,11 @@ const UsersPage = () => {
             </div>
 
             {selectedAdmin && (
-              <>
+              <div className="about-fade-up" ref={addRef}>
                 <div className="users-master-detail">
                   <div className="users-master-content">
                     <h3 className="users-section-title">Projects Created By {selectedAdmin.name}</h3>
-                    <div className="users-card-grid nested">
+                    <div className="users-card-grid">
                       {selectedAdminProjects.length === 0 ? (
                         <div className="users-empty">No projects created by this admin.</div>
                       ) : (
@@ -391,13 +424,13 @@ const UsersPage = () => {
                     </aside>
                   )}
                 </div>
-              </>
+              </div>
             )}
-          </>
+          </section>
         )}
 
         {selectedProject && (
-          <>
+          <div className="about-fade-up" ref={addRef}>
             <div
               className={`users-drawer-backdrop ${isMembersDrawerOpen ? "open" : ""}`}
               onClick={handleCloseMembersPanel}
@@ -405,7 +438,7 @@ const UsersPage = () => {
             <div className={`users-mobile-drawer ${isMembersDrawerOpen ? "open" : ""}`}>
               {renderMembersPanelContent()}
             </div>
-          </>
+          </div>
         )}
       </div>
     </div>
