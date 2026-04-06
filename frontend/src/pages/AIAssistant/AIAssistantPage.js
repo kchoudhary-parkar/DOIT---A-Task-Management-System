@@ -16,21 +16,26 @@ import { langgraphAgentAPI } from '../../services/langgraphAgentAPI';
 import { mcpAgentAPI } from '../../services/mcpAgentAPI';
 
 
-const API_BASE = process.env.REACT_APP_API_URL || 'https://doit-a-task-management-system-j593.onrender.com';
+const API_BASE = process.env.REACT_APP_API_BASE_URL || process.env.REACT_APP_API_URL || 'https://doit-a-task-management-system-j593.onrender.com';
 
 const getTabSessionKey = () => {
-  let key = sessionStorage.getItem("tab_session_key");
-  if (!key) {
-    key = 'tab_' + Math.random().toString(36).substr(2, 12) + '_' + Date.now().toString(36);
-    sessionStorage.setItem("tab_session_key", key);
+  const sessionKey = sessionStorage.getItem("tab_session_key");
+  if (sessionKey) return sessionKey;
+
+  const persistedKey = localStorage.getItem("tab_session_key");
+  if (persistedKey) {
+    sessionStorage.setItem("tab_session_key", persistedKey);
+    return persistedKey;
   }
-  return key;
+
+  return '';
 };
 
 const getAuthHeaders = () => ({
   'Authorization': `Bearer ${localStorage.getItem('token')}`,
   'X-Tab-Session-Key': getTabSessionKey(),
-  'Content-Type': 'application/json'
+  'Content-Type': 'application/json',
+  'ngrok-skip-browser-warning': 'true',
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -277,7 +282,7 @@ const AIAssistantPage = () => {
     try {
       const response = await fetch(`${API_BASE}/api/ai-assistant/conversations`, { headers: getAuthHeaders() });
       const data = await response.json();
-      if (data.success) setConversations(data.conversations);
+      if (data.success) setConversations(data.conversations || data.data?.conversations || []);
     } catch (e) { console.error('DOIT convs:', e); }
   }, []);
 
@@ -422,7 +427,7 @@ const AIAssistantPage = () => {
     try {
       const r = await fetch(`${API_BASE}/api/ai-assistant/conversations/${id}/messages`, { headers: getAuthHeaders() });
       const d = await r.json();
-      if (d.success) setMessages(d.messages);
+      if (d.success) setMessages(d.messages || d.data?.messages || []);
     } catch (e) { console.error(e); }
   };
 
@@ -451,11 +456,13 @@ const AIAssistantPage = () => {
       });
       const d = await r.json();
       if (d.success) {
-        setConversations(p => [d.conversation, ...p]);
-        setActiveConversation(d.conversation);
+        const conversation = d.conversation || d.data?.conversation;
+        if (!conversation) throw new Error('Conversation not returned by server');
+        setConversations(p => [conversation, ...p]);
+        setActiveConversation(conversation);
         // 🎯 Don't clear messages if we're about to add one (optimistic update)
         if (!skipClearMessages) setMessages([]);
-        return d.conversation;
+        return conversation;
       }
     } catch (e) { console.error(e); return null; }
   };
@@ -491,9 +498,15 @@ const AIAssistantPage = () => {
       });
       const d = await r.json();
       setIsTyping(false);
-      if (d.success && d.message) {
+      const responseMessage = d.message || d.data?.message;
+      if (d.success && responseMessage) {
         // Keep optimistic user message, just add AI response
-        setMessages(p => [...p, { ...d.message, insights: d.insights, user_data_summary: d.user_data_summary, command_result: d.command_result }]);
+        setMessages(p => [...p, {
+          ...responseMessage,
+          insights: d.insights || d.data?.insights,
+          user_data_summary: d.user_data_summary || d.data?.user_data_summary,
+          command_result: d.command_result || d.data?.command_result,
+        }]);
         loadDoitConversations();
       }
     } catch (e) {

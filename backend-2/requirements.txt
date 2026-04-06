@@ -68,3 +68,5 @@ azure-ai-agents==1.1.0
 azure-ai-projects==1.0.0b10
 azure-core==1.38.1
 azure-identity==1.25.2
+
+ google-auth pyjwt

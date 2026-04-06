@@ -20,11 +20,11 @@ function MyTasksPage() {
     fetchMyTasks();
   }, []);
 
-  const fetchMyTasks = async () => {
+  const fetchMyTasks = async (options = {}) => {
     try {
       setLoading(true);
       setError("");
-      const data = await taskAPI.getMyTasks();
+      const data = await taskAPI.getMyTasks(options);
       setTasks(data.tasks || []);
     } catch (err) {
       setError(err.message || "Failed to load tasks");
@@ -140,7 +140,7 @@ function MyTasksPage() {
       // If no taskId provided, silently refresh tasks (for links, labels, etc.)
       if (!taskId) {
         // Refresh tasks in background without showing loader
-        const data = await taskAPI.getMyTasks();
+        const data = await taskAPI.getMyTasks({ forceRefresh: true });
         setTasks(data.tasks || []);
         
         // Update selectedTask if it's currently open
@@ -159,7 +159,7 @@ function MyTasksPage() {
       
       await taskAPI.update(taskId, updateData);
       // Refresh the entire task list to reflect status changes
-      await fetchMyTasks();
+      await fetchMyTasks({ forceRefresh: true });
       // Close the modal after successful update
       setSelectedTask(null);
     } catch (error) {

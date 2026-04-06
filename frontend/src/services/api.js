@@ -2085,13 +2085,32 @@ export const taskAPI = {
     return data;
   },
 
-  getMyTasks: async () => {
-    const response = await fetch(`${API_BASE_URL}/api/tasks/my`, {
+  getMyTasks: async (options = {}) => {
+    const { forceRefresh = false } = options;
+    const cacheKey = 'tasks:my';
+
+    if (!forceRefresh) {
+      const cached = requestCache.get(cacheKey);
+      if (cached) return cached;
+
+      if (requestCache.isPending(cacheKey)) {
+        return requestCache.getPending(cacheKey);
+      }
+    } else {
+      requestCache.invalidate(cacheKey);
+    }
+
+    const requestPromise = fetch(`${API_BASE_URL}/api/tasks/my`, {
       headers: getAuthHeaders(),
+    }).then(async (response) => {
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to fetch tasks");
+      requestCache.set(cacheKey, data);
+      return data;
     });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "Failed to fetch tasks");
-    return data;
+
+    requestCache.setPending(cacheKey, requestPromise);
+    return requestPromise;
   },
 
   update: async (taskId, taskData) => {
@@ -2289,13 +2308,32 @@ export const taskAPI = {
 
 // Profile API
 export const profileAPI = {
-  getProfile: async () => {
-    const response = await fetch(`${API_BASE_URL}/api/profile`, {
+  getProfile: async (options = {}) => {
+    const { forceRefresh = false } = options;
+    const cacheKey = 'profile:data';
+
+    if (!forceRefresh) {
+      const cached = requestCache.get(cacheKey);
+      if (cached) return cached;
+
+      if (requestCache.isPending(cacheKey)) {
+        return requestCache.getPending(cacheKey);
+      }
+    } else {
+      requestCache.invalidate(cacheKey);
+    }
+
+    const requestPromise = fetch(`${API_BASE_URL}/api/profile`, {
       headers: getAuthHeaders(),
+    }).then(async (response) => {
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to fetch profile");
+      requestCache.set(cacheKey, data);
+      return data;
     });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "Failed to fetch profile");
-    return data;
+
+    requestCache.setPending(cacheKey, requestPromise);
+    return requestPromise;
   },
 
   updatePersonal: async (personalData) => {
@@ -2306,6 +2344,7 @@ export const profileAPI = {
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Failed to update personal info");
+    requestCache.invalidate('profile:data');
     return data;
   },
 
@@ -2317,6 +2356,7 @@ export const profileAPI = {
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Failed to update education");
+    requestCache.invalidate('profile:data');
     return data;
   },
 
@@ -2328,6 +2368,7 @@ export const profileAPI = {
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Failed to update certificates");
+    requestCache.invalidate('profile:data');
     return data;
   },
 
@@ -2339,6 +2380,7 @@ export const profileAPI = {
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Failed to update organization");
+    requestCache.invalidate('profile:data');
     return data;
   },
 };
