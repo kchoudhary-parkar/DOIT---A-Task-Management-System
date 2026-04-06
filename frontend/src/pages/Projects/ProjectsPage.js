@@ -3,7 +3,6 @@ import { projectAPI } from "../../services/api";
 import { ProjectCard, ProjectForm } from "../../components/Projects";
 import { AuthContext } from "../../context/AuthContext";
 import "./ProjectsPage.css";
-import Loader from "../../components/Loader/Loader";
 import {
   FiPlus,
   FiAlertCircle,
@@ -17,6 +16,7 @@ function ProjectsPage() {
   const { user } = useContext(AuthContext);
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [entered, setEntered] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -25,19 +25,37 @@ function ProjectsPage() {
   const canCreateProject = user?.role === "admin" || user?.role === "super-admin";
 
   useEffect(() => {
+    const id = requestAnimationFrame(() => setEntered(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  useEffect(() => {
+    const cachedProjects = projectAPI.peekAll?.();
+
+    if (cachedProjects?.projects) {
+      setProjects(cachedProjects.projects || []);
+      setLoading(false);
+      fetchProjects({ background: true, forceRefresh: true });
+      return;
+    }
+
     fetchProjects();
   }, []);
 
-  const fetchProjects = async () => {
+  const fetchProjects = async ({ background = false, forceRefresh = false } = {}) => {
     try {
-      setLoading(true);
+      if (!background) {
+        setLoading(true);
+      }
       setError("");
-      const data = await projectAPI.getAll();
+      const data = await projectAPI.getAll({ forceRefresh });
       setProjects(data.projects || []);
     } catch (err) {
       setError(err.message || "Failed to load projects");
     } finally {
-      setLoading(false);
+      if (!background) {
+        setLoading(false);
+      }
     }
   };
 
@@ -97,18 +115,8 @@ function ProjectsPage() {
     setEditingProject(null);
   };
 
-  if (loading) {
-    return (
-      <div className="projects-page projects-page-center">
-        <div style={{ position: 'relative', minHeight: '400px', width: '100%' }}>
-          <Loader />
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="projects-page">
+    <div className={`projects-page page-transition ${entered ? 'is-entered' : ''}`}>
       <div className="projects-bg" />
 
       <header className="projects-header">
@@ -155,7 +163,15 @@ function ProjectsPage() {
         </div>
       )}
 
-      {projects.length === 0 ? (
+      {loading && projects.length === 0 ? (
+        <div className="projects-layout">
+          <section className="projects-list glass-panel projects-skeleton-list">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div key={`project-skeleton-${index}`} className="projects-skeleton-card" />
+            ))}
+          </section>
+        </div>
+      ) : projects.length === 0 ? (
         <div className="empty-state glass-panel">
           <div style={{ marginBottom: '16px' }}>
             <FiInbox size={64} style={{ 

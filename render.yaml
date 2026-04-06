@@ -12,6 +12,20 @@ services:
         value: 8000
       - fromGroup: doit-secrets
 
+  # ── Warmup Cron (reduce cold-start latency) ───────────────────────────────
+  - type: cron
+    name: doit-backend-warmup
+    env: node
+    plan: free
+    schedule: "*/5 * * * *"
+    startCommand: node -e "require('https').get('https://' + process.env.BACKEND_HOST + '/warmup', (res) => { res.resume(); process.exit(res.statusCode >= 200 && res.statusCode < 500 ? 0 : 1); }).on('error', () => process.exit(1));"
+    envVars:
+      - key: BACKEND_HOST
+        fromService:
+          type: web
+          name: doit-backend
+          property: host
+
   # ── Celery Worker (Background Tasks) ────────────────────────────────────────
   - type: worker
     name: doit-worker

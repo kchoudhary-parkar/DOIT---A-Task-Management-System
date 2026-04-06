@@ -16,3 +16,10 @@ async def get_report(user_id: str = Depends(get_current_user)):
     """Get downloadable report"""
     response = dashboard_controller.get_downloadable_report(user_id)
     return handle_controller_response(response)
+
+
+@router.get("/bootstrap")
+async def get_bootstrap(user_id: str = Depends(get_current_user)):
+    """Get dashboard startup payload in one request (analytics + report + task counts)."""
+    response = dashboard_controller.get_dashboard_bootstrap(user_id)
+    return handle_controller_response(response)

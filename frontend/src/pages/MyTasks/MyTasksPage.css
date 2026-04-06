@@ -8,6 +8,35 @@
   margin: 0 auto;
 }
 
+.page-transition {
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+
+.page-transition.is-entered {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.my-task-skeleton-card {
+  height: 260px;
+  border-radius: 12px;
+  border: 1px solid var(--border-primary);
+  background: linear-gradient(90deg, rgba(148, 163, 184, 0.08) 25%, rgba(148, 163, 184, 0.18) 37%, rgba(148, 163, 184, 0.08) 63%);
+  background-size: 400% 100%;
+  animation: my-task-shimmer 1.25s infinite;
+}
+
+@keyframes my-task-shimmer {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
+}
+
 .my-tasks-page::before {
   content: "";
   position: fixed;

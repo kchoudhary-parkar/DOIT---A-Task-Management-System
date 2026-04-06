@@ -4,32 +4,51 @@ import { FiAlertCircle, FiArrowRight, FiCalendar, FiCheckCircle, FiUser } from "
 import { BsBug, BsBullseye, BsCheckSquare, BsBook } from "react-icons/bs";
 import { taskAPI } from "../../services/api";
 import { TaskDetailModal } from "../../components/Tasks";
-import Loader from "../../components/Loader/Loader";
 import "./MyTasksPage.css";
 
 function MyTasksPage() {
   const navigate = useNavigate();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [entered, setEntered] = useState(false);
   const [error, setError] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [selectedTask, setSelectedTask] = useState(null);
   const [projectTasks, setProjectTasks] = useState([]);
 
   useEffect(() => {
+    const id = requestAnimationFrame(() => setEntered(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  useEffect(() => {
+    const cachedTasks = taskAPI.peekMyTasks?.();
+
+    if (cachedTasks?.tasks) {
+      setTasks(cachedTasks.tasks || []);
+      setLoading(false);
+      fetchMyTasks({ background: true, forceRefresh: true });
+      return;
+    }
+
     fetchMyTasks();
   }, []);
 
   const fetchMyTasks = async (options = {}) => {
+    const { background = false, forceRefresh = false } = options;
     try {
-      setLoading(true);
+      if (!background) {
+        setLoading(true);
+      }
       setError("");
-      const data = await taskAPI.getMyTasks(options);
+      const data = await taskAPI.getMyTasks({ forceRefresh });
       setTasks(data.tasks || []);
     } catch (err) {
       setError(err.message || "Failed to load tasks");
     } finally {
-      setLoading(false);
+      if (!background) {
+        setLoading(false);
+      }
     }
   };
 
@@ -168,18 +187,8 @@ function MyTasksPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="my-tasks-page">
-        <div style={{ position: 'relative', minHeight: '400px' }}>
-          <Loader />
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="my-tasks-page">
+    <div className={`my-tasks-page page-transition ${entered ? 'is-entered' : ''}`}>
       <div className="my-tasks-container">
         <div className="my-tasks-header">
           <h1>Tasks Assigned to Me</h1>
@@ -208,7 +217,11 @@ function MyTasksPage() {
         </div>
 
         <div className="my-tasks-grid">
-          {filteredTasks.length === 0 ? (
+          {loading && tasks.length === 0 ? (
+            Array.from({ length: 6 }).map((_, index) => (
+              <div key={`task-skeleton-${index}`} className="my-task-skeleton-card" />
+            ))
+          ) : filteredTasks.length === 0 ? (
             <div className="no-tasks">
               <p>No tasks assigned to you yet</p>
               {statusFilter !== "All" && (

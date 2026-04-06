@@ -953,7 +953,6 @@ import { useNavigate } from "react-router-dom";
 import { dashboardAPI, taskAPI } from "../../services/api";
 import { AuthContext } from "../../context/AuthContext";
 import "./DashboardPage.css";
-import Loader from "../../components/Loader/Loader";
 import TaskStatusChart from "../../components/Charts/TaskStatusChart";
 import TaskPriorityChart from "../../components/Charts/TaskPriorityChart";
 import ProjectProgressChart from "../../components/Charts/ProjectProgressChart";
@@ -1161,6 +1160,7 @@ function DashboardPage() {
   const [analytics, setAnalytics] = useState(null);
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [entered, setEntered] = useState(false);
   const [error, setError] = useState(null);
   const [exportLoading, setExportLoading] = useState(false);
   
@@ -1172,48 +1172,57 @@ function DashboardPage() {
   const [showClosedModal, setShowClosedModal] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
 
-  const fetchDashboardData = useCallback(async () => {
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setEntered(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  const applyBootstrapData = useCallback((bootstrapData) => {
+    if (!bootstrapData) return;
+
+    if (bootstrapData.analytics) {
+      setAnalytics(bootstrapData.analytics);
+    }
+
+    if (bootstrapData.report) {
+      setReport(bootstrapData.report);
+    }
+
+    setPendingCount(bootstrapData.pending_approval?.count || 0);
+    setClosedCount(bootstrapData.closed_tasks?.count || 0);
+  }, []);
+
+  const fetchDashboardData = useCallback(async ({ background = false } = {}) => {
     try {
-      setLoading(true);
+      if (!background) {
+        setLoading(true);
+      }
       setError(null);
-      
-      // ⚡ PERFORMANCE: Fetch ALL data in parallel to reduce loading time
-      const [analyticsData, reportData, pendingData, closedData] = await Promise.all([
-        dashboardAPI.getAnalytics(),
-        dashboardAPI.getReport(),
-        taskAPI.getAllPendingApprovalTasks(),
-        taskAPI.getAllClosedTasks()
-      ]);
 
-      console.log("[Dashboard] Data loaded in parallel:", {
-        analytics: !!analyticsData.success,
-        report: !!reportData.success,
-        pending: pendingData.count,
-        closed: closedData.count
-      });
-
-      if (analyticsData.success) {
-        setAnalytics(analyticsData.analytics);
-      }
-      
-      if (reportData.success) {
-        setReport(reportData.report);
-      }
-      
-      // Set counts immediately without separate API call
-      setPendingCount(pendingData.count || 0);
-      setClosedCount(closedData.count || 0);
+      const bootstrapData = await dashboardAPI.getBootstrap({ forceRefresh: background });
+      applyBootstrapData(bootstrapData);
     } catch (err) {
       console.error("Failed to load dashboard:", err);
       setError(err.message || "Failed to load dashboard data");
     } finally {
-      setLoading(false);
+      if (!background) {
+        setLoading(false);
+      }
     }
-  }, []);
+  }, [applyBootstrapData]);
 
   useEffect(() => {
+    const cachedBootstrap = dashboardAPI.peekBootstrap?.();
+
+    if (cachedBootstrap) {
+      applyBootstrapData(cachedBootstrap);
+      setLoading(false);
+      fetchDashboardData({ background: true });
+      return;
+    }
+
     fetchDashboardData();
-  }, [fetchDashboardData]);
+  }, [applyBootstrapData, fetchDashboardData]);
 
   const fetchPendingTasks = async () => {
     try {
@@ -1370,16 +1379,6 @@ function DashboardPage() {
     }
   }, []);
 
-  if (loading) {
-    return (
-      <div className="dashboard-page">
-        <div className="dashboard-container" style={{ position: 'relative', minHeight: '400px' }}>
-          <Loader />
-        </div>
-      </div>
-    );
-  }
-
   if (error) {
     return (
       <div className="dashboard-page">
@@ -1398,7 +1397,7 @@ function DashboardPage() {
     );
   }
 
-  if (!analytics) {
+  if (!analytics && !loading) {
     return (
       <div className="dashboard-page">
         <div className="dashboard-container">
@@ -1413,8 +1412,24 @@ function DashboardPage() {
   }
 
   return (
-    <div className="dashboard-page">
+    <div className={`dashboard-page page-transition ${entered ? 'is-entered' : ''}`}>
       <div className="dashboard-container">
+        {(loading || !analytics) ? (
+          <div className="dashboard-skeleton-wrap">
+            <div className="dashboard-header dashboard-skeleton-header">
+              <div className="dashboard-skeleton-line lg" />
+              <div className="dashboard-skeleton-line md" />
+            </div>
+            <div className="dashboard-skeleton-grid">
+              <div className="dashboard-skeleton-card" />
+              <div className="dashboard-skeleton-card" />
+              <div className="dashboard-skeleton-card" />
+              <div className="dashboard-skeleton-card" />
+            </div>
+            <div className="dashboard-skeleton-panel" />
+          </div>
+        ) : (
+          <>
         <div className="dashboard-export-wrap">
           <ExportButtons
             onExportPDF={handleExportPDF}
@@ -1882,6 +1897,8 @@ function DashboardPage() {
               </div>
             </div>
           </div>
+        )}
+          </>
         )}
       </div>
     </div>

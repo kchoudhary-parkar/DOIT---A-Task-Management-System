@@ -972,3 +972,87 @@ def get_downloadable_report(user_id):
                 {"success": False, "error": f"Failed to generate report: {str(e)}"}
             ),
         }
+
+
+def _parse_controller_body(response_obj):
+    """Safely parse standard controller response body payload."""
+    body = response_obj.get("body", "{}")
+    if isinstance(body, dict):
+        return body
+    try:
+        return json.loads(body)
+    except Exception:
+        return {}
+
+
+def get_dashboard_bootstrap(user_id):
+    """
+    Aggregate dashboard startup data in a single endpoint.
+    This reduces client roundtrips on first page load.
+    """
+    try:
+        analytics_response = get_dashboard_analytics(user_id)
+        if analytics_response.get("status", 500) >= 400:
+            return analytics_response
+
+        report_response = get_downloadable_report(user_id)
+        if report_response.get("status", 500) >= 400:
+            return report_response
+
+        from controllers import task_controller
+
+        pending_response = task_controller.get_all_pending_approval_tasks(user_id)
+        pending_status = pending_response.get("status", 500)
+        if pending_status >= 400:
+            return pending_response
+
+        closed_response = task_controller.get_all_closed_tasks(user_id)
+        closed_status = closed_response.get("status", 500)
+        if closed_status >= 400:
+            return closed_response
+
+        analytics_body = _parse_controller_body(analytics_response)
+        report_body = _parse_controller_body(report_response)
+        pending_body = _parse_controller_body(pending_response)
+        closed_body = _parse_controller_body(closed_response)
+
+        payload = {
+            "success": True,
+            "analytics": analytics_body.get("analytics", {}),
+            "report": report_body.get("report", {}),
+            "pending_approval": {
+                "tasks": pending_body.get("tasks", []),
+                "count": pending_body.get("count", 0),
+                "user_role": pending_body.get("user_role"),
+            },
+            "closed_tasks": {
+                "tasks": closed_body.get("tasks", []),
+                "count": closed_body.get("count", 0),
+                "user_role": closed_body.get("user_role"),
+            },
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+        return {
+            "success": True,
+            "status": 200,
+            "headers": [("Content-Type", "application/json")],
+            "body": json.dumps(payload),
+        }
+
+    except Exception as e:
+        print(f"Error in get_dashboard_bootstrap: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+        return {
+            "success": False,
+            "status": 500,
+            "headers": [("Content-Type", "application/json")],
+            "body": json.dumps(
+                {
+                    "success": False,
+                    "error": f"Failed to fetch dashboard bootstrap: {str(e)}",
+                }
+            ),
+        }

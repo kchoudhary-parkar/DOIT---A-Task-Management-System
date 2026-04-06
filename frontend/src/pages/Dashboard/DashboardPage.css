@@ -104,6 +104,74 @@
   transition: background-color 0.3s ease;
 }
 
+.page-transition {
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+
+.page-transition.is-entered {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.dashboard-skeleton-wrap {
+  display: grid;
+  gap: 20px;
+}
+
+.dashboard-skeleton-header {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dashboard-skeleton-line {
+  height: 14px;
+  border-radius: 10px;
+  background: linear-gradient(90deg, rgba(148, 163, 184, 0.08) 25%, rgba(148, 163, 184, 0.18) 37%, rgba(148, 163, 184, 0.08) 63%);
+  background-size: 400% 100%;
+  animation: dash-shimmer 1.25s infinite;
+}
+
+.dashboard-skeleton-line.lg {
+  width: 38%;
+  height: 24px;
+}
+
+.dashboard-skeleton-line.md {
+  width: 56%;
+}
+
+.dashboard-skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.dashboard-skeleton-card {
+  height: 110px;
+  border-radius: 14px;
+  border: 1px solid var(--dash-border-primary);
+  background: linear-gradient(90deg, rgba(148, 163, 184, 0.08) 25%, rgba(148, 163, 184, 0.18) 37%, rgba(148, 163, 184, 0.08) 63%);
+  background-size: 400% 100%;
+  animation: dash-shimmer 1.25s infinite;
+}
+
+.dashboard-skeleton-panel {
+  height: 280px;
+  border-radius: 16px;
+  border: 1px solid var(--dash-border-primary);
+  background: linear-gradient(90deg, rgba(148, 163, 184, 0.08) 25%, rgba(148, 163, 184, 0.18) 37%, rgba(148, 163, 184, 0.08) 63%);
+  background-size: 400% 100%;
+  animation: dash-shimmer 1.25s infinite;
+}
+
+@keyframes dash-shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
 /* Subtle ambient orbs — like LandingAuth left panel */
 .dashboard-page::before {
   content: '';

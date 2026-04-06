@@ -1777,6 +1777,51 @@ export const authAPI = {
 
 // Dashboard API calls with caching
 export const dashboardAPI = {
+  getBootstrap: async (options = {}) => {
+    const { forceRefresh = false } = options;
+    const cacheKey = 'dashboard:bootstrap';
+
+    if (!forceRefresh) {
+      const cached = requestCache.get(cacheKey);
+      if (cached) return cached;
+
+      if (requestCache.isPending(cacheKey)) {
+        return requestCache.getPending(cacheKey);
+      }
+    } else {
+      requestCache.invalidate(cacheKey);
+    }
+
+    const requestPromise = fetch(`${API_BASE_URL}/api/dashboard/bootstrap`, {
+      headers: getAuthHeaders(),
+    }).then(async (response) => {
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to fetch dashboard bootstrap");
+
+      requestCache.set(cacheKey, data);
+
+      if (data.analytics) {
+        requestCache.set('dashboard:analytics', { success: true, analytics: data.analytics });
+      }
+      if (data.report) {
+        requestCache.set('dashboard:report', { success: true, report: data.report });
+      }
+      if (data.pending_approval) {
+        requestCache.set('tasks:pending-approval', data.pending_approval);
+      }
+      if (data.closed_tasks) {
+        requestCache.set('tasks:closed', data.closed_tasks);
+      }
+
+      return data;
+    });
+
+    requestCache.setPending(cacheKey, requestPromise);
+    return requestPromise;
+  },
+
+  peekBootstrap: () => requestCache.get('dashboard:bootstrap'),
+
   getAnalytics: async () => {
     const cacheKey = 'dashboard:analytics';
     const cached = requestCache.get(cacheKey);
@@ -1832,6 +1877,7 @@ export const dashboardAPI = {
 
   clearCache: () => {
     requestCache.invalidatePattern('dashboard:');
+    requestCache.invalidate('dashboard:bootstrap');
   }
 };
 
@@ -1901,13 +1947,19 @@ export const userAPI = {
 
 // Project API calls
 export const projectAPI = {
-  getAll: async () => {
+  getAll: async (options = {}) => {
+    const { forceRefresh = false } = options;
     const cacheKey = 'projects:all';
-    const cached = requestCache.get(cacheKey);
-    if (cached) return cached;
 
-    if (requestCache.isPending(cacheKey)) {
-      return requestCache.getPending(cacheKey);
+    if (!forceRefresh) {
+      const cached = requestCache.get(cacheKey);
+      if (cached) return cached;
+
+      if (requestCache.isPending(cacheKey)) {
+        return requestCache.getPending(cacheKey);
+      }
+    } else {
+      requestCache.invalidate(cacheKey);
     }
 
     const requestPromise = fetch(`${API_BASE_URL}/api/projects`, {
@@ -1922,6 +1974,8 @@ export const projectAPI = {
     requestCache.setPending(cacheKey, requestPromise);
     return requestPromise;
   },
+
+  peekAll: () => requestCache.get('projects:all'),
 
   getById: async (projectId) => {
     const cacheKey = `project:${projectId}`;
@@ -2001,13 +2055,18 @@ export const memberAPI = {
     return data;
   },
 
-  getMembers: async (projectId) => {
+  getMembers: async (projectId, options = {}) => {
+    const { forceRefresh = false } = options;
     const cacheKey = `members:project:${projectId}`;
-    const cached = requestCache.get(cacheKey);
-    if (cached) return cached;
+    if (!forceRefresh) {
+      const cached = requestCache.get(cacheKey);
+      if (cached) return cached;
 
-    if (requestCache.isPending(cacheKey)) {
-      return requestCache.getPending(cacheKey);
+      if (requestCache.isPending(cacheKey)) {
+        return requestCache.getPending(cacheKey);
+      }
+    } else {
+      requestCache.invalidate(cacheKey);
     }
 
     const requestPromise = fetch(`${API_BASE_URL}/api/projects/${projectId}/members`, {
@@ -2022,6 +2081,10 @@ export const memberAPI = {
     requestCache.setPending(cacheKey, requestPromise);
     return requestPromise;
   },
+
+  peekMembers: (projectId) => requestCache.get(`members:project:${projectId}`),
+
+  prefetchMembers: (projectId) => memberAPI.getMembers(projectId).catch(() => null),
 
   removeMember: async (projectId, userId) => {
     const response = await fetch(`${API_BASE_URL}/api/projects/${projectId}/members/${userId}`, {
@@ -2112,6 +2175,8 @@ export const taskAPI = {
     requestCache.setPending(cacheKey, requestPromise);
     return requestPromise;
   },
+
+  peekMyTasks: () => requestCache.get('tasks:my'),
 
   update: async (taskId, taskData) => {
     const response = await fetch(`${API_BASE_URL}/api/tasks/${taskId}`, {
@@ -2335,6 +2400,8 @@ export const profileAPI = {
     requestCache.setPending(cacheKey, requestPromise);
     return requestPromise;
   },
+
+  peekProfile: () => requestCache.get('profile:data'),
 
   updatePersonal: async (personalData) => {
     const response = await fetch(`${API_BASE_URL}/api/profile/personal`, {

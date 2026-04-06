@@ -1,4 +1,4 @@
-import React, { useContext, useState, useEffect } from "react";
+import React, { useContext, useState, useEffect, useRef, useCallback } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -29,12 +29,89 @@ import "./App.css";
 import TeamChat from "./components/TeamChat/TeamChat";
 import DataVisualization from "./components/DataVizualization/DataVisualization";
 import AppSidebar from "./components/Layout/AppSidebar";
+import { dashboardAPI, projectAPI, taskAPI, profileAPI, userAPI, memberAPI } from "./services/api";
 // import AnalyticsStudio from "./components/DataVizualization/AnalyticsStudio";
 // Authenticated App Component (uses navigate hook)
 
 function AuthenticatedApp({ user, theme, toggleTheme, logout }) {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const prefetchedRoutes = useRef(new Set());
+  const startupPrefetchDone = useRef(false);
+
+  const prefetchRouteData = useCallback((path) => {
+    if (!path) return;
+
+    // Avoid repeating identical prefetch work in one session.
+    if (prefetchedRoutes.current.has(path)) return;
+    prefetchedRoutes.current.add(path);
+
+    const safePrefetch = (promise) => {
+      Promise.resolve(promise).catch(() => {
+        // Ignore prefetch failures; normal navigation path still fetches.
+      });
+    };
+
+    if (path === '/' || path === '/dashboard') {
+      safePrefetch(dashboardAPI.getBootstrap());
+      return;
+    }
+
+    if (path === '/projects') {
+      safePrefetch(projectAPI.getAll());
+      return;
+    }
+
+    if (path === '/my-tasks') {
+      safePrefetch(taskAPI.getMyTasks());
+      return;
+    }
+
+    if (path === '/profile') {
+      safePrefetch(profileAPI.getProfile());
+      return;
+    }
+
+    if (path === '/users') {
+      if (user.role === 'super-admin') {
+        safePrefetch(userAPI.getAllUsers());
+      } else if (user.role === 'admin') {
+        safePrefetch(
+          projectAPI.getAll().then((data) => {
+            const projects = (data?.projects || []).filter((project) => project.is_owner);
+            projects.slice(0, 6).forEach((project) => {
+              const projectId = project._id || project.id;
+              if (!projectId) return;
+              memberAPI.prefetchMembers?.(projectId);
+            });
+          })
+        );
+      }
+    }
+  }, [user.role]);
+
+  useEffect(() => {
+    if (startupPrefetchDone.current) return;
+    startupPrefetchDone.current = true;
+
+    const routesToWarm = ['/projects', '/my-tasks', '/profile'];
+
+    if (user.role === 'admin' || user.role === 'super-admin') {
+      routesToWarm.push('/users');
+    }
+
+    const warmRoutes = () => {
+      routesToWarm.forEach((path, index) => {
+        setTimeout(() => prefetchRouteData(path), index * 120);
+      });
+    };
+
+    if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+      window.requestIdleCallback(warmRoutes, { timeout: 1500 });
+    } else {
+      setTimeout(warmRoutes, 250);
+    }
+  }, [prefetchRouteData, user.role]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(max-width: 992px)");
@@ -185,6 +262,7 @@ function AuthenticatedApp({ user, theme, toggleTheme, logout }) {
         sidebarOpen={sidebarOpen}
         setSidebarOpen={setSidebarOpen}
         logout={logout}
+        onPrefetchRoute={prefetchRouteData}
       />
 
       <div className={`app-shell ${sidebarOpen ? "sidebar-expanded" : "sidebar-collapsed"}`}>

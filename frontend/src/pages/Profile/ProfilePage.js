@@ -5,18 +5,37 @@ import PersonalInfo from "../../components/Profile/PersonalInfo";
 import Education from "../../components/Profile/Education";
 import Certificates from "../../components/Profile/Certificates";
 import Organization from "../../components/Profile/Organization";
-import Loader from "../../components/Loader/Loader";
 import { User, GraduationCap, Award, Building2, Mail } from 'lucide-react';
 import "./ProfilePage.css";
 
 const ProfilePage = () => {
   const { user } = useContext(AuthContext);
   const [activeSection, setActiveSection] = useState("personal");
-  const [profileData, setProfileData] = useState(null);
+  const [profileData, setProfileData] = useState({
+    personal: {},
+    education: [],
+    certificates: [],
+    organization: {}
+  });
   const [loading, setLoading] = useState(true);
+  const [entered, setEntered] = useState(false);
   const [completionPercentage, setCompletionPercentage] = useState(0);
 
   useEffect(() => {
+    const id = requestAnimationFrame(() => setEntered(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  useEffect(() => {
+    const cachedProfile = profileAPI.peekProfile?.();
+
+    if (cachedProfile?.profile) {
+      setProfileData(cachedProfile.profile || {});
+      setLoading(false);
+      fetchProfileData({ background: true, forceRefresh: true });
+      return;
+    }
+
     fetchProfileData();
   }, []);
 
@@ -26,10 +45,13 @@ const ProfilePage = () => {
     }
   }, [profileData]);
 
-  const fetchProfileData = async () => {
+  const fetchProfileData = async (options = {}) => {
+    const { background = false, forceRefresh = false } = options;
     try {
-      setLoading(true);
-      const data = await profileAPI.getProfile();
+      if (!background) {
+        setLoading(true);
+      }
+      const data = await profileAPI.getProfile({ forceRefresh });
       setProfileData(data.profile || {});
     } catch (err) {
       console.error("Failed to fetch profile:", err);
@@ -41,7 +63,9 @@ const ProfilePage = () => {
         organization: {}
       });
     } finally {
-      setLoading(false);
+      if (!background) {
+        setLoading(false);
+      }
     }
   };
 
@@ -121,18 +145,8 @@ const ProfilePage = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="profile-page">
-        <div className="profile-loading-container">
-          <Loader />
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="profile-page">
+    <div className={`profile-page page-transition ${entered ? 'is-entered' : ''}`}>
       {/* Header Banner */}
       <div className="profile-header">
         <div className="profile-banner">
@@ -234,26 +248,30 @@ const ProfilePage = () => {
 
         {/* Main Content Area */}
         <div className="profile-main">
-          {activeSection === "personal" && (
+          {loading ? (
+            <div className="profile-section-skeleton">
+              <div className="profile-skeleton-line large" />
+              <div className="profile-skeleton-line" />
+              <div className="profile-skeleton-line" />
+              <div className="profile-skeleton-line short" />
+            </div>
+          ) : activeSection === "personal" ? (
             <PersonalInfo
               data={profileData.personal || {}}
               user={user}
               onUpdate={handleUpdatePersonal}
             />
-          )}
-          {activeSection === "education" && (
+          ) : activeSection === "education" ? (
             <Education
               data={profileData.education || []}
               onUpdate={handleUpdateEducation}
             />
-          )}
-          {activeSection === "certificates" && (
+          ) : activeSection === "certificates" ? (
             <Certificates
               data={profileData.certificates || []}
               onUpdate={handleUpdateCertificates}
             />
-          )}
-          {activeSection === "organization" && (
+          ) : (
             <Organization
               data={profileData.organization || {}}
               onUpdate={handleUpdateOrganization}

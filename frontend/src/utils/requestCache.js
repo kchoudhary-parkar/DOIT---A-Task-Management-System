@@ -4,6 +4,61 @@ class RequestCache {
     this.cache = new Map();
     this.pendingRequests = new Map();
     this.cacheTimeout = 5 * 60 * 1000; // 5 minutes
+    this.storageKey = 'doit:request-cache:v1';
+    this.persistPrefixes = [
+      'dashboard:bootstrap',
+      'projects:all',
+      'tasks:my',
+      'profile:data',
+      'members:project:'
+    ];
+    this.maxPersistEntries = 60;
+    this.hydrate();
+  }
+
+  shouldPersist(key) {
+    return this.persistPrefixes.some((prefix) => key.startsWith(prefix));
+  }
+
+  hydrate() {
+    try {
+      const raw = sessionStorage.getItem(this.storageKey);
+      if (!raw) return;
+
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return;
+
+      const now = Date.now();
+      parsed.forEach((entry) => {
+        if (!entry || !entry.key) return;
+        if (now - entry.timestamp > this.cacheTimeout) return;
+        this.cache.set(entry.key, {
+          data: entry.data,
+          timestamp: entry.timestamp,
+        });
+      });
+    } catch (e) {
+      // Ignore hydration failures and continue with in-memory cache only.
+    }
+  }
+
+  persist() {
+    try {
+      const now = Date.now();
+      const entries = Array.from(this.cache.entries())
+        .filter(([key, value]) => this.shouldPersist(key) && now - value.timestamp <= this.cacheTimeout)
+        .sort((a, b) => b[1].timestamp - a[1].timestamp)
+        .slice(0, this.maxPersistEntries)
+        .map(([key, value]) => ({
+          key,
+          data: value.data,
+          timestamp: value.timestamp,
+        }));
+
+      sessionStorage.setItem(this.storageKey, JSON.stringify(entries));
+    } catch (e) {
+      // Ignore storage quota/serialization issues.
+    }
   }
 
   // Get cached data if available and not expired
@@ -28,6 +83,9 @@ class RequestCache {
       data,
       timestamp: Date.now()
     });
+    if (this.shouldPersist(key)) {
+      this.persist();
+    }
   }
 
   // Check if request is in progress
@@ -55,6 +113,9 @@ class RequestCache {
   invalidate(key) {
     console.log(`[Cache] INVALIDATE ${key}`);
     this.cache.delete(key);
+    if (this.shouldPersist(key)) {
+      this.persist();
+    }
   }
 
   // Clear all cache
@@ -62,6 +123,11 @@ class RequestCache {
     console.log(`[Cache] CLEAR ALL`);
     this.cache.clear();
     this.pendingRequests.clear();
+    try {
+      sessionStorage.removeItem(this.storageKey);
+    } catch (e) {
+      // Ignore storage cleanup failures.
+    }
   }
 
   // Clear cache matching pattern
@@ -69,6 +135,7 @@ class RequestCache {
     const keys = Array.from(this.cache.keys());
     const matchingKeys = keys.filter(key => key.includes(pattern));
     matchingKeys.forEach(key => this.invalidate(key));
+    this.persist();
   }
 }
 

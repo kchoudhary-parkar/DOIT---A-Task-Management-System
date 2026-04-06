@@ -1,10 +1,16 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
 
-const AppSidebar = ({ user, navLinks, sidebarOpen, setSidebarOpen, logout }) => {
+const AppSidebar = ({ user, navLinks, sidebarOpen, setSidebarOpen, logout, onPrefetchRoute }) => {
   const handleNavClick = () => {
     if (typeof window !== "undefined" && window.innerWidth <= 992) {
       setSidebarOpen(false);
+    }
+  };
+
+  const prefetchRoute = (path) => {
+    if (typeof onPrefetchRoute === "function") {
+      onPrefetchRoute(path);
     }
   };
 
@@ -63,7 +69,14 @@ const AppSidebar = ({ user, navLinks, sidebarOpen, setSidebarOpen, logout }) => 
               className={({ isActive }) =>
                 `sidebar-nav-link${isActive ? " active" : ""}`
               }
-              onClick={handleNavClick}
+              onClick={() => {
+                prefetchRoute(link.path);
+                handleNavClick();
+              }}
+              onMouseDown={() => prefetchRoute(link.path)}
+              onMouseEnter={() => prefetchRoute(link.path)}
+              onFocus={() => prefetchRoute(link.path)}
+              onTouchStart={() => prefetchRoute(link.path)}
             >
               <span className="sidebar-nav-icon">{link.icon}</span>
               <span className="sidebar-nav-label">{link.label}</span>

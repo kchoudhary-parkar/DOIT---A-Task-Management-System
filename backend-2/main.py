@@ -157,6 +157,27 @@ async def health_check():
     }
 
 
+@app.get("/warmup")
+async def warmup_check():
+    """Lightweight endpoint for keep-warm pings and deployment wake-ups."""
+    from datetime import datetime, timezone
+    from database import db
+
+    ping_ok = False
+    try:
+        db.command("ping")
+        ping_ok = True
+    except Exception:
+        ping_ok = False
+
+    return {
+        "status": "ok" if ping_ok else "degraded",
+        "service": "task-management-api",
+        "db_ping": ping_ok,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     print(f"[ERROR] HTTP {exc.status_code}: {exc.detail}")

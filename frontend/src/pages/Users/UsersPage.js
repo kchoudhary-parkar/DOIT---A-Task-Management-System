@@ -56,6 +56,28 @@ const UsersPage = () => {
       const projects = (data.projects || []).filter((project) => project.is_owner);
       setAdminProjects(projects);
 
+      // Warm members cache for first cards so drawer opens instantly on first clicks.
+      projects.slice(0, 6).forEach((project) => {
+        const projectId = project._id || project.id;
+        if (!projectId) return;
+        memberAPI.prefetchMembers?.(projectId);
+      });
+
+      // Continue warming the rest when browser is idle.
+      const warmRemaining = () => {
+        projects.slice(6).forEach((project) => {
+          const projectId = project._id || project.id;
+          if (!projectId) return;
+          memberAPI.prefetchMembers?.(projectId);
+        });
+      };
+
+      if (typeof window !== "undefined" && typeof window.requestIdleCallback === "function") {
+        window.requestIdleCallback(warmRemaining, { timeout: 1200 });
+      } else {
+        setTimeout(warmRemaining, 300);
+      }
+
       setSelectedAdminProject(null);
       setSelectedAdminProjectMembers([]);
       setMemberSearch("");
@@ -90,13 +112,24 @@ const UsersPage = () => {
   };
 
   const handleSelectAdminProject = async (project) => {
+    const projectId = project._id || project.id;
+
     try {
       setMembersLoading(true);
       setError("");
       setSelectedAdminProject(project);
       setMemberSearch("");
       setIsMembersDrawerOpen(true);
-      const membersResponse = await memberAPI.getMembers(project._id || project.id);
+
+      // Show whatever we already have immediately.
+      const cachedMembers = projectId ? memberAPI.peekMembers?.(projectId) : null;
+      if (cachedMembers?.members?.length) {
+        setSelectedAdminProjectMembers(cachedMembers.members);
+      } else if (Array.isArray(project.members) && project.members.length) {
+        setSelectedAdminProjectMembers(project.members);
+      }
+
+      const membersResponse = await memberAPI.getMembers(projectId);
       setSelectedAdminProjectMembers(membersResponse.members || []);
     } catch (err) {
       setError(err.message || "Failed to load project members");
@@ -357,6 +390,16 @@ const UsersPage = () => {
                         key={project._id}
                         className={`users-node-card ${selectedAdminProject?._id === project._id ? "active" : ""}`}
                         onClick={() => handleSelectAdminProject(project)}
+                        onMouseEnter={() => {
+                          const projectId = project._id || project.id;
+                          if (!projectId) return;
+                          memberAPI.prefetchMembers?.(projectId);
+                        }}
+                        onMouseDown={() => {
+                          const projectId = project._id || project.id;
+                          if (!projectId) return;
+                          memberAPI.prefetchMembers?.(projectId);
+                        }}
                       >
                         <div className="users-node-title">{project.name}</div>
                         <div className="users-node-subtitle">{project.description || "No description"}</div>
