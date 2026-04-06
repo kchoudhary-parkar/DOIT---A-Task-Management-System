@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from schemas import PersonalInfoUpdate, EducationUpdate, CertificatesUpdate, OrganizationUpdate
+from schemas import PersonalInfoUpdate, EducationUpdate, CertificatesUpdate, OrganizationUpdate, IntegrationsUpdate
 from controllers import profile_controller
 from dependencies import get_current_user
 from utils.router_helpers import handle_controller_response
@@ -39,4 +39,11 @@ async def update_organization(data: OrganizationUpdate, user_id: str = Depends(g
     """Update organization"""
     body = json.dumps(data.model_dump())
     response = profile_controller.update_organization(body, user_id)
+    return handle_controller_response(response)
+
+@router.put("/integrations")
+async def update_integrations(data: IntegrationsUpdate, user_id: str = Depends(get_current_user)):
+    """Update integration webhooks"""
+    body = json.dumps(data.model_dump())
+    response = profile_controller.update_integrations(body, user_id)
     return handle_controller_response(response)

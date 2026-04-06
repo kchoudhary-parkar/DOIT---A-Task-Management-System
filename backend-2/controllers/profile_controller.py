@@ -133,3 +133,27 @@ def update_organization(body_str, user_id):
         })
     else:
         return error_response("Failed to update organization information", 500)
+
+def update_integrations(body_str, user_id):
+    """Update integration webhooks"""
+    if not user_id:
+        return error_response("Unauthorized. Please login.", 401)
+    
+    try:
+        data = json.loads(body_str)
+    except:
+        return error_response("Invalid JSON", 400)
+    
+    success = Profile.update_integrations(user_id, data)
+    
+    if success:
+        profile = Profile.find_by_user(user_id)
+        if profile and "_id" in profile:
+            profile["_id"] = str(profile["_id"])
+        
+        return success_response({
+            "message": "Integration settings updated successfully",
+            "integrations": profile.get("integrations", {}) if profile else {}
+        })
+    else:
+        return error_response("Failed to update integration settings", 500)

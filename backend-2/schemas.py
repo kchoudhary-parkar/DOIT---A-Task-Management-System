@@ -134,6 +134,11 @@ class CertificatesUpdate(BaseModel):
 class OrganizationUpdate(BaseModel):
     data: Dict[str, Any]
 
+class IntegrationsUpdate(BaseModel):
+    discord_webhook: Optional[str] = ""
+    teams_webhook: Optional[str] = ""
+    slack_webhook: Optional[str] = ""
+
 # ============= USER SCHEMAS =============
 class UpdateUserRoleRequest(BaseModel):
     user_id: str

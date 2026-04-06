@@ -5,7 +5,8 @@ import PersonalInfo from "../../components/Profile/PersonalInfo";
 import Education from "../../components/Profile/Education";
 import Certificates from "../../components/Profile/Certificates";
 import Organization from "../../components/Profile/Organization";
-import { User, GraduationCap, Award, Building2, Mail } from 'lucide-react';
+import Integrations from "../../components/Profile/Integrations";
+import { User, GraduationCap, Award, Building2, Mail, Settings } from 'lucide-react';
 import "./ProfilePage.css";
 
 const ProfilePage = () => {
@@ -15,7 +16,8 @@ const ProfilePage = () => {
     personal: {},
     education: [],
     certificates: [],
-    organization: {}
+    organization: {},
+    integrations: {}
   });
   const [loading, setLoading] = useState(true);
   const [entered, setEntered] = useState(false);
@@ -60,7 +62,8 @@ const ProfilePage = () => {
         personal: {},
         education: [],
         certificates: [],
-        organization: {}
+        organization: {},
+        integrations: {}
       });
     } finally {
       if (!background) {
@@ -133,6 +136,15 @@ const ProfilePage = () => {
     try {
       const updated = await profileAPI.updateOrganization(data);
       setProfileData(prev => ({ ...prev, organization: updated.organization }));
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  const handleUpdateIntegrations = async (data) => {
+    try {
+      const updated = await profileAPI.updateIntegrations(data);
+      setProfileData(prev => ({ ...prev, integrations: updated.integrations }));
     } catch (err) {
       throw err;
     }
@@ -244,6 +256,16 @@ const ProfilePage = () => {
             <Building2 className="sidebar-icon" size={22} />
             <span className="sidebar-label">Organization</span>
           </button>
+
+          <button
+            className={`sidebar-btn ${activeSection === "integrations" ? "active" : ""}`}
+            onClick={() => setActiveSection("integrations")}
+            onKeyPress={(e) => handleKeyPress(e, () => setActiveSection("integrations"))}
+            aria-label="External Integrations"
+          >
+            <Settings className="sidebar-icon" size={22} />
+            <span className="sidebar-label">Integrations</span>
+          </button>
         </div>
 
         {/* Main Content Area */}
@@ -270,6 +292,11 @@ const ProfilePage = () => {
             <Certificates
               data={profileData.certificates || []}
               onUpdate={handleUpdateCertificates}
+            />
+          ) : activeSection === "integrations" ? (
+            <Integrations
+              data={profileData.integrations || {}}
+              onUpdate={handleUpdateIntegrations}
             />
           ) : (
             <Organization

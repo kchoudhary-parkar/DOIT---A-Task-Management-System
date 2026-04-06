@@ -8,15 +8,23 @@ import smtplib
 import os
 import base64
 import mimetypes
+import json
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
 from typing import Optional, List
 from langchain_core.tools import tool
+from langchain_core.messages import HumanMessage, SystemMessage
 from database import db
 from bson import ObjectId
 from datetime import datetime, timedelta
+from utils.langgraph_agent_utils import get_llm
+from utils.notification_utils import (
+    send_discord_notification,
+    send_teams_notification,
+    send_slack_notification,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -1805,6 +1813,313 @@ def github_create_or_update_file_tool(
         logger.error(f"github_create_or_update_file_tool error: {e}")
         return f"❌ Failed to create/update file: {str(e)}"
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ADVANCED AI-POWERED TOOLS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@tool
+def breakdown_epic_tool(epic_title: str, epic_description: str, project_name: str) -> str:
+    """
+    Break down a high-level Epic or feature into small, actionable sub-tasks.
+    Automatically creates the generated tasks in the specified project.
+
+    Args:
+        epic_title: High-level feature name
+        epic_description: Detailed requirements or context
+        project_name: Current project to add tasks to
+    """
+    try:
+        llm = get_llm()
+        prompt = f"""
+        Analyze the following Epic requirements and break them down into 4-7 actionable, granular tasks.
+        Epic: {epic_title}
+        Context: {epic_description}
+        
+        Return the result ONLY as a JSON list of objects, each with:
+        "title": (string)
+        "description": (string, 1-2 sentences of detail)
+        "priority": (Low, Medium, High, Critical)
+        
+        ONLY return valid JSON array.
+        """
+        response = llm.invoke([HumanMessage(content=prompt)])
+        # Clean up response (sometimes models add ```json)
+        content = response.content.strip().replace("```json", "").replace("```", "")
+        tasks_data = json.loads(content)
+        
+        from controllers.agent_task_controller import agent_create_task_sync
+        from utils.langgraph_agent_automation import resolve_project_id
+        
+        ctx = get_tool_context()
+        user_id = ctx.get("user_id")
+        user_email = ctx.get("user_email")
+        
+        pid = resolve_project_id(user_id, project_name=project_name)
+        if not pid:
+            return f"❌ Project '{project_name}' not found. Epic breakdown aborted."
+            
+        results = []
+        for t in tasks_data:
+            try:
+                res = agent_create_task_sync(
+                    requesting_user=user_email,
+                    title=t['title'],
+                    project_id=pid,
+                    user_id=user_id,
+                    description=t.get('description', ''),
+                    priority=t.get('priority', 'Medium'),
+                    status="To Do",
+                    issue_type="task"
+                )
+                results.append(f"• ✅ {t['title']} (Ticket: {res.get('ticket_id', 'N/A')})")
+            except Exception as task_err:
+                results.append(f"• ❌ Failed to create '{t['title']}': {str(task_err)}")
+        
+        return f"🚀 **Epic Breakdown Complete for '{epic_title}'**\n\nGenerated {len(tasks_data)} tasks in project '{project_name}':\n" + "\n".join(results)
+    except Exception as e:
+        logger.error(f"breakdown_epic_tool error: {e}")
+        return f"❌ Failed to breakdown epic: {str(e)}"
+
+
+@tool
+def generate_standup_tool() -> str:
+    """
+    Analyze recent project activity and generate a professional daily standup update.
+    Identifies what was completed recently and what is currently planned.
+    """
+    try:
+        ctx = get_tool_context()
+        user_email = ctx.get("user_email")
+        
+        # 1. Fetch data from DB
+        one_day_ago = datetime.utcnow() - timedelta(days=1)
+        
+        recent_done = list(db.tasks.find({
+            "assignee_email": user_email,
+            "status": "Done",
+            "updated_at": {"$gte": one_day_ago}
+        }).limit(5))
+        
+        in_progress = list(db.tasks.find({
+            "assignee_email": user_email,
+            "status": "In Progress"
+        }).limit(5))
+        
+        planned = list(db.tasks.find({
+            "assignee_email": user_email,
+            "status": "To Do"
+        }).limit(5))
+
+        # 2. Use LLM to reason and format
+        llm = get_llm()
+        context_str = f"""
+        Completed recently: {[t['title'] for t in recent_done]}
+        Working on: {[t['title'] for t in in_progress]}
+        Next in queue: {[t['title'] for t in planned]}
+        """
+        
+        prompt = f"""
+        Generate a professional, concise daily standup update based on this task activity:
+        {context_str}
+        
+        Format as:
+        Yesterday: (Summarize completions)
+        Today: (Summarize current focus)
+        Blockers: (None identified, unless items seem overdue)
+        """
+        response = llm.invoke([HumanMessage(content=prompt)])
+        return f"📝 **Daily Standup Update**\n\n{response.content}"
+    except Exception as e:
+        logger.error(f"generate_standup_tool error: {e}")
+        return f"❌ Failed to generate standup: {str(e)}"
+
+
+@tool
+def auto_triage_task_tool(task_title: str, task_description: str) -> str:
+    """
+    AI-powered task triaging. Suggests priority, labels, and implementation reasoning 
+    for any incoming feature request or bug report.
+    """
+    try:
+        llm = get_llm()
+        prompt = f"""
+        Analyze this task and recommend triage values:
+        Title: {task_title}
+        Description: {task_description}
+        
+        Provide JSON only:
+        {{
+            "priority": "Low|Medium|High|Critical",
+            "issue_type": "task|bug|story|epic",
+            "labels": ["list", "of", "labels"],
+            "reasoning": "one sentence explanation"
+        }}
+        """
+        response = llm.invoke([HumanMessage(content=prompt)])
+        content = response.content.strip().replace("```json", "").replace("```", "")
+        triage = json.loads(content)
+        
+        return (
+            f"🔍 **AI Triage Suggestion**\n"
+            f"- **Complexity**: {triage.get('priority', 'N/A')}\n"
+            f"- **Type**: {triage.get('issue_type', 'N/A')}\n"
+            f"- **Labels**: {', '.join(triage.get('labels', []))}\n"
+            f"- **AI Reasoning**: {triage.get('reasoning', 'No reasoning provided.')}"
+        )
+    except Exception as e:
+        logger.error(f"auto_triage_task_tool error: {e}")
+        return f"❌ AI Triage failed: {str(e)}"
+
+
+@tool
+def search_project_knowledge_tool(query: str) -> str:
+    """
+    Search across historical tasks, project descriptions, and comments for specific technical 
+    solutions, previous decisions, or historical context. Used for 'Knowledge Retrieval'.
+    """
+    try:
+        ctx = get_tool_context()
+        user_id = ctx.get("user_id")
+        
+        # Resolve projects accessible by user
+        projects = list(db.projects.find({
+            "$or": [{"user_id": user_id}, {"members.user_id": user_id}]
+        }))
+        pids = [str(p['_id']) for p in projects]
+        
+        # Regex search in tasks for similar patterns (Hybrid search)
+        tasks = list(db.tasks.find({
+            "project_id": {"$in": pids},
+            "$or": [
+                {"title": {"$regex": query, "$options": "i"}},
+                {"description": {"$regex": query, "$options": "i"}},
+                {"comments.text": {"$regex": query, "$options": "i"}}
+            ]
+        }).sort("updated_at", -1).limit(6))
+        
+        if not tasks:
+            return f"No historical knowledge found for your query: '{query}'"
+            
+        result = f"📚 **Historical Knowledge & Context Found**\nFound {len(tasks)} relevant items from your project history:\n\n"
+        for t in tasks:
+            result += f"• **[{t.get('ticket_id', 'N/A')}] {t['title']}** ({t['status']})\n"
+            if t.get('description'):
+                snippet = t['description'][:120].replace('\n', ' ') + "..."
+                result += f"  > {snippet}\n"
+            result += "\n"
+        
+        result += "💡 *Tip: You can ask me to summarize a specific ticket for more details.*"
+        return result
+    except Exception as e:
+        logger.error(f"search_project_knowledge_tool error: {e}")
+        return f"❌ Knowledge search failed: {str(e)}"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXTERNAL INTEGRATIONS (Discord, Teams, Slack)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+@tool
+def send_discord_message_tool(
+    content: str, title: str = "DOIT Notification", webhook_url: Optional[str] = None
+) -> str:
+    """
+    Send a message to a Discord channel via Webhook.
+
+    Args:
+        content: The message content to send (Markdown supported).
+        title: Optional title for the Discord embed.
+        webhook_url: Optional override for the Discord webhook URL.
+                     By default, it uses the user's profile settings (real-time).
+    """
+    ctx = get_tool_context()
+    user_id = ctx.get("user_id")
+
+    # Priority: 
+    # 1. Direct argument (chat override)
+    # 2. User Profile (real-time configuration)
+    # 3. Environment Variable (system fallback)
+    url = webhook_url
+
+    if not url and user_id:
+        from models.profile import Profile
+        profile = Profile.find_by_user(user_id)
+        if profile:
+            url = profile.get("integrations", {}).get("discord_webhook")
+    
+    if not url:
+        url = os.environ.get("DISCORD_WEBHOOK_URL")
+
+    if not url:
+        return "❌ Discord Webhook URL not configured. Please set it in your Profile → Integrations."
+
+    return send_discord_notification(url, content, title)
+
+
+@tool
+def send_teams_message_tool(
+    text: str, title: str = "DOIT Alert", webhook_url: Optional[str] = None
+) -> str:
+    """
+    Send a message to a Microsoft Teams channel via Webhook.
+
+    Args:
+        text: The message text to send.
+        title: Optional title for the message card.
+        webhook_url: Optional override for the Teams webhook URL.
+                     By default, it uses the user's profile settings (real-time).
+    """
+    ctx = get_tool_context()
+    user_id = ctx.get("user_id")
+
+    url = webhook_url
+
+    if not url and user_id:
+        from models.profile import Profile
+        profile = Profile.find_by_user(user_id)
+        if profile:
+            url = profile.get("integrations", {}).get("teams_webhook")
+    
+    if not url:
+        url = os.environ.get("TEAMS_WEBHOOK_URL")
+
+    if not url:
+        return "❌ Teams Webhook URL not configured. Please set it in your Profile → Integrations."
+
+    return send_teams_notification(url, text, title)
+
+
+@tool
+def send_slack_message_tool(text: str, webhook_url: Optional[str] = None) -> str:
+    """
+    Send a message to a Slack channel via Webhook.
+
+    Args:
+        text: The message text to send.
+        webhook_url: Optional override for the Slack webhook URL.
+                     By default, it uses the user's profile settings (real-time).
+    """
+    ctx = get_tool_context()
+    user_id = ctx.get("user_id")
+
+    url = webhook_url
+
+    if not url and user_id:
+        from models.profile import Profile
+        profile = Profile.find_by_user(user_id)
+        if profile:
+            url = profile.get("integrations", {}).get("slack_webhook")
+    
+    if not url:
+        url = os.environ.get("SLACK_WEBHOOK_URL")
+
+    if not url:
+        return "❌ Slack Webhook URL not configured. Please set it in your Profile → Integrations."
+
+    return send_slack_notification(url, text)
+
 def get_all_langgraph_tools():
     """Return all available LangGraph tools."""
     return [
@@ -1839,4 +2154,13 @@ def get_all_langgraph_tools():
         github_list_issues_tool,
         github_create_branch_tool,
         github_create_or_update_file_tool,
+        # Advanced AI Tools
+        breakdown_epic_tool,
+        generate_standup_tool,
+        auto_triage_task_tool,
+        search_project_knowledge_tool,
+        # External Integrations
+        send_discord_message_tool,
+        send_teams_message_tool,
+        send_slack_message_tool,
     ]

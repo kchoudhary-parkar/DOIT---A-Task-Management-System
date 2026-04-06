@@ -2450,6 +2450,18 @@ export const profileAPI = {
     requestCache.invalidate('profile:data');
     return data;
   },
+  
+  updateIntegrations: async (integrationData) => {
+    const response = await fetch(`${API_BASE_URL}/api/profile/integrations`, {
+      method: "PUT",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(integrationData),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Failed to update integration settings");
+    requestCache.invalidate('profile:data');
+    return data;
+  },
 };
 
 export { agentAPI };

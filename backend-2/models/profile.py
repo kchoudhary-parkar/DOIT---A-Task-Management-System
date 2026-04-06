@@ -17,7 +17,12 @@ class Profile:
             "personal": {},
             "education": [],
             "certificates": [],
-            "organization": {}
+            "organization": {},
+            "integrations": {
+                "discord_webhook": "",
+                "teams_webhook": "",
+                "slack_webhook": ""
+            }
         }
         result = profiles.insert_one(profile)
         profile["_id"] = str(result.inserted_id)
@@ -62,3 +67,13 @@ class Profile:
             upsert=True
         )
         return True  # Always return True if no exception occurred
+
+    @staticmethod
+    def update_integrations(user_id, integration_data):
+        """Update integration settings (webhooks)"""
+        db.profiles.update_one(
+            {"user_id": user_id},
+            {"$set": {"integrations": integration_data}},
+            upsert=True
+        )
+        return True
