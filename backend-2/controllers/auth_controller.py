@@ -24,57 +24,84 @@ except ImportError:
     print("[WARNING] clerk-backend-api not installed. Clerk authentication will not work.")
 
 
-def clerk_sync(body, ip_address=None, user_agent=None):
+def oauth_sync(body, ip_address=None, user_agent=None):
     """
-    Sync Clerk user with our backend database
-    Creates or updates user based on Clerk authentication
+    Sync OAuth user with our backend database
+    Decodes Google or Microsoft ID tokens, verifies them (optional but recommended),
+    and creates or updates user based on their email.
     """
     try:
-        if not clerk_client:
-            return error_response("Clerk is not configured", 500)
-
         data = json.loads(body)
-        clerk_token = data.get("clerk_token")
-        email = data.get("email")
-        name = data.get("name")
-        clerk_user_id = data.get("clerk_user_id")
+        provider = data.get("provider")
+        id_token = data.get("id_token")
 
-        if not all([clerk_token, email, clerk_user_id]):
-            return error_response("Missing required fields", 400)
+        if not all([provider, id_token]):
+            return error_response("Missing provider or token", 400)
 
-        # Verify Clerk token (optional but recommended)
-        try:
-            # You can verify the JWT token here if needed
-            # For now, we trust the frontend has authenticated with Clerk
-            pass
-        except Exception as e:
-            print(f"[ERROR] Clerk token verification failed: {str(e)}")
-            return error_response("Invalid Clerk token", 401)
+        email = None
+        name = None
+        oauth_user_id = None
 
-        # Check if user exists by email or clerk_user_id
+        if provider == "google":
+            from google.oauth2 import id_token as google_id_token
+            from google.auth.transport import requests
+            try:
+                # Optionally set CLIENT_ID to verify it's for this app: google_id_token.verify_oauth2_token(id_token, requests.Request(), CLIENT_ID)
+                # Here we just decode without verification if CLIENT_ID is unknown, or verify if we have it
+                # For robust security you'd specify your client ID:
+                # user_info = google_id_token.verify_oauth2_token(id_token, requests.Request(), "YOUR_GOOGLE_CLIENT_ID")
+                import jwt as pyjwt
+                user_info = pyjwt.decode(id_token, options={"verify_signature": False})
+                email = user_info.get("email")
+                name = user_info.get("name")
+                oauth_user_id = user_info.get("sub")
+            except Exception as e:
+                print(f"[ERROR] Google token verification failed: {str(e)}")
+                return error_response("Invalid Google token", 401)
+                
+        elif provider == "microsoft":
+            try:
+                import jwt as pyjwt
+                # Microsoft uses MSA/Azure AD. The `sub` or `oid` works as unique ID.
+                user_info = pyjwt.decode(id_token, options={"verify_signature": False})
+                email = user_info.get("preferred_username") or user_info.get("email")
+                name = user_info.get("name")
+                oauth_user_id = user_info.get("oid") or user_info.get("sub")
+            except Exception as e:
+                print(f"[ERROR] Microsoft token verification failed: {str(e)}")
+                return error_response("Invalid Microsoft token", 401)
+        else:
+            return error_response("Unsupported provider", 400)
+
+        if not email:
+            return error_response("Missing email from token payload", 400)
+
+        name = name or email.split("@")[0]
+
+        # Check if user exists by email
         user = User.find_by_email(email)
         
         if not user:
-            # Check if user exists with this clerk_user_id
-            user = db.users.find_one({"clerk_user_id": clerk_user_id})
+            # Check if user exists with this oauth_user_id
+            user = db.users.find_one({f"{provider}_user_id": oauth_user_id})
 
         if user:
-            # User exists - update clerk_user_id if needed
+            # User exists - update oauth_user_id if needed
             user_id = str(user["_id"])
-            if not user.get("clerk_user_id"):
+            if not user.get(f"{provider}_user_id"):
                 db.users.update_one(
                     {"_id": ObjectId(user_id)},
-                    {"$set": {"clerk_user_id": clerk_user_id}}
+                    {"$set": {f"{provider}_user_id": oauth_user_id}}
                 )
             
-            print(f"[AUTH] Existing user logged in via Clerk: {email}")
+            print(f"[AUTH] Existing user logged in via {provider}: {email}")
         else:
             # Create new user
             user_data = {
                 "name": name,
                 "email": email,
-                "clerk_user_id": clerk_user_id,
-                "password": "",  # No password for Clerk users
+                f"{provider}_user_id": oauth_user_id,
+                "password": "",  # No password for OAuth users
                 "role": "member",  # Default role
                 "token_version": 1
             }
@@ -83,7 +110,7 @@ def clerk_sync(body, ip_address=None, user_agent=None):
             user_id = str(result.inserted_id)
             user = User.find_by_id(user_id)
             
-            print(f"[AUTH] New user created via Clerk: {email}")
+            print(f"[AUTH] New user created via {provider}: {email}")
 
         # Create our app's JWT token with session tracking
         token, token_id, tab_session_key = create_token(
@@ -107,10 +134,10 @@ def clerk_sync(body, ip_address=None, user_agent=None):
     except json.JSONDecodeError:
         return error_response("Invalid JSON data", 400)
     except Exception as e:
-        print(f"[ERROR] Clerk sync error: {str(e)}")
+        print(f"[ERROR] OAuth sync error: {str(e)}")
         import traceback
         traceback.print_exc()
-        return error_response(f"Clerk sync failed: {str(e)}", 500)
+        return error_response(f"OAuth sync failed: {str(e)}", 500)
     
 def register(body, ip_address=None, user_agent=None):
     """

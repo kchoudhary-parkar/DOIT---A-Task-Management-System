@@ -33,11 +33,9 @@ class LoginRequest(BaseModel):
     email: EmailStr
     password: str
 
-class ClerkSyncRequest(BaseModel):
-    clerk_token: str
-    email: EmailStr
-    name: str
-    clerk_user_id: str
+class OAuthSyncRequest(BaseModel):
+    provider: str
+    id_token: str
 
 class LogoutRequest(BaseModel):
     token_id: str

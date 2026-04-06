@@ -1748,22 +1748,20 @@ export const authAPI = {
     return data;
   },
 
-  clerkSync: async (clerkToken, email, name, clerkUserId) => {
-    const response = await fetch(`${API_BASE_URL}/api/auth/clerk-sync`, {
+  oauthSync: async (provider, idToken) => {
+    const response = await fetch(`${API_BASE_URL}/api/auth/oauth-sync`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "ngrok-skip-browser-warning": "true",
       },
       body: JSON.stringify({
-        clerk_token: clerkToken,
-        email,
-        name,
-        clerk_user_id: clerkUserId,
+        provider: provider,
+        id_token: idToken,
       }),
     });
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "Clerk sync failed");
+    if (!response.ok) throw new Error(data.error || "OAuth sync failed");
     return data;
   },
 

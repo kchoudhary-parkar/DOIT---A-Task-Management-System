@@ -1,5 +1,7 @@
-import React, { useState } from "react";
-import { SignIn, SignUp } from "@clerk/clerk-react";
+import React, { useState, useContext } from "react";
+import { GoogleLogin } from "@react-oauth/google";
+import { useMsal } from "@azure/msal-react";
+import { AuthContext } from "../../../src/context/AuthContext";
 import PasswordInput from "../../components/Input/PasswordInput";
 import "./LandingAuth.css";
 
@@ -40,6 +42,8 @@ export default function LandingAuth({ login, register }) {
   const [errors, setErrors]                 = useState({});
   const [error, setError]                   = useState("");
   const [success, setSuccess]               = useState("");
+  const { loginWithOAuth }                  = useContext(AuthContext);
+  const { instance }                        = useMsal();
 
   /* reset on mode/tab switch */
   const resetForm = () => {
@@ -89,6 +93,33 @@ export default function LandingAuth({ login, register }) {
     } catch (err) {
       const d = err.response?.data;
       setError(d?.error?.message || d?.error || err.message || "Something went wrong.");
+    }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse) => {
+    try {
+      setError(""); setSuccess("");
+      await loginWithOAuth("google", credentialResponse.credential);
+      setSuccess("Logged in with Google successfully!");
+    } catch (err) {
+      console.error(err);
+      setError(err.message || "Google login failed");
+    }
+  };
+
+  const handleMicrosoftLogin = async () => {
+    try {
+      setError(""); setSuccess("");
+      const loginResponse = await instance.loginPopup({
+        scopes: ["user.read"]
+      });
+      await loginWithOAuth("microsoft", loginResponse.idToken);
+      setSuccess("Logged in with Microsoft successfully!");
+    } catch (err) {
+      console.error(err);
+      if (err.name !== "BrowserAuthError") { // Ignore popup closed error
+        setError(err.message || "Microsoft login failed");
+      }
     }
   };
 
@@ -204,29 +235,64 @@ export default function LandingAuth({ login, register }) {
           </div>
         )}
 
-        {/* ── CLERK ────────────────────────────────────────────── */}
+        {/* ── OAUTH ────────────────────────────────────────────── */}
         {authMode === "clerk" && (
           <div className="auth-panel-enter">
             <div className="auth-right-header">
-              <h2 className="auth-right-title">{isLogin ? "Sign in" : "Create account"}</h2>
+              <h2 className="auth-right-title">Continue with providers</h2>
               <p className="auth-right-sub">
-                {isLogin ? "Welcome back! Sign in to continue." : "Get started with DOIT in seconds."}
+                Access your DOIT workspace securely via Google or Microsoft.
               </p>
             </div>
 
-            {isLogin
-              ? <SignIn routing="hash" signUpUrl="#"
-                  appearance={{ elements: { formButtonPrimary: "auth-submit-btn", card: "clerk-card" } }} />
-              : <SignUp routing="hash" signInUrl="#"
-                  appearance={{ elements: { formButtonPrimary: "auth-submit-btn", card: "clerk-card" } }} />
-            }
-
-            <p className="auth-switch">
-              {isLogin ? "Don't have an account?" : "Already have an account?"}
-              <button className="auth-switch-btn" onClick={() => switchTab(!isLogin)}>
-                {isLogin ? "Sign up" : "Sign in"}
+            <div className="oauth-buttons" style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center', margin: '32px 0' }}>
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={() => setError("Google login failed")}
+                theme="filled_black"
+                shape="rectangular"
+                width="280"
+              />
+              
+              <button 
+                onClick={handleMicrosoftLogin}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '12px',
+                  width: '280px',
+                  height: '40px',
+                  backgroundColor: '#2f2f2f',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                  fontFamily: 'Segoe UI, Roboto, sans-serif',
+                  cursor: 'pointer',
+                  fontWeight: 500
+                }}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="21" height="21" viewBox="0 0 21 21">
+                  <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
+                  <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+                  <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
+                  <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+                </svg>
+                Sign in with Microsoft
               </button>
-            </p>
+            </div>
+            
+            {error && (
+              <div className="auth-alert error" style={{marginBottom: '16px'}}>
+                <ErrorIcon />{error}
+              </div>
+            )}
+            {success && (
+              <div className="auth-alert success" style={{marginBottom: '16px'}}>
+                <OkIcon />{success}
+              </div>
+            )}
           </div>
         )}
 

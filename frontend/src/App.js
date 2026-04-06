@@ -12,7 +12,6 @@ import LandingPage from "./pages/Landing/LandingPage";
 import { FiActivity } from 'react-icons/fi';
 import { BsStars, BsBriefcase } from 'react-icons/bs';  // For AI Assistant and PM icons
 import { AuthContext } from "./context/AuthContext";
-import { SignIn, SignUp, useAuth } from "@clerk/clerk-react";
 import { DashboardPage } from "./pages/Dashboard";
 import { ProjectsPage } from "./pages/Projects";
 import { TasksPage } from "./pages/Tasks";
@@ -299,7 +298,6 @@ function AuthenticatedApp({ user, theme, toggleTheme, logout }) {
 }
 function App() {
   const { user, loading, login, register, logout } = useContext(AuthContext);
-  const { isSignedIn } = useAuth();
   const [authMode, setAuthMode] = useState("choice"); // 'choice', 'clerk', 'traditional'
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");

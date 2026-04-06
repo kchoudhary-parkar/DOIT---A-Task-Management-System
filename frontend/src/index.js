@@ -3,36 +3,34 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
 import { AuthProvider } from './context/AuthContext';
-import { ClerkProvider } from '@clerk/clerk-react';
+import { GoogleOAuthProvider } from "@react-oauth/google";
+import { PublicClientApplication } from "@azure/msal-browser";
+import { MsalProvider } from "@azure/msal-react";
 
-// Get Clerk publishable key from environment
-const CLERK_PUBLISHABLE_KEY = process.env.REACT_APP_CLERK_PUBLISHABLE_KEY;
+const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID || "YOUR_GOOGLE_CLIENT_ID";
+const MICROSOFT_CLIENT_ID = process.env.REACT_APP_MICROSOFT_CLIENT_ID || "YOUR_MICROSOFT_CLIENT_ID";
 
-if (!CLERK_PUBLISHABLE_KEY) {
-  console.warn('Missing Clerk Publishable Key. Social auth will not work.');
-}
+const msalConfig = {
+  auth: {
+    clientId: MICROSOFT_CLIENT_ID,
+    authority: "https://login.microsoftonline.com/common",
+    redirectUri: window.location.origin
+  }
+};
+const msalInstance = new PublicClientApplication(msalConfig);
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 
-// ⚡ Disable StrictMode in production to prevent double rendering and duplicate API calls
-// StrictMode intentionally double-renders components in development to detect side effects
 const isDevelopment = process.env.NODE_ENV === 'development';
 
 const app = (
-  <ClerkProvider 
-    publishableKey={CLERK_PUBLISHABLE_KEY}
-    appearance={{
-      variables: { 
-        colorPrimary: '#6366f1',
-        colorBackground: '#1a1a2e',
-        colorText: '#ffffff'
-      }
-    }}
-  >
-    <AuthProvider>
-      <App />
-    </AuthProvider>
-  </ClerkProvider>
+  <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+    <MsalProvider instance={msalInstance}>
+      <AuthProvider>
+        <App />
+      </AuthProvider>
+    </MsalProvider>
+  </GoogleOAuthProvider>
 );
 
 root.render(

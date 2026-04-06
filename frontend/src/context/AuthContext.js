@@ -196,7 +196,6 @@
 // };
 // frontend/src/context/AuthContext.js
 import { createContext, useState, useEffect, useRef } from "react";
-import { useUser, useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { authAPI, getAuthHeaders } from "../services/api";
 
 export const AuthContext = createContext();
@@ -208,58 +207,35 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const refreshingSession = useRef(false);
 
-  // Clerk hooks
-  const { isSignedIn, user: clerkUser, isLoaded } = useUser();
-  const { getToken, signOut } = useClerkAuth();
-
-  // Sync Clerk user with backend
   useEffect(() => {
-    const syncClerkUser = async () => {
-      if (!isLoaded) return;
+    checkTraditionalAuth();
+  }, []);
 
-      console.log("[AUTH] Clerk loaded:", { isSignedIn, clerkUser: !!clerkUser });
-
-      if (isSignedIn && clerkUser) {
-        try {
-          const clerkToken = await getToken();
-          console.log("[AUTH] Got Clerk token");
-
-          const response = await authAPI.clerkSync(
-            clerkToken,
-            clerkUser.primaryEmailAddress?.emailAddress,
-            clerkUser.fullName || clerkUser.firstName || "User",
-            clerkUser.id
-          );
-
-          console.log("[AUTH] Clerk sync response:", response);
-
-          const { token, user: userData, tab_session_key } = response;
-
-          localStorage.setItem("token", token);
-          localStorage.setItem("user_id", userData.id || userData._id);
-
-          if (tab_session_key) {
-            sessionStorage.setItem("tab_session_key", tab_session_key);
-          }
-
-          setUser(userData);
-          setLoading(false);
-        } catch (error) {
-          console.error("[AUTH] Clerk sync failed:", error);
-          setLoading(false);
-        }
-      } else {
-        checkTraditionalAuth();
+  const loginWithOAuth = async (provider, token) => {
+    try {
+      const response = await authAPI.oauthSync(provider, token);
+      console.log(`[AUTH] ${provider} sync response:`, response);
+      
+      const { token: appToken, user: userData, tab_session_key } = response;
+      localStorage.setItem("token", appToken);
+      localStorage.setItem("user_id", userData.id || userData._id);
+      
+      if (tab_session_key) {
+        sessionStorage.setItem("tab_session_key", tab_session_key);
       }
-    };
-
-    syncClerkUser();
-  }, [isSignedIn, clerkUser, isLoaded, getToken]);
+      
+      setUser(userData);
+      return userData;
+    } catch (error) {
+      console.error(`[AUTH] ${provider} sync failed:`, error);
+      throw error;
+    }
+  };
 
   // Check traditional email/password authentication
   const checkTraditionalAuth = async () => {
     const token = localStorage.getItem("token");
-    console.log("[AUTH] Checking traditional auth, token exists:", !!token);
+    console.log("[AUTH] Checking auth, token exists:", !!token);
 
     if (token) {
       try {
@@ -369,10 +345,6 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = async () => {
-    if (isSignedIn) {
-      await signOut();
-    }
-
     localStorage.removeItem("token");
     localStorage.removeItem("user_id");
     sessionStorage.removeItem("tab_session_key");
@@ -381,7 +353,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, loginWithOAuth }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from typing import Optional
 from schemas import (
-    RegisterRequest, LoginRequest, ClerkSyncRequest,
+    RegisterRequest, LoginRequest, OAuthSyncRequest,
     LogoutRequest, ChangePasswordRequest
 )
 from controllers import auth_controller
@@ -53,15 +53,15 @@ async def login(request: Request, data: LoginRequest):
     response = auth_controller.login(body, ip_address, user_agent)
     return handle_controller_response(response)
 
-@router.post("/clerk-sync")
-async def clerk_sync(request: Request, data: ClerkSyncRequest):
-    """Sync Clerk user with backend"""
+@router.post("/oauth-sync")
+async def oauth_sync(request: Request, data: OAuthSyncRequest):
+    """Sync OAuth user with backend"""
     forwarded_for = request.headers.get("X-Forwarded-For")
     ip_address = forwarded_for.split(",")[0].strip() if forwarded_for else (request.headers.get("X-Real-IP") or (request.client.host if request.client else "unknown"))
     user_agent = request.headers.get("User-Agent", "Unknown")
     
     body = json.dumps(data.model_dump())
-    response = auth_controller.clerk_sync(body, ip_address, user_agent)
+    response = auth_controller.oauth_sync(body, ip_address, user_agent)
     return handle_controller_response(response)
 
 @router.get("/profile")
