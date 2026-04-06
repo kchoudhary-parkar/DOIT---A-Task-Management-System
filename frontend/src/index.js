@@ -14,25 +14,30 @@ const msalConfig = {
   auth: {
     clientId: MICROSOFT_CLIENT_ID,
     authority: "https://login.microsoftonline.com/common",
-    redirectUri: window.location.origin
+    redirectUri: process.env.REACT_APP_MSAL_REDIRECT_URI || window.location.origin
   }
 };
 const msalInstance = new PublicClientApplication(msalConfig);
 
-const root = ReactDOM.createRoot(document.getElementById('root'));
+// Initialize the MSAL instance before rendering
+msalInstance.initialize().then(() => {
+  const root = ReactDOM.createRoot(document.getElementById('root'));
 
-const isDevelopment = process.env.NODE_ENV === 'development';
+  const isDevelopment = process.env.NODE_ENV === 'development';
 
-const app = (
-  <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-    <MsalProvider instance={msalInstance}>
-      <AuthProvider>
-        <App />
-      </AuthProvider>
-    </MsalProvider>
-  </GoogleOAuthProvider>
-);
+  const app = (
+    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+      <MsalProvider instance={msalInstance}>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </MsalProvider>
+    </GoogleOAuthProvider>
+  );
 
-root.render(
-  isDevelopment ? <React.StrictMode>{app}</React.StrictMode> : app
-);
+  root.render(
+    isDevelopment ? <React.StrictMode>{app}</React.StrictMode> : app
+  );
+}).catch(e => {
+  console.error("MSAL Initialization Failed", e);
+});

@@ -1,4 +1,4 @@
-import React, { useState, useContext } from "react";
+import React, { useState, useContext, useEffect } from "react";
 import { GoogleLogin } from "@react-oauth/google";
 import { useMsal } from "@azure/msal-react";
 import { AuthContext } from "../../../src/context/AuthContext";
@@ -44,6 +44,20 @@ export default function LandingAuth({ login, register }) {
   const [success, setSuccess]               = useState("");
   const { loginWithOAuth }                  = useContext(AuthContext);
   const { instance }                        = useMsal();
+
+  // Handle the redirect promise after a Microsoft login redirect
+  useEffect(() => {
+    instance.handleRedirectPromise().then((response) => {
+      if (response && response.idToken) {
+        loginWithOAuth("microsoft", response.idToken)
+          .then(() => setSuccess("Logged in with Microsoft successfully!"))
+          .catch(err => setError(err.message || "Microsoft login failed"));
+      }
+    }).catch(err => {
+      console.error(err);
+      setError(err.message || "Microsoft login failed");
+    });
+  }, [instance, loginWithOAuth]);
 
   /* reset on mode/tab switch */
   const resetForm = () => {
@@ -110,16 +124,13 @@ export default function LandingAuth({ login, register }) {
   const handleMicrosoftLogin = async () => {
     try {
       setError(""); setSuccess("");
-      const loginResponse = await instance.loginPopup({
+      await instance.loginRedirect({
         scopes: ["user.read"]
       });
-      await loginWithOAuth("microsoft", loginResponse.idToken);
-      setSuccess("Logged in with Microsoft successfully!");
+      // The application will navigate away so no further action is needed here
     } catch (err) {
       console.error(err);
-      if (err.name !== "BrowserAuthError") { // Ignore popup closed error
-        setError(err.message || "Microsoft login failed");
-      }
+      setError(err.message || "Microsoft login failed");
     }
   };
 
