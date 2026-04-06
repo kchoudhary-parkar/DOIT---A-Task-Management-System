@@ -197,6 +197,7 @@
 // frontend/src/context/AuthContext.js
 import { createContext, useState, useEffect, useRef } from "react";
 import { authAPI, getAuthHeaders } from "../services/api";
+import { requestCache } from "../utils/requestCache";
 
 export const AuthContext = createContext();
 
@@ -207,12 +208,17 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const refreshingSession = useRef(false);
 
+  const clearAuthCaches = () => {
+    requestCache.clear();
+  };
+
   useEffect(() => {
     checkTraditionalAuth();
   }, []);
 
   const loginWithOAuth = async (provider, token) => {
     try {
+      clearAuthCaches();
       const response = await authAPI.oauthSync(provider, token);
       console.log(`[AUTH] ${provider} sync response:`, response);
       
@@ -325,6 +331,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const login = async (email, password) => {
+    clearAuthCaches();
     const data = await authAPI.login(email, password);
     const { token, user, tab_session_key } = data;
 
@@ -345,6 +352,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = async () => {
+    clearAuthCaches();
     localStorage.removeItem("token");
     localStorage.removeItem("user_id");
     sessionStorage.removeItem("tab_session_key");
