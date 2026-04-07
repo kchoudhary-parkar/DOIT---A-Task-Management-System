@@ -1677,11 +1677,30 @@ GITHUB_API_BASE = "https://api.github.com"
 
 
 def _github_headers() -> dict:
-    token = os.environ.get("GITHUB_TOKEN")
+    token = None
+    ctx = get_tool_context()
+    user_id = ctx.get("user_id")
+
+    if user_id:
+        try:
+            from models.profile import Profile
+            from utils.github_utils import decrypt_token
+
+            profile = Profile.find_by_user(user_id)
+            integrations = (profile or {}).get("integrations", {})
+            token_encrypted = integrations.get("github_token_encrypted")
+            if token_encrypted:
+                token = decrypt_token(token_encrypted)
+        except Exception as exc:
+            logger.warning("GitHub profile token read failed for user %s: %s", user_id, exc)
+
+    if not token:
+        token = os.environ.get("GITHUB_TOKEN")
+
     if not token:
         raise RuntimeError(
-            "GITHUB_TOKEN not set. Create a Personal Access Token at "
-            "github.com → Settings → Developer settings → Personal access tokens."
+            "GitHub token not configured. Add it in Profile -> Integrations, "
+            "or configure GITHUB_TOKEN in environment."
         )
     return {
         "Authorization": f"Bearer {token}",
@@ -1812,6 +1831,186 @@ def github_create_or_update_file_tool(
     except Exception as e:
         logger.error(f"github_create_or_update_file_tool error: {e}")
         return f"❌ Failed to create/update file: {str(e)}"
+
+
+@tool
+def github_list_branches_tool(repo: str, limit: int = 20) -> str:
+    """
+    List branches in a GitHub repository.
+
+    Args:
+        repo: Repository in 'owner/repo' format.
+        limit: Maximum number of branches to return (default: 20).
+    """
+    try:
+        safe_limit = max(1, min(limit, 100))
+        url = f"{GITHUB_API_BASE}/repos/{repo}/branches"
+        resp = httpx.get(url, headers=_github_headers(), params={"per_page": safe_limit})
+        resp.raise_for_status()
+        branches = resp.json()
+
+        if not branches:
+            return f"No branches found in {repo}."
+
+        lines = [f"🌿 Branches in {repo} ({len(branches)}):"]
+        for branch in branches:
+            name = branch.get("name", "unknown")
+            sha = ((branch.get("commit") or {}).get("sha") or "")[:7]
+            lines.append(f"- {name} (tip: {sha})")
+        return "\n".join(lines)
+    except httpx.HTTPStatusError as e:
+        return f"❌ GitHub API error {e.response.status_code}: {e.response.text}"
+    except Exception as e:
+        logger.error(f"github_list_branches_tool error: {e}")
+        return f"❌ Failed to list branches: {str(e)}"
+
+
+@tool
+def github_list_pull_requests_tool(repo: str, state: str = "open", limit: int = 20) -> str:
+    """
+    List pull requests in a GitHub repository.
+
+    Args:
+        repo: Repository in 'owner/repo' format.
+        state: Pull request state: 'open', 'closed', or 'all'.
+        limit: Maximum number of pull requests to return (default: 20).
+    """
+    try:
+        safe_limit = max(1, min(limit, 100))
+        pr_state = state if state in {"open", "closed", "all"} else "open"
+        url = f"{GITHUB_API_BASE}/repos/{repo}/pulls"
+        resp = httpx.get(
+            url,
+            headers=_github_headers(),
+            params={"state": pr_state, "per_page": safe_limit, "sort": "updated", "direction": "desc"},
+        )
+        resp.raise_for_status()
+        prs = resp.json()
+
+        if not prs:
+            return f"No {pr_state} pull requests found in {repo}."
+
+        lines = [f"🔀 {pr_state.title()} PRs in {repo} ({len(prs)}):"]
+        for pr in prs:
+            number = pr.get("number")
+            title = pr.get("title", "Untitled")
+            author = (pr.get("user") or {}).get("login", "unknown")
+            head = ((pr.get("head") or {}).get("ref") or "-")
+            base = ((pr.get("base") or {}).get("ref") or "-")
+            lines.append(f"- #{number} {title} | {author} | {head} -> {base}")
+        return "\n".join(lines)
+    except httpx.HTTPStatusError as e:
+        return f"❌ GitHub API error {e.response.status_code}: {e.response.text}"
+    except Exception as e:
+        logger.error(f"github_list_pull_requests_tool error: {e}")
+        return f"❌ Failed to list pull requests: {str(e)}"
+
+
+@tool
+def github_latest_commits_tool(repo: str, branch: Optional[str] = None, limit: int = 5) -> str:
+    """
+    Get latest commits from a repository (optionally a specific branch).
+
+    Args:
+        repo: Repository in 'owner/repo' format.
+        branch: Optional branch name.
+        limit: Number of commits to return (default: 5).
+    """
+    try:
+        safe_limit = max(1, min(limit, 20))
+        url = f"{GITHUB_API_BASE}/repos/{repo}/commits"
+        params = {"per_page": safe_limit}
+        if branch:
+            params["sha"] = branch
+
+        resp = httpx.get(url, headers=_github_headers(), params=params)
+        resp.raise_for_status()
+        commits = resp.json()
+
+        if not commits:
+            target = f"branch '{branch}'" if branch else "default branch"
+            return f"No commits found for {target} in {repo}."
+
+        target = f"branch '{branch}'" if branch else "default branch"
+        lines = [f"🧾 Latest commits in {repo} ({target}):"]
+        for commit in commits:
+            sha = (commit.get("sha") or "")[:7]
+            data = commit.get("commit") or {}
+            message = (data.get("message") or "").split("\n", 1)[0]
+            author = (data.get("author") or {}).get("name", "unknown")
+            lines.append(f"- {sha} {message} ({author})")
+        return "\n".join(lines)
+    except httpx.HTTPStatusError as e:
+        return f"❌ GitHub API error {e.response.status_code}: {e.response.text}"
+    except Exception as e:
+        logger.error(f"github_latest_commits_tool error: {e}")
+        return f"❌ Failed to fetch latest commits: {str(e)}"
+
+
+@tool
+def github_latest_changes_tool(repo: str, branch: Optional[str] = None) -> str:
+    """
+    Summarize file-level changes from the latest commit.
+
+    Args:
+        repo: Repository in 'owner/repo' format.
+        branch: Optional branch name.
+    """
+    try:
+        params = {"per_page": 1}
+        if branch:
+            params["sha"] = branch
+
+        latest_resp = httpx.get(
+            f"{GITHUB_API_BASE}/repos/{repo}/commits",
+            headers=_github_headers(),
+            params=params,
+        )
+        latest_resp.raise_for_status()
+        commits = latest_resp.json()
+
+        if not commits:
+            return f"No commits found in {repo}."
+
+        latest = commits[0]
+        sha = latest.get("sha")
+        detail_resp = httpx.get(
+            f"{GITHUB_API_BASE}/repos/{repo}/commits/{sha}",
+            headers=_github_headers(),
+        )
+        detail_resp.raise_for_status()
+        detail = detail_resp.json()
+
+        commit_data = detail.get("commit") or {}
+        headline = (commit_data.get("message") or "").split("\n", 1)[0]
+        author = (commit_data.get("author") or {}).get("name", "unknown")
+        files = detail.get("files") or []
+        stats = detail.get("stats") or {}
+
+        lines = [
+            f"🧠 Latest changes in {repo}",
+            f"- Commit: {(sha or '')[:7]}",
+            f"- Message: {headline}",
+            f"- Author: {author}",
+            f"- Files changed: {stats.get('total', len(files))}",
+            f"- Additions: {stats.get('additions', 0)} | Deletions: {stats.get('deletions', 0)}",
+        ]
+
+        if files:
+            lines.append("- Touched files:")
+            for file_info in files[:12]:
+                filename = file_info.get("filename", "unknown")
+                status = file_info.get("status", "modified")
+                additions = file_info.get("additions", 0)
+                deletions = file_info.get("deletions", 0)
+                lines.append(f"  • {filename} [{status}] (+{additions} / -{deletions})")
+
+        return "\n".join(lines)
+    except httpx.HTTPStatusError as e:
+        return f"❌ GitHub API error {e.response.status_code}: {e.response.text}"
+    except Exception as e:
+        logger.error(f"github_latest_changes_tool error: {e}")
+        return f"❌ Failed to fetch latest changes: {str(e)}"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -2152,6 +2351,10 @@ def get_all_langgraph_tools():
         generate_pdf_report_tool,
         # GitHub (Via Smithery)
         github_list_issues_tool,
+        github_list_branches_tool,
+        github_list_pull_requests_tool,
+        github_latest_commits_tool,
+        github_latest_changes_tool,
         github_create_branch_tool,
         github_create_or_update_file_tool,
         # Advanced AI Tools

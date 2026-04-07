@@ -86,6 +86,9 @@ You have access to advanced tools for:
 
 **GitHub & Source Control (via Smithery):**
 - List issues in any repository to track bugs or feature requests
+- List branches in repositories
+- List open/closed pull requests
+- Fetch latest commits and summarize latest file-level changes
 - Create new branches for development
 - Create or update files directly in GitHub repositories
 - Perform basic repository operations and automation

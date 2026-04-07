@@ -138,6 +138,7 @@ class IntegrationsUpdate(BaseModel):
     discord_webhook: Optional[str] = ""
     teams_webhook: Optional[str] = ""
     slack_webhook: Optional[str] = ""
+    github_token: Optional[str] = ""
 
 # ============= USER SCHEMAS =============
 class UpdateUserRoleRequest(BaseModel):

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import "./ProfileSections.css";
-import { Pencil, Save, BellRing, CheckCircle2, Circle } from 'lucide-react';
+import { Pencil, Save, BellRing, CheckCircle2, Circle, Github } from 'lucide-react';
 
 /* ─── Brand SVG Logos ────────────────────────────────────────────── */
 
@@ -99,6 +99,12 @@ const SlackLogo = () => (
   </svg>
 );
 
+const GitHubLogo = () => (
+  <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+    <Github size={24} color="#181717" strokeWidth={2.2} />
+  </div>
+);
+
 /* ─── Integration Card ───────────────────────────────────────────── */
 
 const PLATFORMS = [
@@ -129,6 +135,17 @@ const PLATFORMS = [
     placeholder: "https://hooks.slack.com/services/...",
     hint: "Post updates and task summaries to your Slack channel.",
   },
+  {
+    key: "github_token",
+    name: "GitHub",
+    Logo: GitHubLogo,
+    accentColor: "#181717",
+    glowColor: "rgba(24,23,23,0.12)",
+    fieldLabel: "Access Token",
+    inputType: "password",
+    placeholder: "github_pat_xxxxxxxxxxxxxxxxx",
+    hint: "Used by LangGraph AI to read commits, pull requests, branches, and latest changes.",
+  },
 ];
 
 /* ─── Main Component ─────────────────────────────────────────────── */
@@ -139,7 +156,9 @@ const Integrations = ({ data, onUpdate }) => {
     discord_webhook: "",
     teams_webhook: "",
     slack_webhook: "",
+    github_token: "",
   });
+  const [githubConfigured, setGithubConfigured] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: "", text: "" });
 
@@ -149,7 +168,9 @@ const Integrations = ({ data, onUpdate }) => {
         discord_webhook: data.discord_webhook || "",
         teams_webhook: data.teams_webhook || "",
         slack_webhook: data.slack_webhook || "",
+        github_token: "",
       });
+      setGithubConfigured(!!data.github_token_configured);
     }
   }, [data]);
 
@@ -179,7 +200,9 @@ const Integrations = ({ data, onUpdate }) => {
       discord_webhook: data?.discord_webhook || "",
       teams_webhook: data?.teams_webhook || "",
       slack_webhook: data?.slack_webhook || "",
+      github_token: "",
     });
+    setGithubConfigured(!!data?.github_token_configured);
   };
 
   return (
@@ -210,8 +233,8 @@ const Integrations = ({ data, onUpdate }) => {
       {/* ── Form ── */}
       <form onSubmit={handleSubmit} className="profile-form">
         <div className="integrations-cards-grid">
-          {PLATFORMS.map(({ key, name, Logo, accentColor, glowColor, placeholder, hint }) => {
-            const isConnected = !!formData[key];
+          {PLATFORMS.map(({ key, name, Logo, accentColor, glowColor, placeholder, hint, fieldLabel, inputType }) => {
+            const isConnected = key === "github_token" ? githubConfigured : !!formData[key];
             return (
               <div
                 key={key}
@@ -248,11 +271,11 @@ const Integrations = ({ data, onUpdate }) => {
                 {/* Webhook URL field */}
                 <div className="integration-field">
                   <label htmlFor={key} className="integration-label">
-                    Webhook URL
+                    {fieldLabel || "Webhook URL"}
                   </label>
                   <input
                     id={key}
-                    type="text"
+                    type={inputType || "text"}
                     name={key}
                     value={formData[key]}
                     onChange={handleChange}
@@ -260,7 +283,7 @@ const Integrations = ({ data, onUpdate }) => {
                     className="integration-input"
                     placeholder={placeholder}
                     style={isEditing ? { "--focus-color": accentColor } : {}}
-                    aria-label={`${name} Webhook URL`}
+                    aria-label={`${name} ${fieldLabel || "Webhook URL"}`}
                   />
                   <p className="field-hint">{hint}</p>
                 </div>
@@ -278,7 +301,8 @@ const Integrations = ({ data, onUpdate }) => {
                 <h4>How it works</h4>
                 <p>
                   Once you provide a webhook URL, the AI Assistant can send personal messages,
-                  reports, and task alerts to your private channel when you ask it to.
+                  reports, and task alerts to your private channel when you ask it to. You can also
+                  connect GitHub with a token for repository intelligence commands.
                 </p>
               </div>
             </div>

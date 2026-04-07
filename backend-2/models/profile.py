@@ -1,5 +1,6 @@
 from database import db
 from bson import ObjectId
+from utils.github_utils import encrypt_token
 
 profiles = db.profiles
 
@@ -21,7 +22,8 @@ class Profile:
             "integrations": {
                 "discord_webhook": "",
                 "teams_webhook": "",
-                "slack_webhook": ""
+                "slack_webhook": "",
+                "github_token_encrypted": ""
             }
         }
         result = profiles.insert_one(profile)
@@ -70,10 +72,29 @@ class Profile:
 
     @staticmethod
     def update_integrations(user_id, integration_data):
-        """Update integration settings (webhooks)"""
+        """Update integration settings (webhooks + GitHub token)."""
+        existing_profile = profiles.find_one({"user_id": user_id}) or {}
+        existing_integrations = existing_profile.get("integrations", {}) or {}
+
+        merged_integrations = dict(existing_integrations)
+
+        # Allow direct updates/clears for webhook-style fields.
+        for key in ["discord_webhook", "teams_webhook", "slack_webhook"]:
+            if key in integration_data:
+                merged_integrations[key] = (integration_data.get(key) or "").strip()
+
+        # Never store plaintext GitHub token.
+        incoming_github_token = (integration_data.get("github_token") or "").strip()
+        if incoming_github_token:
+            merged_integrations["github_token_encrypted"] = encrypt_token(incoming_github_token)
+        elif "github_token_encrypted" not in merged_integrations:
+            merged_integrations["github_token_encrypted"] = ""
+
+        merged_integrations.pop("github_token", None)
+
         db.profiles.update_one(
             {"user_id": user_id},
-            {"$set": {"integrations": integration_data}},
-            upsert=True
+            {"$set": {"integrations": merged_integrations}},
+            upsert=True,
         )
         return True

@@ -2,6 +2,16 @@ import json
 from models.profile import Profile
 from utils.response import success_response, error_response
 
+
+def _sanitize_integrations(integrations):
+    data = integrations or {}
+    return {
+        "discord_webhook": data.get("discord_webhook", ""),
+        "teams_webhook": data.get("teams_webhook", ""),
+        "slack_webhook": data.get("slack_webhook", ""),
+        "github_token_configured": bool(data.get("github_token_encrypted")),
+    }
+
 def get_profile(user_id):
     """Get user profile"""
     if not user_id:
@@ -16,6 +26,8 @@ def get_profile(user_id):
     # Convert ObjectId to string
     if "_id" in profile:
         profile["_id"] = str(profile["_id"])
+
+    profile["integrations"] = _sanitize_integrations(profile.get("integrations"))
     
     return success_response({"profile": profile})
 
@@ -153,7 +165,7 @@ def update_integrations(body_str, user_id):
         
         return success_response({
             "message": "Integration settings updated successfully",
-            "integrations": profile.get("integrations", {}) if profile else {}
+            "integrations": _sanitize_integrations(profile.get("integrations", {}) if profile else {})
         })
     else:
         return error_response("Failed to update integration settings", 500)
