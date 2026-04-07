@@ -22,12 +22,6 @@ const getTabSessionKey = () => {
   const sessionKey = sessionStorage.getItem("tab_session_key");
   if (sessionKey) return sessionKey;
 
-  const persistedKey = localStorage.getItem("tab_session_key");
-  if (persistedKey) {
-    sessionStorage.setItem("tab_session_key", persistedKey);
-    return persistedKey;
-  }
-
   return '';
 };
 

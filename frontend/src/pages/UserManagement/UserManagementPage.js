@@ -2,6 +2,7 @@ import React, { useContext, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../../context/AuthContext";
 import { userAPI } from "../../services/api";
+import { FiUsers, FiSearch, FiUserCheck, FiShield } from "react-icons/fi";
 import "../Dashboard/DashboardPage.css";
 import "./UserManagementPage.css";
 import Loader from "../../components/Loader/Loader";
@@ -97,6 +98,7 @@ const UserManagementPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [users, setUsers] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const [roleChangeUser, setRoleChangeUser] = useState(null);
   const [roleChangeInProgress, setRoleChangeInProgress] = useState(false);
@@ -166,12 +168,33 @@ const UserManagementPage = () => {
   const tableRows = useMemo(() => {
     return users.map((item) => {
       const teamLabel = (item.projects || []).length > 0 ? item.projects.join(", ") : "-";
+      const initials = (item.name || "U")
+        .split(" ")
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((w) => w[0]?.toUpperCase())
+        .join("");
       return {
         ...item,
         teamLabel,
+        initials: initials || "U",
       };
     });
   }, [users]);
+
+  const filteredRows = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return tableRows;
+
+    return tableRows.filter((entry) => {
+      return (
+        (entry.name || "").toLowerCase().includes(q) ||
+        (entry.email || "").toLowerCase().includes(q) ||
+        (entry.teamLabel || "").toLowerCase().includes(q) ||
+        (entry.role || "").toLowerCase().includes(q)
+      );
+    });
+  }, [tableRows, searchTerm]);
 
   const roleActionLabel = roleChangeUser
     ? roleChangeUser.role === "admin"
@@ -194,20 +217,41 @@ const UserManagementPage = () => {
   return (
     <div className="dashboard-page">
       <div className="dashboard-container user-management-page">
-        <div className="dashboard-header">
-          <div className="header-content">
-            <h1>User Management</h1>
-            <p className="dashboard-subtitle">Manage all users across projects and teams</p>
+        <div className="um-hero-card">
+          <div className="um-hero-left">
+            <div className="um-hero-icon"><FiUsers size={20} /></div>
+            <div>
+              <h1 className="um-hero-title">User Management</h1>
+              <p className="um-hero-subtitle">Manage all users across projects and teams</p>
+            </div>
+          </div>
+          <div className="um-hero-count">
+            <div className="um-hero-count-value">{filteredRows.length}</div>
+            <div className="um-hero-count-label">Active</div>
           </div>
         </div>
 
         {error && <div className="error-message">{error}</div>}
 
+        <div className="um-toolbar">
+          <div className="um-search-wrap">
+            <FiSearch size={16} className="um-search-icon" />
+            <input
+              className="um-search-input"
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search by name, email, role, or project..."
+            />
+          </div>
+          <div className="um-summary">{filteredRows.length} Employees</div>
+        </div>
+
         <div className="users-table-container">
           <table className="users-table">
             <thead>
               <tr>
-                <th>Name</th>
+                <th>Employee</th>
                 <th>Email</th>
                 <th>Project/Team</th>
                 <th>Role</th>
@@ -215,7 +259,7 @@ const UserManagementPage = () => {
               </tr>
             </thead>
             <tbody>
-              {tableRows.map((entry) => {
+              {filteredRows.map((entry) => {
                 const canChangeRole = entry.role === "member" || entry.role === "admin";
                 const roleActionLabel = entry.role === "admin" ? "Demote to Member" : "Promote to Admin";
                 const showRoleAction = canChangeRole;
@@ -223,7 +267,15 @@ const UserManagementPage = () => {
 
                 return (
                   <tr key={entry.id}>
-                    <td>{entry.name}</td>
+                    <td>
+                      <div className="um-employee-cell">
+                        <div className="um-avatar">{entry.initials}</div>
+                        <div className="um-employee-meta">
+                          <div className="um-employee-name">{entry.name}</div>
+                          <div className="um-employee-email-mobile">{entry.email}</div>
+                        </div>
+                      </div>
+                    </td>
                     <td>{entry.email}</td>
                     <td title={entry.teamLabel}>{entry.teamLabel}</td>
                     <td>
@@ -240,10 +292,11 @@ const UserManagementPage = () => {
                             className={entry.role === "admin" ? "btn-demote" : "btn-promote"}
                             onClick={() => handleRoleAction(entry)}
                           >
+                            <FiUserCheck size={14} />
                             {roleActionLabel}
                           </button>
                         ) : (
-                          <span className="text-muted">No role action</span>
+                          <span className="text-muted"><FiShield size={12} /> No role action</span>
                         )}
 
                         <button

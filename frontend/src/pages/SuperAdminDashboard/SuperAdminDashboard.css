@@ -14,8 +14,55 @@
   margin-bottom: 24px;
 }
 
+.super-admin-dashboard-page .superadmin-stats-grid {
+  margin: 0 -12px 24px;
+}
+
+.super-admin-dashboard-page .superadmin-stat-col {
+  width: 25%;
+}
+
 .super-admin-dashboard-page .superadmin-stats-row .project-stat-card {
   min-width: 0;
+}
+
+.super-admin-dashboard-page {
+  font-family: 'DM Sans', system-ui, sans-serif;
+}
+
+.super-admin-dashboard-page .header-content h1 {
+  font-family: 'Clash Display', sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.super-admin-dashboard-page .pstat-value {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 42px;
+  letter-spacing: -0.02em;
+}
+
+.super-admin-dashboard-page .pstat-label,
+.super-admin-dashboard-page .dashboard-subtitle,
+.super-admin-dashboard-page .card-content p,
+.super-admin-dashboard-page .info-content p {
+  font-family: 'DM Sans', system-ui, sans-serif;
+}
+
+.super-admin-dashboard-page .pstat-label {
+  color: var(--dash-text-secondary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.super-admin-dashboard-page .superadmin-stat-card {
+  min-height: 170px;
+}
+
+.super-admin-dashboard-page .superadmin-stat-card .pstat-icon {
+  width: 44px;
+  height: 44px;
 }
 
 /* Management Section */
@@ -28,8 +75,10 @@
 }
 
 .management-section .section-header h2 {
+  font-family: 'Clash Display', sans-serif;
   font-size: 20px;
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: -0.02em;
   color: var(--dash-text-primary);
   margin: 0;
 }
@@ -37,16 +86,16 @@
 .management-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-  gap: 24px;
+  gap: 20px;
 }
 
 .management-card {
   background: var(--dash-bg-card);
   border-radius: 14px;
-  padding: 28px;
+  padding: 24px;
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 16px;
   border: 1px solid var(--dash-border-primary);
   box-shadow: var(--dash-shadow-sm);
   cursor: pointer;
@@ -60,9 +109,9 @@
   position: absolute;
   top: 0;
   left: 0;
-  width: 4px;
-  height: 100%;
-  background: linear-gradient(180deg, var(--dash-primary), transparent);
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--dash-accent-start), var(--dash-accent-end));
   opacity: 0;
   transition: opacity 0.3s;
 }
@@ -78,23 +127,23 @@
 }
 
 .management-card.user-management {
-  border-color: rgba(139, 92, 246, 0.3);
+  border-color: var(--dash-border-primary);
 }
 
 .management-card.system-info {
-  border-color: rgba(6, 182, 212, 0.3);
+  border-color: var(--dash-border-primary);
 }
 
 .card-icon {
-  width: 56px;
-  height: 56px;
-  border-radius: 12px;
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 28px;
+  color: var(--dash-primary);
   flex-shrink: 0;
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.05));
+  background: rgba(79, 142, 247, 0.12);
   transition: transform 0.3s;
 }
 
@@ -107,15 +156,17 @@
 }
 
 .card-content h3 {
+  font-family: 'Clash Display', sans-serif;
   font-size: 18px;
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   color: var(--dash-text-primary);
   margin: 0 0 8px;
 }
 
 .card-content p {
   font-size: 14px;
-  color: var(--dash-text-tertiary);
+  color: var(--dash-text-secondary);
   margin: 0;
   line-height: 1.5;
 }
@@ -130,37 +181,38 @@
   display: inline-flex;
   padding: 4px 12px;
   border-radius: 20px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
-  background: rgba(99, 102, 241, 0.1);
-  color: var(--dash-primary);
-  border: 1px solid rgba(99, 102, 241, 0.2);
+  background: rgba(79, 142, 247, 0.1);
+  color: var(--dash-accent-start);
+  border: 1px solid rgba(79, 142, 247, 0.2);
 }
 
 .card-arrow {
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--dash-primary);
-  color: white;
-  font-size: 20px;
-  font-weight: bold;
+  background: rgba(79, 142, 247, 0.18);
+  border: 1px solid rgba(79, 142, 247, 0.25);
+  color: var(--dash-accent-start);
+  font-size: 16px;
+  font-weight: 700;
   transition: all 0.3s;
-  opacity: 0.7;
+  opacity: 1;
   flex-shrink: 0;
 }
 
 .management-card:hover .card-arrow {
-  opacity: 1;
+  background: rgba(79, 142, 247, 0.28);
   transform: translateX(4px);
 }
 
 /* Info Section */
 .info-section {
-  margin-top: 40px;
+  margin-top: 32px;
 }
 
 .info-card {
@@ -175,19 +227,20 @@
 }
 
 .info-icon {
-  font-size: 32px;
+  color: var(--dash-info);
   flex-shrink: 0;
 }
 
 .info-content h4 {
+  font-family: 'Clash Display', sans-serif;
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--dash-text-primary);
   margin: 0 0 8px;
 }
 
 .info-content p {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--dash-text-secondary);
   margin: 0;
   line-height: 1.6;
@@ -203,8 +256,8 @@
     grid-template-columns: 1fr;
   }
 
-  .super-admin-dashboard-page .superadmin-stats-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .super-admin-dashboard-page .superadmin-stat-col {
+    width: 50%;
   }
 
   .management-card {
@@ -213,7 +266,7 @@
 }
 
 @media (max-width: 520px) {
-  .super-admin-dashboard-page .superadmin-stats-row {
-    grid-template-columns: 1fr;
+  .super-admin-dashboard-page .superadmin-stat-col {
+    width: 100%;
   }
 }
