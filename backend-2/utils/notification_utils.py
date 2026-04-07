@@ -68,3 +68,23 @@ def send_slack_notification(webhook_url: str, text: str):
     except Exception as e:
         logger.error(f"Error sending Slack notification: {e}")
         return f"❌ Failed to reach Slack: {str(e)}"
+
+def send_whatsapp_notification(instance_id: str, token: str, to: str, message: str):
+    """Send a WhatsApp message via UltraMsg API."""
+    if not all([instance_id, token, to, message]):
+        return "❌ Missing required WhatsApp credentials."
+
+    url = f"https://api.ultramsg.com/{instance_id}/messages/chat"
+    payload = f"token={token}&to={to}&body={message}"
+    
+    # UltraMsg specific encoding as suggested in their documentation
+    payload = payload.encode('utf8').decode('iso-8859-1')
+    headers = {'content-type': 'application/x-www-form-urlencoded'}
+
+    try:
+        response = requests.post(url, data=payload, headers=headers)
+        response.raise_for_status()
+        return "✅ WhatsApp notification sent successfully!"
+    except Exception as e:
+        logger.error(f"Error sending WhatsApp notification: {e}")
+        return f"❌ Failed to reach WhatsApp: {str(e)}"

@@ -23,7 +23,10 @@ class Profile:
                 "discord_webhook": "",
                 "teams_webhook": "",
                 "slack_webhook": "",
-                "github_token_encrypted": ""
+                "github_token_encrypted": "",
+                "whatsapp_instance_id": "",
+                "whatsapp_token": "",
+                "whatsapp_number": ""
             }
         }
         result = profiles.insert_one(profile)

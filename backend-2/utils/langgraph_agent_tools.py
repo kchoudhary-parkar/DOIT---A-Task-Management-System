@@ -24,6 +24,8 @@ from utils.notification_utils import (
     send_discord_notification,
     send_teams_notification,
     send_slack_notification,
+    send_whatsapp_notification,
+
 )
 
 logger = logging.getLogger(__name__)
@@ -190,6 +192,39 @@ def send_email_tool(
 # Requires: pip install reportlab
 # Saves PDF to /tmp/ so send_email_tool can attach it via attachment_paths
 # ═══════════════════════════════════════════════════════════════════════════════
+@tool
+def send_whatsapp_message_tool(
+    text: str,
+    phone_number: Optional[str] = None,
+) -> str:
+    """
+    Send a WhatsApp message via the Shared Global UltraMsg Account.
+
+    Args:
+        text: The message content to send.
+        phone_number: Optional recipient phone number (with country code, e.g., +91...).
+                      Defaults to the number in your Profile.
+    """
+    ctx = get_tool_context()
+    user_id = ctx.get("user_id")
+
+    # Fetch global credentials from environment
+    instance_id = os.environ.get("WHATSAPP_INSTANCE_ID")
+    token = os.environ.get("WHATSAPP_TOKEN")
+
+    # Fetch recipient number from profile if not provided
+    if user_id and not phone_number:
+        from models.profile import Profile
+        profile = Profile.find_by_user(user_id)
+        if profile:
+            integrations = profile.get("integrations", {})
+            phone_number = integrations.get("whatsapp_number")
+
+    if not all([instance_id, token, phone_number]):
+        return "❌ WhatsApp setup incomplete. Please ensure the System Administrator has configured WHATSAPP_INSTANCE_ID and WHATSAPP_TOKEN, and that you have added your Phone Number in Profile -> Integrations."
+
+    return send_whatsapp_notification(instance_id, token, phone_number, text)
+
 
 
 @tool
@@ -2366,4 +2401,5 @@ def get_all_langgraph_tools():
         send_discord_message_tool,
         send_teams_message_tool,
         send_slack_message_tool,
+        send_whatsapp_message_tool,
     ]

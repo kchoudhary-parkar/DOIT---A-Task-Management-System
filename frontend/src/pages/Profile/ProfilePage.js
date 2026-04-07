@@ -143,8 +143,9 @@ const ProfilePage = () => {
 
   const handleUpdateIntegrations = async (data) => {
     try {
-      const updated = await profileAPI.updateIntegrations(data);
-      setProfileData(prev => ({ ...prev, integrations: updated.integrations }));
+      await profileAPI.updateIntegrations(data);
+      // Refetch full profile to ensure all state is perfectly synced with the DB
+      await fetchProfileData({ forceRefresh: true });
     } catch (err) {
       throw err;
     }

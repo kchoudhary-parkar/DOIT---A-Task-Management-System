@@ -703,6 +703,25 @@ select.form-input {
    INTEGRATIONS — PLATFORM CARDS
    ======================================== */
 
+.multi-field-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.field-subset {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field-subset .integration-label {
+  font-size: 10px;
+  opacity: 0.8;
+  margin-bottom: 2px;
+}
+
 /* Three-column responsive grid */
 .integrations-cards-grid {
   display: grid;
