@@ -1063,7 +1063,7 @@ const AIAssistantPage = () => {
             )}
             {isLangGraph && (
               <div className="ai-status-badge langgraph-readonly" title="GitHub write automation is disabled in LangGraph mode.">
-                Automation disabled: Agent cannot create commits, branches, merge PRs, or perform other write actions.
+                Automation disabled: Agent cannot create commits, branches, merge PRs, or perform other write actions related to Github repository.
               </div>
             )}
             {isMcp && mcpHealth && (
