@@ -402,9 +402,9 @@
 }
 
 .ai-status-badge.langgraph-readonly {
-  background: rgba(180, 83, 9, 0.12);
-  color: #b45309;
-  border: 1px solid rgba(180, 83, 9, 0.22);
+  background: rgba(124, 58, 237, 0.10);
+  color: #6d28d9;
+  border: 1px solid rgba(124, 58, 237, 0.24);
   max-width: 520px;
 }
 
