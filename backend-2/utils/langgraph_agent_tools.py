@@ -9,6 +9,7 @@ import os
 import base64
 import mimetypes
 import json
+import re
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
@@ -1711,23 +1712,84 @@ import httpx
 GITHUB_API_BASE = "https://api.github.com"
 
 
-def _github_headers() -> dict:
+def _normalize_repo_slug(repo: str) -> Optional[str]:
+    if not repo:
+        return None
+    cleaned = repo.strip().rstrip("/")
+    if cleaned.endswith(".git"):
+        cleaned = cleaned[:-4]
+    if cleaned.startswith("http://") or cleaned.startswith("https://"):
+        match = re.search(r"github\.com[/:]([^/]+)/([^/]+?)(?:\.git)?$", cleaned)
+        if not match:
+            return None
+        return f"{match.group(1)}/{match.group(2)}"
+    if "/" not in cleaned:
+        return None
+    owner, repo_name = cleaned.split("/", 1)
+    if not owner or not repo_name:
+        return None
+    return f"{owner}/{repo_name}"
+
+
+def _token_from_profile(user_id: Optional[str]) -> Optional[str]:
+    if not user_id:
+        return None
+    try:
+        from models.profile import Profile
+        from utils.github_utils import decrypt_token
+
+        profile = Profile.find_by_user(user_id)
+        integrations = (profile or {}).get("integrations", {})
+        encrypted = integrations.get("github_token_encrypted")
+        if encrypted:
+            return decrypt_token(encrypted)
+    except Exception as exc:
+        logger.warning("GitHub profile token read failed for user %s: %s", user_id, exc)
+    return None
+
+
+def _owner_token_for_repo(user_id: Optional[str], repo: Optional[str]) -> Optional[str]:
+    repo_slug = _normalize_repo_slug(repo or "")
+    if not user_id or not repo_slug:
+        return None
+
+    try:
+        owned_or_member_projects = list(
+            db.projects.find(
+                {
+                    "$or": [
+                        {"user_id": user_id},
+                        {"members.user_id": user_id},
+                    ]
+                },
+                {"user_id": 1, "git_repo_url": 1},
+            )
+        )
+    except Exception as exc:
+        logger.warning("Failed to lookup projects for GitHub token routing: %s", exc)
+        return None
+
+    for project in owned_or_member_projects:
+        project_repo = _normalize_repo_slug(project.get("git_repo_url") or "")
+        if project_repo and project_repo.lower() == repo_slug.lower():
+            owner_id = project.get("user_id")
+            return _token_from_profile(owner_id)
+
+    return None
+
+
+def _github_headers(repo: Optional[str] = None) -> dict:
     token = None
     ctx = get_tool_context()
     user_id = ctx.get("user_id")
 
-    if user_id:
-        try:
-            from models.profile import Profile
-            from utils.github_utils import decrypt_token
+    # If this repo is tied to an accessible project, always prefer the project owner's token.
+    if repo and user_id:
+        token = _owner_token_for_repo(user_id, repo)
 
-            profile = Profile.find_by_user(user_id)
-            integrations = (profile or {}).get("integrations", {})
-            token_encrypted = integrations.get("github_token_encrypted")
-            if token_encrypted:
-                token = decrypt_token(token_encrypted)
-        except Exception as exc:
-            logger.warning("GitHub profile token read failed for user %s: %s", user_id, exc)
+    # Fallback to the current user's own token.
+    if not token:
+        token = _token_from_profile(user_id)
 
     if not token:
         token = os.environ.get("GITHUB_TOKEN")
@@ -1755,7 +1817,7 @@ def github_list_issues_tool(repo: str, state: str = "open") -> str:
     """
     try:
         url = f"{GITHUB_API_BASE}/repos/{repo}/issues"
-        resp = httpx.get(url, headers=_github_headers(), params={"state": state, "per_page": 20})
+        resp = httpx.get(url, headers=_github_headers(repo), params={"state": state, "per_page": 20})
         resp.raise_for_status()
         issues = resp.json()
 
@@ -1789,30 +1851,10 @@ def github_create_branch_tool(repo: str, branch: str, from_branch: str = "main")
         branch: Name of the new branch to create
         from_branch: Branch to branch from (default: 'main')
     """
-    try:
-        headers = _github_headers()
-
-        # 1. Get the SHA of the source branch tip
-        ref_url = f"{GITHUB_API_BASE}/repos/{repo}/git/ref/heads/{from_branch}"
-        ref_resp = httpx.get(ref_url, headers=headers)
-        ref_resp.raise_for_status()
-        sha = ref_resp.json()["object"]["sha"]
-
-        # 2. Create new branch ref
-        create_url = f"{GITHUB_API_BASE}/repos/{repo}/git/refs"
-        payload = {"ref": f"refs/heads/{branch}", "sha": sha}
-        create_resp = httpx.post(create_url, headers=headers, json=payload)
-        create_resp.raise_for_status()
-
-        return f"✅ Branch '{branch}' created from '{from_branch}' in {repo}."
-
-    except httpx.HTTPStatusError as e:
-        if e.response.status_code == 422:
-            return f"❌ Branch '{branch}' already exists in {repo}."
-        return f"❌ GitHub API error {e.response.status_code}: {e.response.text}"
-    except Exception as e:
-        logger.error(f"github_create_branch_tool error: {e}")
-        return f"❌ Failed to create branch: {str(e)}"
+    return (
+        "❌ Automation disabled. This LangGraph agent is read-only for GitHub operations. "
+        "Creating branches is not allowed."
+    )
 
 
 @tool
@@ -1833,39 +1875,10 @@ def github_create_or_update_file_tool(
         message: Commit message
         branch: Target branch (optional, defaults to the repo's default branch)
     """
-    try:
-        import base64 as b64
-
-        headers = _github_headers()
-        file_url = f"{GITHUB_API_BASE}/repos/{repo}/contents/{path}"
-
-        # Check if file exists (need its SHA to update)
-        existing_sha = None
-        params = {"ref": branch} if branch else {}
-        check_resp = httpx.get(file_url, headers=headers, params=params)
-        if check_resp.status_code == 200:
-            existing_sha = check_resp.json().get("sha")
-
-        # Build payload
-        encoded = b64.b64encode(content.encode("utf-8")).decode("utf-8")
-        payload: dict = {"message": message, "content": encoded}
-        if branch:
-            payload["branch"] = branch
-        if existing_sha:
-            payload["sha"] = existing_sha
-
-        resp = httpx.put(file_url, headers=headers, json=payload)
-        resp.raise_for_status()
-
-        action = "updated" if existing_sha else "created"
-        commit_url = resp.json()["commit"]["html_url"]
-        return f"✅ File '{path}' {action} in {repo}.\nCommit: {commit_url}"
-
-    except httpx.HTTPStatusError as e:
-        return f"❌ GitHub API error {e.response.status_code}: {e.response.text}"
-    except Exception as e:
-        logger.error(f"github_create_or_update_file_tool error: {e}")
-        return f"❌ Failed to create/update file: {str(e)}"
+    return (
+        "❌ Automation disabled. This LangGraph agent is read-only for GitHub operations. "
+        "Committing or updating files is not allowed."
+    )
 
 
 @tool
@@ -1880,7 +1893,7 @@ def github_list_branches_tool(repo: str, limit: int = 20) -> str:
     try:
         safe_limit = max(1, min(limit, 100))
         url = f"{GITHUB_API_BASE}/repos/{repo}/branches"
-        resp = httpx.get(url, headers=_github_headers(), params={"per_page": safe_limit})
+        resp = httpx.get(url, headers=_github_headers(repo), params={"per_page": safe_limit})
         resp.raise_for_status()
         branches = resp.json()
 
@@ -1916,7 +1929,7 @@ def github_list_pull_requests_tool(repo: str, state: str = "open", limit: int = 
         url = f"{GITHUB_API_BASE}/repos/{repo}/pulls"
         resp = httpx.get(
             url,
-            headers=_github_headers(),
+            headers=_github_headers(repo),
             params={"state": pr_state, "per_page": safe_limit, "sort": "updated", "direction": "desc"},
         )
         resp.raise_for_status()
@@ -1958,7 +1971,7 @@ def github_latest_commits_tool(repo: str, branch: Optional[str] = None, limit: i
         if branch:
             params["sha"] = branch
 
-        resp = httpx.get(url, headers=_github_headers(), params=params)
+        resp = httpx.get(url, headers=_github_headers(repo), params=params)
         resp.raise_for_status()
         commits = resp.json()
 
@@ -1998,7 +2011,7 @@ def github_latest_changes_tool(repo: str, branch: Optional[str] = None) -> str:
 
         latest_resp = httpx.get(
             f"{GITHUB_API_BASE}/repos/{repo}/commits",
-            headers=_github_headers(),
+            headers=_github_headers(repo),
             params=params,
         )
         latest_resp.raise_for_status()
@@ -2011,7 +2024,7 @@ def github_latest_changes_tool(repo: str, branch: Optional[str] = None) -> str:
         sha = latest.get("sha")
         detail_resp = httpx.get(
             f"{GITHUB_API_BASE}/repos/{repo}/commits/{sha}",
-            headers=_github_headers(),
+            headers=_github_headers(repo),
         )
         detail_resp.raise_for_status()
         detail = detail_resp.json()
@@ -2384,14 +2397,12 @@ def get_all_langgraph_tools():
         # Profile Management
         update_user_profile_tool,
         generate_pdf_report_tool,
-        # GitHub (Via Smithery)
+        # GitHub (Read-only)
         github_list_issues_tool,
         github_list_branches_tool,
         github_list_pull_requests_tool,
         github_latest_commits_tool,
         github_latest_changes_tool,
-        github_create_branch_tool,
-        github_create_or_update_file_tool,
         # Advanced AI Tools
         breakdown_epic_tool,
         generate_standup_tool,

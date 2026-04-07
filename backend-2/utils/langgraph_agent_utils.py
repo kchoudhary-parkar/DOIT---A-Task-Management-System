@@ -50,6 +50,7 @@ GROQ_FALLBACK_MODELS = os.getenv(
 )
 
 LANGGRAPH_AGENT_TIMEOUT = int(os.getenv("LANGGRAPH_AGENT_TIMEOUT", "120"))
+LANGGRAPH_TOOLS_POLICY_VERSION = "readonly-v1"
 
 # System prompt for the LangGraph agent
 LANGGRAPH_AGENT_SYSTEM_PROMPT = """You are a powerful AI assistant for the DOIT task management system with comprehensive automation capabilities.
@@ -84,17 +85,19 @@ You have access to advanced tools for:
 - Update user profile information
 - Manage personal details
 
-**GitHub & Source Control (via Smithery):**
+**GitHub & Source Control (Read-only):**
 - List issues in any repository to track bugs or feature requests
 - List branches in repositories
 - List open/closed pull requests
 - Fetch latest commits and summarize latest file-level changes
-- Create new branches for development
-- Create or update files directly in GitHub repositories
-- Perform basic repository operations and automation
+
+**Important Guardrail:**
+- GitHub write operations are disabled in this assistant.
+- Do not create branches, do not create/update files, and do not merge PRs.
+- If the user asks for write automation, explain that write automation is disabled and provide manual next steps.
 
 **Key Capabilities:**
-1. **Multi-step workflows**: Chain multiple actions together (e.g., create a task and then a GitHub branch)
+1. **Multi-step workflows**: Chain multiple read-safe actions together
 2. **Intelligent filtering**: Find tasks/sprints by various criteria
 3. **Bulk operations**: Update many items at once
 4. **Smart suggestions**: Recommend actions based on context
@@ -107,7 +110,7 @@ You have access to advanced tools for:
 - Use ticket IDs for precise task references
 - Be concise but informative
 
-Remember: You can see the user's current tasks, projects, team context, and now directly interact with GitHub on their behalf. Use this information to provide personalized, context-aware assistance."""
+Remember: You can see the user's current tasks, projects, team context, and can perform read-only GitHub analysis on their behalf. Use this information to provide personalized, context-aware assistance."""
 
 # ─── Lazy singletons ──────────────────────────────────────────────────────────
 _llm = None  # Active LLM client
@@ -401,7 +404,7 @@ Recent Tasks:
             system_prompt += context_summary
 
         # ── Create or retrieve agent for this conversation ─────────────────
-        agent_key = f"{user_id}_{conversation_id}"
+        agent_key = f"{LANGGRAPH_TOOLS_POLICY_VERSION}_{user_id}_{conversation_id}"
 
         if agent_key not in _agents:
             agent = create_react_agent(

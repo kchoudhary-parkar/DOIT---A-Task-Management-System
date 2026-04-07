@@ -703,15 +703,6 @@ const AIAssistantPage = () => {
     } catch (e) { console.error(e); }
   };
 
-  const resetLanggraphHistory = async () => {
-    if (!langgraphActiveConv) return;
-    try { 
-      await langgraphAgentAPI.resetHistory(langgraphActiveConv._id); 
-      setLanggraphMessages([]); 
-    }
-    catch (e) { console.error(e); }
-  };
-
   // ─────────────────────────────────────────────────────────────────────────
   // MCP Agent actions
   // ─────────────────────────────────────────────────────────────────────────
@@ -1063,15 +1054,17 @@ const AIAssistantPage = () => {
                 {localHealth.healthy ? `${localHealth.model || 'Ollama'} ready` : 'Ollama offline'}
               </div>
             )}
-            {isLangGraph && selectedConv && (
-              <button className="ai-reset-btn langgraph" onClick={resetLanggraphHistory}>↺ Reset History</button>
-            )}
-            
             {/* LangGraph health pill */}
             {isLangGraph && langgraphHealth && (
               <div className={`ai-status-badge ${langgraphHealth.healthy ? 'langgraph' : 'offline'}`}>
                 <div className={`ai-status-dot ${langgraphHealth.healthy ? 'langgraph' : 'offline'}`}></div>
                 {langgraphHealth.healthy ? `${langgraphHealth.deployment || 'Azure OpenAI'} ready` : 'Offline'}
+              </div>
+            )}
+            {isLangGraph && (
+              <div className="ai-status-badge langgraph-readonly" title="GitHub write automation is disabled in LangGraph mode.">
+                <AlertTriangle size={12} />
+                Automation disabled: Agent cannot create commits, branches, merge PRs, or perform other write actions.
               </div>
             )}
             {isMcp && mcpHealth && (
@@ -1137,7 +1130,7 @@ const AIAssistantPage = () => {
                   : isLocal
                   ? `Powered by Ollama + LlamaIndex + ChromaDB. All data stays on your infrastructure — nothing is sent to external APIs.${localHealth && !localHealth.healthy ? `\n\n⚠️ ${localHealth.error}` : ''}`
                   : isLangGraph
-                  ? 'Multi-step reasoning with Azure OpenAI and LangGraph. Manages tasks, sprints, and projects with powerful tool-calling automation.'
+                    ? 'Multi-step reasoning with Azure OpenAI and LangGraph. Supports DOIT automation plus read-only GitHub insights like commits, branches, pull requests, and latest changes.'
                   : isMcp
                   ? 'MCP orchestration mode — executes commands via Task, Sprint, Project, and Member MCP servers with role-aware access.'
                   : 'Get AI-powered insights, manage tasks with natural language, and unlock intelligent recommendations from your project data.'}
