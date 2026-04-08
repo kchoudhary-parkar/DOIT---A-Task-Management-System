@@ -94,10 +94,11 @@
 /* ══════════════════════════════════════════════════════════════════
    PAGE LAYOUT
    ══════════════════════════════════════════════════════════════════ */
-.dashboard-page {
-  min-height: 100vh;
+.dashboard-home-page {
+  min-height: auto;
   background: var(--dash-bg-primary);
-  padding: 32px;
+  padding: 24px 32px 12px;
+  box-sizing: border-box;
   position: relative;
   overflow-x: hidden;
   font-family: 'DM Sans', system-ui, sans-serif;
@@ -113,6 +114,7 @@
 .page-transition.is-entered {
   opacity: 1;
   transform: translateY(0);
+  height: 100px;
 }
 
 .dashboard-skeleton-wrap {
@@ -173,7 +175,7 @@
 }
 
 /* Subtle ambient orbs — like LandingAuth left panel */
-.dashboard-page::before {
+.dashboard-home-page::before {
   content: '';
   position: fixed;
   top: -200px; left: -200px;
@@ -183,7 +185,7 @@
   pointer-events: none;
   z-index: 0;
 }
-.dashboard-page::after {
+.dashboard-home-page::after {
   content: '';
   position: fixed;
   bottom: -200px; right: -200px;
@@ -199,6 +201,14 @@
   margin: 0 auto;
   position: relative;
   z-index: 1;
+}
+
+.dashboard-home-page .dashboard-home-container {
+  max-width: 1600px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 1;
+  padding: 0;
 }
 
 .dashboard-export-wrap {
@@ -529,7 +539,7 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(460px, 1fr));
   gap: 24px;
-  margin-bottom: 24px;
+  margin-bottom: 0;
 }
 
 .deadlines-section-new,
@@ -1053,7 +1063,7 @@
 }
 
 @media (max-width: 768px) {
-  .dashboard-page { padding: 20px 16px; }
+  .dashboard-home-page { padding: 20px 16px 10px; }
   .dashboard-header { padding: 20px; }
   .header-content h1 { font-size: 22px; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
@@ -1090,9 +1100,9 @@
    PRINT
    ══════════════════════════════════════════════════════════════════ */
 @media print {
-  .dashboard-page { background: white !important; }
-  .dashboard-page::before,
-  .dashboard-page::after { display: none; }
+  .dashboard-home-page { background: white !important; }
+  .dashboard-home-page::before,
+  .dashboard-home-page::after { display: none; }
   .stat-card, .chart-container, .deadlines-section-new,
   .activity-section-new { break-inside: avoid; box-shadow: none !important; }
 }
