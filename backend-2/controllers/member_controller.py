@@ -1,6 +1,9 @@
 import json
+import os
 from models.project import Project
 from models.user import User
+from models.team_integration import TeamIntegration
+from utils.platform_apis import SlackAPI
 from utils.response import success_response, error_response
 from datetime import datetime, timezone
 
@@ -56,9 +59,58 @@ def add_project_member(body_str, project_id, user_id):
     success = Project.add_member(project_id, member_data)
     
     if success:
+        # Best-effort: auto-invite member to project's Slack channel if integration exists.
+        slack_invite = {
+            "attempted": False,
+            "success": False,
+            "message": "Slack integration not configured for this project",
+        }
+
+        try:
+            integration = TeamIntegration.find_by_project_and_platform(project_id, "slack")
+            if integration:
+                credentials = integration.get("credentials", {}) or {}
+                workspace_token = credentials.get("workspace_token") or credentials.get("bot_token")
+                user_oauth_token = credentials.get("user_oauth_token") or os.getenv(
+                    "SLACK_INVITE_USER_TOKEN"
+                )
+                channel_id = credentials.get("channel_id") or integration.get("channel_id")
+
+                if workspace_token and channel_id:
+                    slack_invite["attempted"] = True
+                    token_candidates = [workspace_token]
+                    if user_oauth_token and user_oauth_token not in token_candidates:
+                        token_candidates.append(user_oauth_token)
+
+                    invite_result = None
+                    for token in token_candidates:
+                        invite_result = SlackAPI.invite_user_to_project_channel(
+                            workspace_token=token,
+                            channel_id=channel_id,
+                            email=member_user.get("email"),
+                            lookup_token=user_oauth_token,
+                        )
+                        if "error" not in invite_result:
+                            break
+
+                    if invite_result and "error" in invite_result:
+                        slack_invite["message"] = invite_result.get("error")
+                    else:
+                        slack_invite["success"] = True
+                        slack_invite["message"] = (invite_result or {}).get(
+                            "message", "Member added to Slack channel"
+                        )
+                else:
+                    slack_invite["attempted"] = True
+                    slack_invite["message"] = "Slack integration credentials incomplete"
+        except Exception as e:
+            slack_invite["attempted"] = True
+            slack_invite["message"] = f"Slack invite error: {str(e)}"
+
         return success_response({
             "message": f"{member_user['name']} added to project successfully",
-            "member": member_data
+            "member": member_data,
+            "slack_invite": slack_invite,
         })
     else:
         return error_response("Failed to add member", 500)

@@ -1,15 +1,99 @@
 import json
 import asyncio
+import logging
 from models.task import Task
 from models.project import Project
 from models.user import User
+from models.team_integration import TeamIntegration
 from utils.response import success_response, error_response, datetime_to_iso
 from utils.validators import validate_required_fields
 from utils.ticket_utils import generate_ticket_id
 from utils.label_utils import validate_label, normalize_label
 from utils.websocket_manager import manager
+from utils.notification_utils import send_slack_notification
 from bson import ObjectId
 from datetime import datetime, timezone
+
+
+logger = logging.getLogger(__name__)
+
+
+def _get_project_slack_bot_credentials(project_id):
+    """Fetch Slack bot credentials for a project integration."""
+    integration = TeamIntegration.find_by_project_and_platform(project_id, "slack")
+    if not integration:
+        return None, None
+
+    credentials = integration.get("credentials", {}) or {}
+    bot_token = credentials.get("workspace_token") or credentials.get("bot_token")
+    channel_id = credentials.get("channel_id") or integration.get("channel_id")
+
+    if not all([bot_token, channel_id]):
+        return None, None
+
+    return bot_token, channel_id
+
+
+def _notify_task_event_to_slack(task, actor_name, event_type):
+    """Best-effort Slack bot notification for task lifecycle events."""
+    project_id = task.get("project_id")
+    if not project_id:
+        return
+
+    bot_token, channel_id = _get_project_slack_bot_credentials(project_id)
+    if not all([bot_token, channel_id]):
+        return
+
+    ticket_id = task.get("ticket_id", "-")
+    title = task.get("title", "Untitled task")
+    status = task.get("status", "-")
+    priority = task.get("priority", "-")
+    assignee = task.get("assignee_name") or "Unassigned"
+
+    if event_type == "created":
+        heading = "Task Created"
+        body = (
+            f"A new task was created by *{actor_name}*.\n"
+            f"• Ticket: *{ticket_id}*\n"
+            f"• Title: *{title}*\n"
+            f"• Status: *{status}*\n"
+            f"• Priority: *{priority}*\n"
+            f"• Assignee: *{assignee}*"
+        )
+    elif event_type == "updated":
+        heading = "Task Updated"
+        body = (
+            f"Task updated by *{actor_name}*.\n"
+            f"• Ticket: *{ticket_id}*\n"
+            f"• Title: *{title}*\n"
+            f"• Status: *{status}*\n"
+            f"• Priority: *{priority}*\n"
+            f"• Assignee: *{assignee}*"
+        )
+    elif event_type == "done":
+        heading = "Task Marked Done"
+        body = (
+            f"Task marked as *Done* by *{actor_name}*.\n"
+            f"• Ticket: *{ticket_id}*\n"
+            f"• Title: *{title}*\n"
+            f"• Assignee: *{assignee}*"
+        )
+    else:
+        return
+
+    result = send_slack_notification(
+        bot_token=bot_token,
+        channel_id=channel_id,
+        text=body,
+        title=heading,
+    )
+    if isinstance(result, str) and result.startswith("❌"):
+        logger.warning(
+            "Slack task notification failed for project %s (%s): %s",
+            project_id,
+            event_type,
+            result,
+        )
 
 
 def _enrich_task_display_fields(task):
@@ -172,6 +256,12 @@ def create_task(body_str, user_id):
         "task": task,
         "user_name": User.find_by_id(user_id).get("name", "Unknown") if User.find_by_id(user_id) else "Unknown"
     }, f"kanban_{project_id}"))
+
+    creator = User.find_by_id(user_id)
+    creator_name = creator.get("name", "Unknown") if creator else "Unknown"
+    _notify_task_event_to_slack(task, creator_name, "created")
+    if task.get("status") == "Done":
+        _notify_task_event_to_slack(task, creator_name, "done")
     
     return success_response({
         "message": "Task created successfully",
@@ -507,6 +597,16 @@ def update_task(body_str, task_id, user_id):
             "user_name": user_name,
             "old_status": task.get("status") if "status" in update_data else None
         }, f"kanban_{task['project_id']}"))
+
+        if update_data:
+            _notify_task_event_to_slack(updated_task, user_name, "updated")
+
+        if (
+            "status" in update_data
+            and update_data.get("status") == "Done"
+            and task.get("status") != "Done"
+        ):
+            _notify_task_event_to_slack(updated_task, user_name, "done")
         
         return success_response({
             "message": "Task updated successfully",

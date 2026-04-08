@@ -173,6 +173,106 @@ class SlackAPI:
     """Slack API operations for channel creation and bot integration"""
 
     @staticmethod
+    def get_user_id_by_email(workspace_token: str, email: str) -> Dict[str, Any]:
+        """Resolve a Slack user ID from email."""
+        if not all([workspace_token, email]):
+            return {"error": "Missing required parameters"}
+
+        headers = {"Authorization": f"Bearer {workspace_token}"}
+
+        try:
+            response = requests.get(
+                f"{SLACK_API_BASE}/users.lookupByEmail",
+                params={"email": email},
+                headers=headers,
+                timeout=10,
+            )
+            data = response.json()
+
+            if data.get("ok"):
+                user_id = data.get("user", {}).get("id")
+                if user_id:
+                    return {"success": True, "user_id": user_id}
+                return {"error": "Slack user id not found in response"}
+
+            error = data.get("error", "Unknown error")
+            return {"error": f"Failed to lookup Slack user: {error}"}
+
+        except Exception as e:
+            logger.error(f"Error looking up Slack user by email: {str(e)}")
+            return {"error": str(e)}
+
+    @staticmethod
+    def invite_user_to_channel(
+        workspace_token: str, channel_id: str, user_id: str
+    ) -> Dict[str, Any]:
+        """Invite a Slack user ID to a channel."""
+        if not all([workspace_token, channel_id, user_id]):
+            return {"error": "Missing required parameters"}
+
+        headers = {
+            "Authorization": f"Bearer {workspace_token}",
+            "Content-Type": "application/json",
+        }
+        payload = {"channel": channel_id, "users": user_id}
+
+        try:
+            response = requests.post(
+                f"{SLACK_API_BASE}/conversations.invite",
+                json=payload,
+                headers=headers,
+                timeout=10,
+            )
+            data = response.json()
+
+            if data.get("ok"):
+                return {"success": True, "message": "✅ User invited to Slack channel"}
+
+            error = data.get("error", "Unknown error")
+            if error in ["already_in_channel", "cant_invite_self"]:
+                return {"success": True, "message": "✅ User already in Slack channel"}
+
+            logger.error(f"Slack channel invite failed: {error}")
+            return {"error": f"Failed to invite user: {error}"}
+
+        except Exception as e:
+            logger.error(f"Error inviting user to Slack channel: {str(e)}")
+            return {"error": str(e)}
+
+    @staticmethod
+    def invite_user_to_project_channel(
+        workspace_token: str,
+        channel_id: str,
+        email: str,
+        lookup_token: str = None,
+    ) -> Dict[str, Any]:
+        """Invite a user to project Slack channel by email."""
+        effective_lookup_token = lookup_token or workspace_token
+        lookup = SlackAPI.get_user_id_by_email(effective_lookup_token, email)
+        if "error" in lookup:
+            return lookup
+
+        # Best effort: join channel first (important for public channels).
+        headers = {
+            "Authorization": f"Bearer {workspace_token}",
+            "Content-Type": "application/json",
+        }
+        try:
+            requests.post(
+                f"{SLACK_API_BASE}/conversations.join",
+                json={"channel": channel_id},
+                headers=headers,
+                timeout=10,
+            )
+        except Exception:
+            # Ignore join failures here; invite call below is the authoritative result.
+            pass
+
+        return SlackAPI.invite_user_to_channel(
+            workspace_token, channel_id, lookup.get("user_id")
+        )
+
+    @staticmethod
     def create_channel(
         workspace_token: str, channel_name: str, is_private: bool = False
     ) -> Dict[str, Any]:
