@@ -50,6 +50,7 @@ class ProjectCreate(BaseModel):
     name: str = Field(..., min_length=3)
     description: Optional[str] = ""
     integrations: Optional[Dict[str, Any]] = None
+    integrations: Optional[Dict[str, Any]] = None
 
 class ProjectUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=3)

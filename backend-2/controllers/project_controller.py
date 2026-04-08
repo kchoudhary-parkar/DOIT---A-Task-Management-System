@@ -76,7 +76,7 @@ def create_project(body_str, user_id):
 
     from controllers import team_integration_controller
 
-    integrations_to_provision = data.get("integrations", {})
+    integrations_to_provision = data.get("integrations") or {}
     provisioning_results = {}
 
     # Always auto-provision Slack channel using default token if not provided
@@ -85,7 +85,8 @@ def create_project(body_str, user_id):
     default_slack_token = os.getenv("SLACK_DEFAULT_WORKSPACE_TOKEN")
     slack_token = None
     if "slack" in integrations_to_provision:
-        slack_token = integrations_to_provision["slack"].get("workspace_token")
+        slack_config = integrations_to_provision.get("slack") or {}
+        slack_token = (slack_config.get("workspace_token") or "").strip() or None
     if not slack_token:
         slack_token = default_slack_token
     if slack_token:
