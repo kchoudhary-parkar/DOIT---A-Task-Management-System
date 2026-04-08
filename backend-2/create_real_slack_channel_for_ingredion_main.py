@@ -1,376 +1,128 @@
-# # """
-# # Script to create a real Slack channel for the 'Ingredion Main' project using the Slack API,
-# # and store the integration in MongoDB.
-# # """
+﻿"""
+Real Slack integration debug script.
 
-# # import os
-# # import requests
-# # from pymongo import MongoClient
-# # from config import MONGO_URI
+What it does:
+- Finds project by name in MongoDB
+- Creates or reuses Slack channel
+- Ensures bot joins channel
+- Saves/updates Slack integration in MongoDB
+- Invites a user to the channel by email
+- Verifies if user is in channel (best effort)
 
-# # # Load credentials from environment or config
-# # SLACK_WORKSPACE_TOKEN = os.getenv("SLACK_DEFAULT_WORKSPACE_TOKEN")
-# # CHANNEL_NAME = "ingredion-main-real"
+Usage:
+  python create_real_slack_channel_for_ingredion_main.py "Ingredion Main" --email someone@company.com
+  python create_real_slack_channel_for_ingredion_main.py "Ingredion Main"
 
-# # if not SLACK_WORKSPACE_TOKEN:
-# #     print("Missing SLACK_WORKSPACE_TOKEN in environment.")
-# #     exit(1)
-
-# # # Slack API endpoint to create a channel
-# # url = "https://slack.com/api/conversations.create"
-# # headers = {
-# #     "Authorization": f"Bearer {SLACK_WORKSPACE_TOKEN}",
-# #     "Content-Type": "application/json",
-# # }
-# # data = {"name": CHANNEL_NAME}
-
-# # response = requests.post(url, headers=headers, json=data)
-# # resp_json = response.json()
-# # if not resp_json.get("ok"):
-# #     print(f"Failed to create Slack channel: {resp_json.get('error')}")
-# #     exit(1)
-
-# # channel_info = resp_json["channel"]
-# # print(f"Created Slack channel: {channel_info['id']} ({channel_info['name']})")
-
-# # # Connect to MongoDB
-# # client = MongoClient(MONGO_URI)
-# # db = client["taskdb"]
-
-# # # Find the 'Ingredion Main' project
-# # project = db.projects.find_one({"name": "Ingredion Main"})
-# # if not project:
-# #     print("Project 'Ingredion Main' not found. Please create the project first.")
-# #     exit(1)
-
-# # # Store the integration in MongoDB
-# # integration_doc = {
-# #     "project_id": str(project["_id"]),
-# #     "platform": "slack",
-# #     "type": "bot",
-# #     "created_by": project["user_id"],
-# #     "credentials": {
-# #         "workspace_token": SLACK_WORKSPACE_TOKEN,
-# #         "channel_id": channel_info["id"],
-# #         "channel_name": channel_info["name"],
-# #         "auto_provisioned": True,
-# #     },
-# #     "auto_provisioned": True,
-# #     "channel_id": channel_info["id"],
-# #     "channel_name": channel_info["name"],
-# #     "is_active": True,
-# #     "created_at": project["created_at"],
-# #     "updated_at": project["updated_at"],
-# # }
-
-# # result = db.team_integrations.insert_one(integration_doc)
-# # print(f"Slack channel integration saved with _id: {result.inserted_id}")
-# """
-# Script to create a real Slack channel for the 'Ingredion Main' project using the Slack API,
-# automatically create an incoming webhook, and store the integration in MongoDB.
-# """
-
-# import os
-# import requests
-# from pymongo import MongoClient
-# from datetime import datetime
-# from config import MONGO_URI
-
-# # Load credentials from environment or config
-# SLACK_WORKSPACE_TOKEN = os.getenv("SLACK_DEFAULT_WORKSPACE_TOKEN")
-# # Fixed: Use valid Slack channel name (lowercase, hyphens only, no special chars)
-# CHANNEL_NAME = "ingredion-main-real"
-
-# if not SLACK_WORKSPACE_TOKEN:
-#     print("Missing SLACK_DEFAULT_WORKSPACE_TOKEN in environment.")
-#     exit(1)
-
-# # Step 1: Create Slack channel
-# print("Step 1: Creating Slack channel...")
-# url = "https://slack.com/api/conversations.create"
-# headers = {
-#     "Authorization": f"Bearer {SLACK_WORKSPACE_TOKEN}",
-#     "Content-Type": "application/json",
-# }
-# data = {"name": CHANNEL_NAME, "is_private": False}
-
-# response = requests.post(url, headers=headers, json=data)
-# resp_json = response.json()
-
-# if not resp_json.get("ok"):
-#     error = resp_json.get("error")
-#     if error == "name_taken":
-#         # Channel already exists, fetch it
-#         print(f"Channel '{CHANNEL_NAME}' already exists. Fetching channel info...")
-#         list_url = "https://slack.com/api/conversations.list"
-#         list_params = {"types": "public_channel,private_channel"}
-#         list_response = requests.get(list_url, headers=headers, params=list_params)
-#         list_json = list_response.json()
-
-#         channel_info = None
-#         if list_json.get("ok"):
-#             for channel in list_json.get("channels", []):
-#                 if channel.get("name") == CHANNEL_NAME:
-#                     channel_info = channel
-#                     break
-
-#         if not channel_info:
-#             print(f"Could not find existing channel '{CHANNEL_NAME}'")
-#             exit(1)
-#     else:
-#         print(f"Failed to create Slack channel: {error}")
-#         print(f"Full response: {resp_json}")
-#         exit(1)
-# else:
-#     channel_info = resp_json["channel"]
-
-# print(f"✓ Channel ready: {channel_info['id']} (#{channel_info['name']})")
-
-# # Step 2: Get Bot Info
-# print("\nStep 2: Getting bot authentication info...")
-# auth_test_url = "https://slack.com/api/auth.test"
-# auth_response = requests.post(auth_test_url, headers=headers)
-# auth_json = auth_response.json()
-
-# if auth_json.get("ok"):
-#     print(f"✓ Authenticated as: {auth_json.get('user')}")
-#     print(f"  Team: {auth_json.get('team')}")
-#     print(f"  Bot User ID: {auth_json.get('user_id')}")
-# else:
-#     print(f"✗ Authentication test failed: {auth_json.get('error')}")
-
-# # Step 3: Invite bot to channel (if not already a member)
-# print("\nStep 3: Ensuring bot is in the channel...")
-# invite_url = "https://slack.com/api/conversations.join"
-# invite_data = {"channel": channel_info["id"]}
-# invite_response = requests.post(invite_url, headers=headers, json=invite_data)
-# invite_json = invite_response.json()
-
-# if invite_json.get("ok"):
-#     print(f"✓ Bot joined channel successfully")
-# elif invite_json.get("error") == "already_in_channel":
-#     print(f"✓ Bot already in channel")
-# else:
-#     print(f"⚠ Could not join channel: {invite_json.get('error')}")
-
-# # Step 4: Connect to MongoDB
-# print("\nStep 4: Saving integration to MongoDB...")
-# client = MongoClient(MONGO_URI)
-# db = client["taskdb"]
-
-# # Find the 'Ingredion Main' project
-# project = db.projects.find_one({"name": "Ingredion Main"})
-# if not project:
-#     print("Project 'Ingredion Main' not found. Please create the project first.")
-#     exit(1)
-
-# # Note: For incoming webhooks with OAuth, the webhook URL is generated during
-# # the OAuth installation flow. We'll store None here and update it after OAuth.
-# webhook_url_created = None
-
-# # Store the integration in MongoDB
-# integration_doc = {
-#     "project_id": str(project["_id"]),
-#     "platform": "slack",
-#     "type": "bot",
-#     "created_by": project["user_id"],
-#     "credentials": {
-#         "workspace_token": SLACK_WORKSPACE_TOKEN,
-#         "channel_id": channel_info["id"],
-#         "channel_name": channel_info["name"],
-#         "webhook_url": webhook_url_created,
-#         "bot_user_id": auth_json.get("user_id"),
-#         "team_id": auth_json.get("team_id"),
-#         "auto_provisioned": True,
-#     },
-#     "auto_provisioned": True,
-#     "channel_id": channel_info["id"],
-#     "channel_name": channel_info["name"],
-#     "webhook_url": webhook_url_created,
-#     "is_active": True,
-#     "created_at": project.get("created_at", datetime.utcnow()),
-#     "updated_at": datetime.utcnow(),
-# }
-
-# # Check if integration already exists
-# existing = db.team_integrations.find_one(
-#     {
-#         "project_id": str(project["_id"]),
-#         "platform": "slack",
-#         "channel_id": channel_info["id"],
-#     }
-# )
-
-# if existing:
-#     print(f"Integration already exists with _id: {existing['_id']}")
-#     result_id = existing["_id"]
-#     # Update it
-#     db.team_integrations.update_one(
-#         {"_id": existing["_id"]},
-#         {
-#             "$set": {
-#                 "updated_at": datetime.utcnow(),
-#                 "is_active": True,
-#                 "credentials.bot_user_id": auth_json.get("user_id"),
-#                 "credentials.team_id": auth_json.get("team_id"),
-#             }
-#         },
-#     )
-#     print(f"✓ Updated existing integration")
-# else:
-#     result = db.team_integrations.insert_one(integration_doc)
-#     result_id = result.inserted_id
-#     print(f"✓ New integration saved with _id: {result_id}")
-
-# # Step 5: Test message posting using Bot Token
-# print("\nStep 5: Testing message posting...")
-# test_message_url = "https://slack.com/api/chat.postMessage"
-# test_data = {
-#     "channel": channel_info["id"],
-#     "text": f"✅ DOIT-Agent integration successfully configured for #{channel_info['name']}!",
-#     "blocks": [
-#         {
-#             "type": "header",
-#             "text": {"type": "plain_text", "text": "🎉 Integration Active"},
-#         },
-#         {
-#             "type": "section",
-#             "text": {
-#                 "type": "mrkdwn",
-#                 "text": f"DOIT-Agent is now connected to *#{channel_info['name']}*\n\nYou'll receive notifications here for:\n• New tasks\n• Task updates\n• Mentions and comments",
-#             },
-#         },
-#     ],
-# }
-
-# test_response = requests.post(test_message_url, headers=headers, json=test_data)
-# test_json = test_response.json()
-
-# if test_json.get("ok"):
-#     print("✓ Test message sent successfully!")
-#     print(f"  Message timestamp: {test_json.get('ts')}")
-# else:
-#     print(f"✗ Test message failed: {test_json.get('error')}")
-
-# # Step 6: Instructions for webhook setup
-# print("\n" + "=" * 70)
-# print("SETUP COMPLETE")
-# print("=" * 70)
-# print(f"✓ Channel ID: {channel_info['id']}")
-# print(f"✓ Channel Name: #{channel_info['name']}")
-# print(f"✓ Bot User ID: {auth_json.get('user_id')}")
-# print(f"✓ Integration ID: {result_id}")
-# print("\n📝 IMPORTANT: To enable incoming webhooks:")
-# print("-" * 70)
-# print("You have two options:")
-# print("\nOption 1 - Use Bot Token (RECOMMENDED - Already Working!):")
-# print("  The bot can already post messages using chat.postMessage API")
-# print("  This is more flexible and doesn't require webhook setup")
-# print("\nOption 2 - Set up Incoming Webhook (Optional):")
-# print("  1. Visit: https://api.slack.com/apps")
-# print("  2. Select 'DOIT-Agent' app")
-# print("  3. Go to 'Incoming Webhooks' in left sidebar")
-# print("  4. Click 'Add New Webhook to Workspace'")
-# print(f"  5. Select '#{channel_info['name']}' channel")
-# print("  6. Copy the webhook URL")
-# print("  7. Update MongoDB with the webhook URL:")
-# print(f"\n     db.team_integrations.updateOne(")
-# print(f"       {{_id: ObjectId('{result_id}')}},")
-# print(f"       {{$set: {{'webhook_url': 'YOUR_WEBHOOK_URL'}}}}")
-# print(f"     )")
-# print("=" * 70)
-
-"""
-Reusable script to:
-- Create Slack channel per project
-- Join bot
-- Save integration in MongoDB
+Environment variables:
+  SLACK_DEFAULT_WORKSPACE_TOKEN   Required (xoxb-...)
+  SLACK_INVITE_USER_TOKEN         Optional (xoxp-... fallback for lookup/invite)
+  SLACK_TEST_USER_EMAIL           Optional fallback email when --email is omitted
 """
 
+import argparse
 import os
 import re
+from datetime import datetime
+
 import requests
 from pymongo import MongoClient
-from datetime import datetime
+
 from config import MONGO_URI
 
 
-SLACK_WORKSPACE_TOKEN = os.getenv("SLACK_DEFAULT_WORKSPACE_TOKEN")
-
-if not SLACK_WORKSPACE_TOKEN:
-    raise ValueError("Missing SLACK_DEFAULT_WORKSPACE_TOKEN")
-
-headers = {
-    "Authorization": f"Bearer {SLACK_WORKSPACE_TOKEN}",
-    "Content-Type": "application/json",
-}
+SLACK_API_BASE = "https://slack.com/api"
+WORKSPACE_TOKEN = os.getenv("SLACK_DEFAULT_WORKSPACE_TOKEN")
+INVITE_USER_TOKEN = os.getenv("SLACK_INVITE_USER_TOKEN")
 
 
-# 🔹 Utility: Convert project name → valid Slack channel name
+def _mask_token(token: str) -> str:
+    if not token:
+        return "<missing>"
+    if len(token) < 10:
+        return "***"
+    return f"{token[:6]}...{token[-4:]}"
+
+
+def _slack_get(method: str, token: str, params=None):
+    headers = {"Authorization": f"Bearer {token}"}
+    resp = requests.get(
+        f"{SLACK_API_BASE}/{method}", headers=headers, params=params or {}, timeout=15
+    )
+    return resp.json()
+
+
+def _slack_post(method: str, token: str, payload=None):
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+    resp = requests.post(
+        f"{SLACK_API_BASE}/{method}", headers=headers, json=payload or {}, timeout=15
+    )
+    return resp.json()
+
+
 def generate_channel_name(project_name: str) -> str:
-    name = project_name.lower()
+    name = project_name.lower().strip()
     name = re.sub(r"[^a-z0-9\- ]", "", name)
     name = name.replace(" ", "-")
-    return f"{name[:80]}"  # Slack limit
+    return name[:80]
 
 
-# 🔹 Step 1: Create or fetch channel
-def get_or_create_channel(channel_name):
-    url = "https://slack.com/api/conversations.create"
-    response = requests.post(
-        url, headers=headers, json={"name": channel_name, "is_private": False}
+def get_or_create_channel(workspace_token: str, channel_name: str):
+    created = _slack_post(
+        "conversations.create",
+        workspace_token,
+        {"name": channel_name, "is_private": False},
     )
-    data = response.json()
+    if created.get("ok"):
+        return created["channel"], "created"
 
-    if data.get("ok"):
-        return data["channel"]
-
-    if data.get("error") == "name_taken":
-        list_url = "https://slack.com/api/conversations.list"
-        list_response = requests.get(
-            list_url,
-            headers=headers,
-            params={"types": "public_channel,private_channel"},
+    if created.get("error") == "name_taken":
+        listed = _slack_get(
+            "conversations.list",
+            workspace_token,
+            {"types": "public_channel,private_channel", "limit": 1000},
         )
+        if listed.get("ok"):
+            for ch in listed.get("channels", []):
+                if ch.get("name") == channel_name:
+                    return ch, "existing"
+        raise RuntimeError(f"Channel exists but could not fetch it. Response: {listed}")
 
-        for ch in list_response.json().get("channels", []):
-            if ch["name"] == channel_name:
-                return ch
-
-    raise Exception(f"Slack error: {data}")
-
-
-# 🔹 Step 2: Ensure bot is in channel
-def join_channel(channel_id):
-    url = "https://slack.com/api/conversations.join"
-    res = requests.post(url, headers=headers, json={"channel": channel_id})
-    return res.json()
+    raise RuntimeError(f"conversations.create failed: {created}")
 
 
-# 🔹 Step 3: Auth info
-def get_auth_info():
-    res = requests.post("https://slack.com/api/auth.test", headers=headers)
-    return res.json()
+def join_channel(workspace_token: str, channel_id: str):
+    return _slack_post("conversations.join", workspace_token, {"channel": channel_id})
 
 
-# 🔹 Step 4: Save integration
-def save_integration(db, project, channel, auth_info):
+def auth_test(workspace_token: str):
+    return _slack_post("auth.test", workspace_token, {})
+
+
+def save_integration(db, project, channel, auth_info, workspace_token):
+    now = datetime.utcnow()
     integration_doc = {
         "project_id": str(project["_id"]),
         "platform": "slack",
         "type": "bot",
         "created_by": project["user_id"],
         "credentials": {
-            "workspace_token": SLACK_WORKSPACE_TOKEN,
+            "workspace_token": workspace_token,
             "channel_id": channel["id"],
             "channel_name": channel["name"],
             "webhook_url": None,
             "bot_user_id": auth_info.get("user_id"),
             "team_id": auth_info.get("team_id"),
+            "auto_provisioned": True,
         },
+        "auto_provisioned": True,
+        "channel_id": channel["id"],
+        "channel_name": channel["name"],
         "is_active": True,
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow(),
+        "created_at": project.get("created_at", now),
+        "updated_at": now,
     }
 
     existing = db.team_integrations.find_one(
@@ -383,67 +135,191 @@ def save_integration(db, project, channel, auth_info):
 
     if existing:
         db.team_integrations.update_one(
-            {"_id": existing["_id"]}, {"$set": {"updated_at": datetime.utcnow()}}
+            {"_id": existing["_id"]},
+            {
+                "$set": {
+                    "updated_at": now,
+                    "is_active": True,
+                    "credentials.workspace_token": workspace_token,
+                    "credentials.channel_id": channel["id"],
+                    "credentials.channel_name": channel["name"],
+                    "credentials.bot_user_id": auth_info.get("user_id"),
+                    "credentials.team_id": auth_info.get("team_id"),
+                }
+            },
         )
-        return existing["_id"]
+        return existing["_id"], "updated"
 
     result = db.team_integrations.insert_one(integration_doc)
-    return result.inserted_id
+    return result.inserted_id, "inserted"
 
 
-# 🔹 Step 5: Send test message
-def send_test_message(channel_id, channel_name):
-    url = "https://slack.com/api/chat.postMessage"
-    res = requests.post( 
-        url,
-        headers=headers,
-        json={
-            "channel": channel_id,
-            "text": f"✅ Integration ready for #{channel_name}",
-        },
+def lookup_user_id_by_email(email: str):
+    lookup_token = INVITE_USER_TOKEN or WORKSPACE_TOKEN
+    result = _slack_get("users.lookupByEmail", lookup_token, {"email": email})
+    if result.get("ok"):
+        return result.get("user", {}).get("id"), lookup_token, result
+    return None, lookup_token, result
+
+
+def invite_user(channel_id: str, user_id: str):
+    errors = []
+    tokens = [WORKSPACE_TOKEN]
+    if INVITE_USER_TOKEN and INVITE_USER_TOKEN != WORKSPACE_TOKEN:
+        tokens.append(INVITE_USER_TOKEN)
+
+    for token in tokens:
+        invite_result = _slack_post(
+            "conversations.invite", token, {"channel": channel_id, "users": user_id}
+        )
+        if invite_result.get("ok") or invite_result.get("error") in [
+            "already_in_channel",
+            "cant_invite_self",
+        ]:
+            return True, token, invite_result, errors
+        errors.append({"token": _mask_token(token), "response": invite_result})
+
+    return False, None, None, errors
+
+
+def verify_membership(channel_id: str, user_id: str):
+    tokens = [WORKSPACE_TOKEN]
+    if INVITE_USER_TOKEN and INVITE_USER_TOKEN != WORKSPACE_TOKEN:
+        tokens.append(INVITE_USER_TOKEN)
+
+    for token in tokens:
+        members = _slack_get(
+            "conversations.members", token, {"channel": channel_id, "limit": 1000}
+        )
+        if members.get("ok"):
+            return user_id in set(members.get("members", [])), token, members
+
+    return None, None, {"error": "Could not read channel members with available tokens"}
+
+
+def get_default_test_email(project: dict):
+    env_email = os.getenv("SLACK_TEST_USER_EMAIL")
+    if env_email:
+        return env_email.strip().lower(), "env"
+
+    members = project.get("members", [])
+    for member in members:
+        email = (member.get("email") or "").strip().lower()
+        if email:
+            return email, "project_member"
+
+    # Fallback to project owner email if available.
+    try:
+        client = MongoClient(MONGO_URI)
+        db = client["taskdb"]
+        owner = db.users.find_one(
+            {"_id": __import__("bson").ObjectId(project.get("user_id"))}
+        )
+        owner_email = (owner or {}).get("email", "").strip().lower()
+        if owner_email:
+            return owner_email, "project_owner"
+    except Exception:
+        pass
+
+    return None, "none"
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Debug Slack channel + member invite for a project"
     )
-    return res.json()
+    parser.add_argument("project_name", nargs="?", default="Ingredion Main")
+    parser.add_argument(
+        "--email",
+        dest="email",
+        default=None,
+        help="User email to invite to project Slack channel",
+    )
+    args = parser.parse_args()
 
+    if not WORKSPACE_TOKEN:
+        raise ValueError("Missing SLACK_DEFAULT_WORKSPACE_TOKEN")
 
-# 🔹 MAIN FUNCTION
-def setup_slack_for_project(project_name: str):
-    print(f"\n🚀 Setting up Slack for project: {project_name}")
+    print("=== Slack Debug Runner ===")
+    print(f"Workspace token: {_mask_token(WORKSPACE_TOKEN)}")
+    print(f"Invite user token: {_mask_token(INVITE_USER_TOKEN)}")
 
     client = MongoClient(MONGO_URI)
     db = client["taskdb"]
 
-    project = db.projects.find_one({"name": project_name})
+    project = db.projects.find_one({"name": args.project_name})
     if not project:
-        raise ValueError(f"Project '{project_name}' not found")
+        raise ValueError(f"Project '{args.project_name}' not found")
 
-    channel_name = generate_channel_name(project_name)
+    print(f"Project found: {project.get('name')} ({project.get('_id')})")
 
-    # Create / fetch channel
-    channel = get_or_create_channel(channel_name)
-    print(f"✓ Channel: #{channel['name']} ({channel['id']})")
+    channel_name = generate_channel_name(args.project_name)
+    channel, mode = get_or_create_channel(WORKSPACE_TOKEN, channel_name)
+    print(f"Channel {mode}: #{channel['name']} ({channel['id']})")
 
-    # Join bot
-    join_channel(channel["id"])
+    join_result = join_channel(WORKSPACE_TOKEN, channel["id"])
+    print(f"Join result: {join_result.get('ok')} error={join_result.get('error')}")
 
-    # Auth info
-    auth_info = get_auth_info()
+    auth_info = auth_test(WORKSPACE_TOKEN)
+    print(
+        f"Auth test: ok={auth_info.get('ok')} user_id={auth_info.get('user_id')} team={auth_info.get('team')}"
+    )
 
-    # Save integration
-    integration_id = save_integration(db, project, channel, auth_info)
+    integration_id, save_mode = save_integration(
+        db, project, channel, auth_info, WORKSPACE_TOKEN
+    )
+    print(f"Integration {save_mode}: {integration_id}")
 
-    # Test message
-    send_test_message(channel["id"], channel["name"])
+    test_message = _slack_post(
+        "chat.postMessage",
+        WORKSPACE_TOKEN,
+        {
+            "channel": channel["id"],
+            "text": f"✅ Debug setup confirmed for #{channel['name']}",
+        },
+    )
+    print(
+        f"Message post: ok={test_message.get('ok')} error={test_message.get('error')}"
+    )
 
-    print(f"✅ Done! Integration ID: {integration_id}")
+    invite_email = (args.email or "").strip().lower()
+    if not invite_email:
+        invite_email, source = get_default_test_email(project)
+        print(f"Invite email source: {source}")
+
+    if not invite_email:
+        print(
+            "No test email provided and no project member email available. Skipping invite test."
+        )
+        return
+
+    print(f"Invite target email: {invite_email}")
+
+    user_id, used_lookup_token, lookup_resp = lookup_user_id_by_email(invite_email)
+    print(f"Lookup token used: {_mask_token(used_lookup_token)}")
+    if not user_id:
+        print(f"Lookup failed: {lookup_resp}")
+        return
+
+    print(f"Resolved Slack user_id: {user_id}")
+
+    invited, invite_token, invite_resp, invite_errors = invite_user(
+        channel["id"], user_id
+    )
+    if invited:
+        print(
+            f"Invite success with token: {_mask_token(invite_token)} response={invite_resp}"
+        )
+    else:
+        print("Invite failed with all available tokens.")
+        print(f"Invite attempts: {invite_errors}")
+
+    in_channel, verify_token, verify_resp = verify_membership(channel["id"], user_id)
+    print(f"Membership verification token: {_mask_token(verify_token)}")
+    print(f"Membership result: {in_channel}")
+    if in_channel is None:
+        print(f"Verify response: {verify_resp}")
 
 
-# 🔹 CLI ENTRY
 if __name__ == "__main__":
-    import sys
-
-    if len(sys.argv) < 2:
-        print("Usage: python script.py <project_name>")
-        exit(1)
-
-    project_name = sys.argv[1]
-    setup_slack_for_project(project_name)
+    main()

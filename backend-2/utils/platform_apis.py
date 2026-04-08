@@ -173,6 +173,97 @@ class SlackAPI:
     """Slack API operations for channel creation and bot integration"""
 
     @staticmethod
+    def normalize_channel_name(project_name: str) -> str:
+        """Normalize project name into a valid Slack channel name."""
+        import re
+
+        name = (project_name or "project").lower().strip()
+        name = re.sub(r"[^a-z0-9\- ]", "", name)
+        name = name.replace(" ", "-")
+        return name[:80]
+
+    @staticmethod
+    def get_or_create_channel(
+        workspace_token: str, channel_name: str
+    ) -> Dict[str, Any]:
+        """Create channel or fetch existing by name."""
+        created = SlackAPI.create_channel(workspace_token, channel_name)
+        if "error" not in created:
+            return created
+
+        if "name_taken" not in created.get("error", ""):
+            return created
+
+        headers = {"Authorization": f"Bearer {workspace_token}"}
+        try:
+            listed = requests.get(
+                f"{SLACK_API_BASE}/conversations.list",
+                headers=headers,
+                params={"types": "public_channel,private_channel", "limit": 1000},
+                timeout=10,
+            ).json()
+            if listed.get("ok"):
+                for channel in listed.get("channels", []):
+                    if channel.get("name") == channel_name:
+                        return {
+                            "success": True,
+                            "channel_id": channel.get("id"),
+                            "channel_name": channel.get("name"),
+                            "message": f"✅ Slack channel exists: #{channel.get('name')}",
+                        }
+            return {
+                "error": f"Failed to fetch existing channel: {listed.get('error', 'Unknown error')}"
+            }
+        except Exception as e:
+            logger.error(f"Error fetching existing Slack channel: {str(e)}")
+            return {"error": str(e)}
+
+    @staticmethod
+    def join_channel(workspace_token: str, channel_id: str) -> Dict[str, Any]:
+        """Ensure token identity is joined to channel."""
+        if not all([workspace_token, channel_id]):
+            return {"error": "Missing required parameters"}
+
+        headers = {
+            "Authorization": f"Bearer {workspace_token}",
+            "Content-Type": "application/json",
+        }
+        try:
+            data = requests.post(
+                f"{SLACK_API_BASE}/conversations.join",
+                headers=headers,
+                json={"channel": channel_id},
+                timeout=10,
+            ).json()
+            if data.get("ok") or data.get("error") == "already_in_channel":
+                return {"success": True, "message": "✅ Joined Slack channel"}
+            return {"error": data.get("error", "Unknown error")}
+        except Exception as e:
+            logger.error(f"Error joining Slack channel: {str(e)}")
+            return {"error": str(e)}
+
+    @staticmethod
+    def auth_test(workspace_token: str) -> Dict[str, Any]:
+        """Get token identity details from Slack."""
+        if not workspace_token:
+            return {"error": "Missing workspace token"}
+
+        headers = {
+            "Authorization": f"Bearer {workspace_token}",
+            "Content-Type": "application/json",
+        }
+        try:
+            data = requests.post(
+                f"{SLACK_API_BASE}/auth.test", headers=headers, timeout=10
+            ).json()
+            if data.get("ok"):
+                return data
+            return {"error": data.get("error", "Unknown error")}
+        except Exception as e:
+            logger.error(f"Error running Slack auth.test: {str(e)}")
+            return {"error": str(e)}
+
+    @staticmethod
     def get_user_id_by_email(workspace_token: str, email: str) -> Dict[str, Any]:
         """Resolve a Slack user ID from email."""
         if not all([workspace_token, email]):
@@ -271,6 +362,31 @@ class SlackAPI:
         return SlackAPI.invite_user_to_channel(
             workspace_token, channel_id, lookup.get("user_id")
         )
+
+    @staticmethod
+    def verify_user_in_channel(
+        workspace_token: str, channel_id: str, user_id: str
+    ) -> Dict[str, Any]:
+        """Check if a user is in a channel."""
+        if not all([workspace_token, channel_id, user_id]):
+            return {"error": "Missing required parameters"}
+
+        headers = {"Authorization": f"Bearer {workspace_token}"}
+        try:
+            members = requests.get(
+                f"{SLACK_API_BASE}/conversations.members",
+                headers=headers,
+                params={"channel": channel_id, "limit": 1000},
+                timeout=10,
+            ).json()
+            if not members.get("ok"):
+                return {"error": members.get("error", "Unknown error")}
+
+            in_channel = user_id in set(members.get("members", []))
+            return {"success": True, "in_channel": in_channel}
+        except Exception as e:
+            logger.error(f"Error verifying Slack membership: {str(e)}")
+            return {"error": str(e)}
 
     @staticmethod
     def create_channel(
