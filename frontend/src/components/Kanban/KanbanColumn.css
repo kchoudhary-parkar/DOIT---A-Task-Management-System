@@ -3,12 +3,17 @@
    ============================================ */
 
 .kanban-column {
+  --kanban-visible-cards: 4;
+  --kanban-card-height: 134px;
+  --kanban-card-gap: 8px;
   background: var(--bg-secondary);
   border: 1px solid var(--border-primary);
   border-radius: 8px;
   display: flex;
   flex-direction: column;
-  height: 100%;
+  height: auto;
+  min-height: 0;
+  max-height: none;
   box-shadow: var(--shadow-sm);
   transition: all 0.2s ease;
 }
@@ -85,13 +90,22 @@
 
 /* Column Content */
 .column-content {
-  flex: 1;
+  flex: 0 0 auto;
   padding: 8px;
+  height: calc(
+    (var(--kanban-visible-cards) * var(--kanban-card-height)) +
+    ((var(--kanban-visible-cards) - 1) * var(--kanban-card-gap)) + 2px
+  );
+  max-height: calc(
+    (var(--kanban-visible-cards) * var(--kanban-card-height)) +
+    ((var(--kanban-visible-cards) - 1) * var(--kanban-card-gap)) + 2px
+  );
   overflow-y: auto;
   overflow-x: hidden;
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--kanban-card-gap);
 }
 
 /* Custom Scrollbar - Jira Style */
@@ -127,7 +141,7 @@
 
 /* Empty Column Placeholder */
 .empty-column {
-  flex: 1;
+  flex: 0 0 140px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -156,8 +170,8 @@
 /* Mobile Responsive */
 @media (max-width: 768px) {
   .kanban-column {
-    min-height: 300px;
-    max-height: none;
+    --kanban-card-height: 122px;
+    --kanban-card-gap: 6px;
   }
 
   .column-header {
