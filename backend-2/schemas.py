@@ -139,6 +139,8 @@ class IntegrationsUpdate(BaseModel):
     teams_webhook: Optional[str] = ""
     slack_webhook: Optional[str] = ""
     github_token: Optional[str] = ""
+    whatsapp_instance_id: Optional[str] = ""
+    whatsapp_token: Optional[str] = ""
     whatsapp_number: Optional[str] = ""
 
 # ============= USER SCHEMAS =============

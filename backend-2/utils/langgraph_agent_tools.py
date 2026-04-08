@@ -1,3 +1,62 @@
+# # LangChain tool: Send any message to a Slack channel using bot token
+# from langchain_core.tools import tool
+
+# @tool
+# def send_slack_message_to_channel_tool(
+#     bot_token: str,
+#     channel_id: str,
+#     message_text: str,
+# ) -> str:
+#     """
+#     Send any message to a Slack channel using bot token and channel id.
+#     Args:
+#         bot_token: Slack bot token (xoxb-...)
+#         channel_id: Slack channel ID (C...)
+#         message_text: The message to send
+#     Returns: Slack API response as string
+#     """
+#     import requests
+#     url = "https://slack.com/api/chat.postMessage"
+#     headers = {
+#         "Authorization": f"Bearer {bot_token}",
+#         "Content-Type": "application/json",
+#     }
+#     payload = {
+#         "channel": channel_id,
+#         "text": message_text,
+#     }
+#     res = requests.post(url, headers=headers, json=payload)
+#     return res.text
+
+# # Example usage in your agent code:
+# # from utils.langgraph_agent_tools import send_slack_message_to_channel_tool
+# # response = send_slack_message_to_channel_tool(
+# #     bot_token="xoxb-...",
+# #     channel_id="C12345678",
+# #     message_text="Here is your project summary: ..."
+# # )
+# # print(response)
+# # Utility: Send a test Slack message using bot token and channel id (for integration verification)
+# def send_slack_test_message(bot_token: str, channel_id: str, channel_name: str) -> dict:
+#     """
+#     Send a test message to a Slack channel using bot token and channel id.
+#     Returns the Slack API response as a dict.
+#     """
+#     import requests
+#     url = "https://slack.com/api/chat.postMessage"
+#     headers = {
+#         "Authorization": f"Bearer {bot_token}",
+#         "Content-Type": "application/json",
+#     }
+#     payload = {
+#         "channel": channel_id,
+#         "text": f"✅ Integration ready for #{channel_name}",
+#     }
+#     res = requests.post(url, headers=headers, json=payload)
+#     return res.json()
+import subprocess
+import httpx
+
 """
 LangGraph Agent Tools - FULL INTEGRATION
 LangChain tool definitions for DOIT task management + Email automation
@@ -6,7 +65,7 @@ LangChain tool definitions for DOIT task management + Email automation
 import logging
 import smtplib
 import os
-import base64
+
 import mimetypes
 import json
 import re
@@ -14,9 +73,9 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
-from typing import Optional, List
+from typing import Optional
 from langchain_core.tools import tool
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage
 from database import db
 from bson import ObjectId
 from datetime import datetime, timedelta
@@ -24,9 +83,8 @@ from utils.langgraph_agent_utils import get_llm
 from utils.notification_utils import (
     send_discord_notification,
     send_teams_notification,
-    send_slack_notification,
+    # send_slack_notification,  # unused, remove
     send_whatsapp_notification,
-
 )
 
 logger = logging.getLogger(__name__)
@@ -48,6 +106,101 @@ def set_tool_context(user_id: str, user_email: str, user_role: str):
 def get_tool_context():
     """Get current tool context."""
     return _tool_context
+
+
+import requests
+
+
+@tool
+def send_slack_message_tool(
+    text: str,
+    project_name: Optional[str] = None,
+) -> str:
+    """
+    Send a Slack message to a project's configured channel.
+
+    Args:
+        text: Message content to send
+        project_name: Project name (optional but recommended)
+
+    Returns:
+        Success or error message
+
+    Examples:
+        send_slack_message_tool(
+            text="🚀 Deployment completed",
+            project_name="Website Redesign"
+        )
+    """
+    try:
+        ctx = get_tool_context()
+        user_id = ctx.get("user_id")
+
+        if not user_id:
+            return "❌ User context missing."
+
+        # ── Resolve project ────────────────────────────────────────────────
+        project = None
+
+        if project_name:
+            project = db.projects.find_one(
+                {
+                    "name": project_name,
+                    "$or": [{"user_id": user_id}, {"members.user_id": user_id}],
+                }
+            )
+        else:
+            # fallback: latest project
+            project = db.projects.find_one(
+                {"$or": [{"user_id": user_id}, {"members.user_id": user_id}]},
+                sort=[("created_at", -1)],
+            )
+
+        if not project:
+            return f"❌ Project '{project_name}' not found or access denied."
+
+        # ── Fetch Slack integration ────────────────────────────────────────
+        integration = db.team_integrations.find_one(
+            {"project_id": str(project["_id"]), "platform": "slack", "is_active": True}
+        )
+
+        if not integration:
+            return "❌ Slack is not configured for this project."
+
+        creds = integration.get("credentials", {})
+        channel_id = creds.get("channel_id")
+        token = creds.get("workspace_token")
+
+        if not channel_id or not token:
+            return "❌ Slack credentials incomplete."
+
+        # ── Send message ───────────────────────────────────────────────────
+        url = "https://slack.com/api/chat.postMessage"
+
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        }
+
+        payload = {
+            "channel": channel_id,
+            "text": text,
+        }
+
+        res = requests.post(url, headers=headers, json=payload)
+        data = res.json()
+
+        if not data.get("ok"):
+            return f"❌ Slack API error: {data.get('error')}"
+
+        return f"✅ Message sent to Slack channel #{creds.get('channel_name')}"
+
+    except Exception as e:
+        logger.error(f"send_slack_message_tool error: {e}")
+        import traceback
+
+        traceback.print_exc()
+        return f"❌ Failed to send Slack message: {str(e)}"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -159,7 +312,7 @@ def send_email_tool(
             smtp.sendmail(gmail_address, all_recipients, msg.as_string())
 
         # ── Build response ────────────────────────────────────────────────────
-        result = f"✅ Email sent successfully!\n"
+        result = "✅ Email sent successfully!\n"
         result += f"  To: {to}\n"
         result += f"  Subject: {subject}\n"
         if cc:
@@ -216,6 +369,7 @@ def send_whatsapp_message_tool(
     # Fetch recipient number from profile if not provided
     if user_id and not phone_number:
         from models.profile import Profile
+
         profile = Profile.find_by_user(user_id)
         if profile:
             integrations = profile.get("integrations", {})
@@ -225,7 +379,6 @@ def send_whatsapp_message_tool(
         return "❌ WhatsApp setup incomplete. Please ensure the System Administrator has configured WHATSAPP_INSTANCE_ID and WHATSAPP_TOKEN, and that you have added your Phone Number in Profile -> Integrations."
 
     return send_whatsapp_notification(instance_id, token, phone_number, text)
-
 
 
 @tool
@@ -275,7 +428,7 @@ def generate_pdf_report_tool(
             TableStyle,
             HRFlowable,
         )
-        from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
+        from reportlab.lib.enums import TA_CENTER
 
         # ── Resolve output path ───────────────────────────────────────────────
         if not output_path:
@@ -692,7 +845,7 @@ def create_task_tool(
             available = [p.get("name", "") for p in projects]
             return f"❌ Project '{project_name}' not found. Available projects: {available}"
 
-        labels_list = [l.strip() for l in labels.split(",")] if labels else []
+        labels_list = [label.strip() for label in labels.split(",")] if labels else []
 
         result = agent_create_task_sync(
             requesting_user=user_email,
@@ -1670,44 +1823,43 @@ def update_user_profile_tool(
 # SMITHERY / GITHUB TOOLS (Via Smithery CLI)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-import subprocess
-import json
 
 def call_smithery_tool(server_id: str, tool_name: str, args: dict) -> str:
     """Helper to call any Smithery tool via CLI with Windows-safe quoting."""
     try:
         # Compact common separators (remove spaces) to avoid argument count errors on Windows shells
         json_args = json.dumps(args, separators=(",", ":"))
-        
+
         # Build the command string. We escape double quotes for the Windows shell wrapper " "
         escaped_json = json_args.replace('"', '\\"')
         cmd = f'npx -y @smithery/cli@latest tool call {server_id} {tool_name} "{escaped_json}"'
-        
+
         logger.info(f"🛠️ Executing Smithery: {cmd}")
-        
+
         result = subprocess.run(
-            cmd, 
-            capture_output=True, 
-            text=True, 
+            cmd,
+            capture_output=True,
+            text=True,
             shell=True,  # Mandatory for command resolution and correct quoting on Windows
         )
-        
+
         if result.returncode != 0:
             error_output = result.stderr or result.stdout
             logger.error(f"❌ Smithery CLI error ({result.returncode}): {error_output}")
             return f"❌ Smithery Error: {error_output}"
-            
+
         return result.stdout
     except Exception as e:
         logger.error(f"❌ Unexpected smithery error: {e}")
         return f"❌ Backend Error: {str(e)}"
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # GITHUB TOOLS (Direct GitHub REST API — no Smithery CLI subprocess)
 # Set in your .env:
 #   GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx   ← github.com → Settings → Developer settings → PAT
 # ═══════════════════════════════════════════════════════════════════════════════
 
-import httpx
 
 GITHUB_API_BASE = "https://api.github.com"
 
@@ -1817,7 +1969,9 @@ def github_list_issues_tool(repo: str, state: str = "open") -> str:
     """
     try:
         url = f"{GITHUB_API_BASE}/repos/{repo}/issues"
-        resp = httpx.get(url, headers=_github_headers(repo), params={"state": state, "per_page": 20})
+        resp = httpx.get(
+            url, headers=_github_headers(repo), params={"state": state, "per_page": 20}
+        )
         resp.raise_for_status()
         issues = resp.json()
 
@@ -1893,7 +2047,9 @@ def github_list_branches_tool(repo: str, limit: int = 20) -> str:
     try:
         safe_limit = max(1, min(limit, 100))
         url = f"{GITHUB_API_BASE}/repos/{repo}/branches"
-        resp = httpx.get(url, headers=_github_headers(repo), params={"per_page": safe_limit})
+        resp = httpx.get(
+            url, headers=_github_headers(repo), params={"per_page": safe_limit}
+        )
         resp.raise_for_status()
         branches = resp.json()
 
@@ -1914,7 +2070,9 @@ def github_list_branches_tool(repo: str, limit: int = 20) -> str:
 
 
 @tool
-def github_list_pull_requests_tool(repo: str, state: str = "open", limit: int = 20) -> str:
+def github_list_pull_requests_tool(
+    repo: str, state: str = "open", limit: int = 20
+) -> str:
     """
     List pull requests in a GitHub repository.
 
@@ -1930,7 +2088,12 @@ def github_list_pull_requests_tool(repo: str, state: str = "open", limit: int = 
         resp = httpx.get(
             url,
             headers=_github_headers(repo),
-            params={"state": pr_state, "per_page": safe_limit, "sort": "updated", "direction": "desc"},
+            params={
+                "state": pr_state,
+                "per_page": safe_limit,
+                "sort": "updated",
+                "direction": "desc",
+            },
         )
         resp.raise_for_status()
         prs = resp.json()
@@ -1943,8 +2106,8 @@ def github_list_pull_requests_tool(repo: str, state: str = "open", limit: int = 
             number = pr.get("number")
             title = pr.get("title", "Untitled")
             author = (pr.get("user") or {}).get("login", "unknown")
-            head = ((pr.get("head") or {}).get("ref") or "-")
-            base = ((pr.get("base") or {}).get("ref") or "-")
+            head = (pr.get("head") or {}).get("ref") or "-"
+            base = (pr.get("base") or {}).get("ref") or "-"
             lines.append(f"- #{number} {title} | {author} | {head} -> {base}")
         return "\n".join(lines)
     except httpx.HTTPStatusError as e:
@@ -1955,7 +2118,9 @@ def github_list_pull_requests_tool(repo: str, state: str = "open", limit: int = 
 
 
 @tool
-def github_latest_commits_tool(repo: str, branch: Optional[str] = None, limit: int = 5) -> str:
+def github_latest_commits_tool(
+    repo: str, branch: Optional[str] = None, limit: int = 5
+) -> str:
     """
     Get latest commits from a repository (optionally a specific branch).
 
@@ -2065,8 +2230,11 @@ def github_latest_changes_tool(repo: str, branch: Optional[str] = None) -> str:
 # ADVANCED AI-POWERED TOOLS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @tool
-def breakdown_epic_tool(epic_title: str, epic_description: str, project_name: str) -> str:
+def breakdown_epic_tool(
+    epic_title: str, epic_description: str, project_name: str
+) -> str:
     """
     Break down a high-level Epic or feature into small, actionable sub-tasks.
     Automatically creates the generated tasks in the specified project.
@@ -2094,36 +2262,41 @@ def breakdown_epic_tool(epic_title: str, epic_description: str, project_name: st
         # Clean up response (sometimes models add ```json)
         content = response.content.strip().replace("```json", "").replace("```", "")
         tasks_data = json.loads(content)
-        
+
         from controllers.agent_task_controller import agent_create_task_sync
         from utils.langgraph_agent_automation import resolve_project_id
-        
+
         ctx = get_tool_context()
         user_id = ctx.get("user_id")
         user_email = ctx.get("user_email")
-        
+
         pid = resolve_project_id(user_id, project_name=project_name)
         if not pid:
             return f"❌ Project '{project_name}' not found. Epic breakdown aborted."
-            
+
         results = []
         for t in tasks_data:
             try:
                 res = agent_create_task_sync(
                     requesting_user=user_email,
-                    title=t['title'],
+                    title=t["title"],
                     project_id=pid,
                     user_id=user_id,
-                    description=t.get('description', ''),
-                    priority=t.get('priority', 'Medium'),
+                    description=t.get("description", ""),
+                    priority=t.get("priority", "Medium"),
                     status="To Do",
-                    issue_type="task"
+                    issue_type="task",
                 )
-                results.append(f"• ✅ {t['title']} (Ticket: {res.get('ticket_id', 'N/A')})")
+                results.append(
+                    f"• ✅ {t['title']} (Ticket: {res.get('ticket_id', 'N/A')})"
+                )
             except Exception as task_err:
                 results.append(f"• ❌ Failed to create '{t['title']}': {str(task_err)}")
-        
-        return f"🚀 **Epic Breakdown Complete for '{epic_title}'**\n\nGenerated {len(tasks_data)} tasks in project '{project_name}':\n" + "\n".join(results)
+
+        return (
+            f"🚀 **Epic Breakdown Complete for '{epic_title}'**\n\nGenerated {len(tasks_data)} tasks in project '{project_name}':\n"
+            + "\n".join(results)
+        )
     except Exception as e:
         logger.error(f"breakdown_epic_tool error: {e}")
         return f"❌ Failed to breakdown epic: {str(e)}"
@@ -2138,34 +2311,38 @@ def generate_standup_tool() -> str:
     try:
         ctx = get_tool_context()
         user_email = ctx.get("user_email")
-        
+
         # 1. Fetch data from DB
         one_day_ago = datetime.utcnow() - timedelta(days=1)
-        
-        recent_done = list(db.tasks.find({
-            "assignee_email": user_email,
-            "status": "Done",
-            "updated_at": {"$gte": one_day_ago}
-        }).limit(5))
-        
-        in_progress = list(db.tasks.find({
-            "assignee_email": user_email,
-            "status": "In Progress"
-        }).limit(5))
-        
-        planned = list(db.tasks.find({
-            "assignee_email": user_email,
-            "status": "To Do"
-        }).limit(5))
+
+        recent_done = list(
+            db.tasks.find(
+                {
+                    "assignee_email": user_email,
+                    "status": "Done",
+                    "updated_at": {"$gte": one_day_ago},
+                }
+            ).limit(5)
+        )
+
+        in_progress = list(
+            db.tasks.find(
+                {"assignee_email": user_email, "status": "In Progress"}
+            ).limit(5)
+        )
+
+        planned = list(
+            db.tasks.find({"assignee_email": user_email, "status": "To Do"}).limit(5)
+        )
 
         # 2. Use LLM to reason and format
         llm = get_llm()
         context_str = f"""
-        Completed recently: {[t['title'] for t in recent_done]}
-        Working on: {[t['title'] for t in in_progress]}
-        Next in queue: {[t['title'] for t in planned]}
+        Completed recently: {[t["title"] for t in recent_done]}
+        Working on: {[t["title"] for t in in_progress]}
+        Next in queue: {[t["title"] for t in planned]}
         """
-        
+
         prompt = f"""
         Generate a professional, concise daily standup update based on this task activity:
         {context_str}
@@ -2185,7 +2362,7 @@ def generate_standup_tool() -> str:
 @tool
 def auto_triage_task_tool(task_title: str, task_description: str) -> str:
     """
-    AI-powered task triaging. Suggests priority, labels, and implementation reasoning 
+    AI-powered task triaging. Suggests priority, labels, and implementation reasoning
     for any incoming feature request or bug report.
     """
     try:
@@ -2206,7 +2383,7 @@ def auto_triage_task_tool(task_title: str, task_description: str) -> str:
         response = llm.invoke([HumanMessage(content=prompt)])
         content = response.content.strip().replace("```json", "").replace("```", "")
         triage = json.loads(content)
-        
+
         return (
             f"🔍 **AI Triage Suggestion**\n"
             f"- **Complexity**: {triage.get('priority', 'N/A')}\n"
@@ -2222,41 +2399,53 @@ def auto_triage_task_tool(task_title: str, task_description: str) -> str:
 @tool
 def search_project_knowledge_tool(query: str) -> str:
     """
-    Search across historical tasks, project descriptions, and comments for specific technical 
+    Search across historical tasks, project descriptions, and comments for specific technical
     solutions, previous decisions, or historical context. Used for 'Knowledge Retrieval'.
     """
     try:
         ctx = get_tool_context()
         user_id = ctx.get("user_id")
-        
+
         # Resolve projects accessible by user
-        projects = list(db.projects.find({
-            "$or": [{"user_id": user_id}, {"members.user_id": user_id}]
-        }))
-        pids = [str(p['_id']) for p in projects]
-        
+        projects = list(
+            db.projects.find(
+                {"$or": [{"user_id": user_id}, {"members.user_id": user_id}]}
+            )
+        )
+        pids = [str(p["_id"]) for p in projects]
+
         # Regex search in tasks for similar patterns (Hybrid search)
-        tasks = list(db.tasks.find({
-            "project_id": {"$in": pids},
-            "$or": [
-                {"title": {"$regex": query, "$options": "i"}},
-                {"description": {"$regex": query, "$options": "i"}},
-                {"comments.text": {"$regex": query, "$options": "i"}}
-            ]
-        }).sort("updated_at", -1).limit(6))
-        
+        tasks = list(
+            db.tasks.find(
+                {
+                    "project_id": {"$in": pids},
+                    "$or": [
+                        {"title": {"$regex": query, "$options": "i"}},
+                        {"description": {"$regex": query, "$options": "i"}},
+                        {"comments.text": {"$regex": query, "$options": "i"}},
+                    ],
+                }
+            )
+            .sort("updated_at", -1)
+            .limit(6)
+        )
+
         if not tasks:
             return f"No historical knowledge found for your query: '{query}'"
-            
+
         result = f"📚 **Historical Knowledge & Context Found**\nFound {len(tasks)} relevant items from your project history:\n\n"
         for t in tasks:
-            result += f"• **[{t.get('ticket_id', 'N/A')}] {t['title']}** ({t['status']})\n"
-            if t.get('description'):
-                snippet = t['description'][:120].replace('\n', ' ') + "..."
+            result += (
+                f"• **[{t.get('ticket_id', 'N/A')}] {t['title']}** ({t['status']})\n"
+            )
+            if t.get("description"):
+                snippet = t["description"][:120].replace("\n", " ") + "..."
                 result += f"  > {snippet}\n"
             result += "\n"
-        
-        result += "💡 *Tip: You can ask me to summarize a specific ticket for more details.*"
+
+        result += (
+            "💡 *Tip: You can ask me to summarize a specific ticket for more details.*"
+        )
         return result
     except Exception as e:
         logger.error(f"search_project_knowledge_tool error: {e}")
@@ -2268,104 +2457,168 @@ def search_project_knowledge_tool(query: str) -> str:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-@tool
-def send_discord_message_tool(
-    content: str, title: str = "DOIT Notification", webhook_url: Optional[str] = None
-) -> str:
-    """
-    Send a message to a Discord channel via Webhook.
+# @tool
+# def send_discord_message_tool(
+#     content: str,
+#     title: str = "DOIT Notification",
+#     webhook_url: Optional[str] = None,
+#     project_id: Optional[str] = None,
+# ) -> str:
+#     """
+#     Send a message to a Discord channel via Webhook.
 
-    Args:
-        content: The message content to send (Markdown supported).
-        title: Optional title for the Discord embed.
-        webhook_url: Optional override for the Discord webhook URL.
-                     By default, it uses the user's profile settings (real-time).
-    """
-    ctx = get_tool_context()
-    user_id = ctx.get("user_id")
+#     Args:
+#         content: The message content to send (Markdown supported).
+#         title: Optional title for the Discord embed.
+#         webhook_url: Optional override for the Discord webhook URL.
+#         project_id: Project ID to use project/team integration if available.
+#     """
+#     ctx = get_tool_context()
+#     user_id = ctx.get("user_id")
+#     url = webhook_url
 
-    # Priority: 
-    # 1. Direct argument (chat override)
-    # 2. User Profile (real-time configuration)
-    # 3. Environment Variable (system fallback)
-    url = webhook_url
+#     # 1. Project/team integration (preferred)
+#     if not url and project_id:
+#         try:
+#             from models.team_integration import TeamIntegration
 
-    if not url and user_id:
-        from models.profile import Profile
-        profile = Profile.find_by_user(user_id)
-        if profile:
-            url = profile.get("integrations", {}).get("discord_webhook")
-    
-    if not url:
-        url = os.environ.get("DISCORD_WEBHOOK_URL")
+#             integration = TeamIntegration.find_by_project_and_platform(
+#                 project_id, "discord"
+#             )
+#             if integration and integration.get("credentials", {}).get("webhook_url"):
+#                 url = integration["credentials"]["webhook_url"]
+#         except Exception as e:
+#             logger.warning(f"Failed to fetch Discord team integration: {e}")
 
-    if not url:
-        return "❌ Discord Webhook URL not configured. Please set it in your Profile → Integrations."
+#     # 2. User profile integration (fallback)
+#     if not url and user_id:
+#         from models.profile import Profile
 
-    return send_discord_notification(url, content, title)
+#         profile = Profile.find_by_user(user_id)
+#         if profile:
+#             url = profile.get("integrations", {}).get("discord_webhook")
 
+#     # 3. Environment variable (last resort)
+#     if not url:
+#         url = os.environ.get("DISCORD_WEBHOOK_URL")
 
-@tool
-def send_teams_message_tool(
-    text: str, title: str = "DOIT Alert", webhook_url: Optional[str] = None
-) -> str:
-    """
-    Send a message to a Microsoft Teams channel via Webhook.
+#     if not url:
+#         return "❌ Discord Webhook URL not configured. Please set it in your Project Integrations."
 
-    Args:
-        text: The message text to send.
-        title: Optional title for the message card.
-        webhook_url: Optional override for the Teams webhook URL.
-                     By default, it uses the user's profile settings (real-time).
-    """
-    ctx = get_tool_context()
-    user_id = ctx.get("user_id")
-
-    url = webhook_url
-
-    if not url and user_id:
-        from models.profile import Profile
-        profile = Profile.find_by_user(user_id)
-        if profile:
-            url = profile.get("integrations", {}).get("teams_webhook")
-    
-    if not url:
-        url = os.environ.get("TEAMS_WEBHOOK_URL")
-
-    if not url:
-        return "❌ Teams Webhook URL not configured. Please set it in your Profile → Integrations."
-
-    return send_teams_notification(url, text, title)
+#     return send_discord_notification(url, content, title)
 
 
-@tool
-def send_slack_message_tool(text: str, webhook_url: Optional[str] = None) -> str:
-    """
-    Send a message to a Slack channel via Webhook.
+# @tool
+# def send_teams_message_tool(
+#     text: str,
+#     title: str = "DOIT Alert",
+#     webhook_url: Optional[str] = None,
+#     project_id: Optional[str] = None,
+# ) -> str:
+#     """
+#     Send a message to a Microsoft Teams channel via Webhook.
 
-    Args:
-        text: The message text to send.
-        webhook_url: Optional override for the Slack webhook URL.
-                     By default, it uses the user's profile settings (real-time).
-    """
-    ctx = get_tool_context()
-    user_id = ctx.get("user_id")
+#     Args:
+#         text: The message text to send.
+#         title: Optional title for the message card.
+#         webhook_url: Optional override for the Teams webhook URL.
+#         project_id: Project ID to use project/team integration if available.
+#     """
+#     ctx = get_tool_context()
+#     user_id = ctx.get("user_id")
+#     url = webhook_url
 
-    url = webhook_url
+#     # 1. Project/team integration (preferred)
+#     if not url and project_id:
+#         try:
+#             from models.team_integration import TeamIntegration
 
-    if not url and user_id:
-        from models.profile import Profile
-        profile = Profile.find_by_user(user_id)
-        if profile:
-            url = profile.get("integrations", {}).get("slack_webhook")
-    
-    if not url:
-        url = os.environ.get("SLACK_WEBHOOK_URL")
+#             integration = TeamIntegration.find_by_project_and_platform(
+#                 project_id, "teams"
+#             )
+#             if integration and integration.get("credentials", {}).get("webhook_url"):
+#                 url = integration["credentials"]["webhook_url"]
+#         except Exception as e:
+#             logger.warning(f"Failed to fetch Teams team integration: {e}")
 
-    if not url:
-        return "❌ Slack Webhook URL not configured. Please set it in your Profile → Integrations."
+#     # 2. User profile integration (fallback)
+#     if not url and user_id:
+#         from models.profile import Profile
 
-    return send_slack_notification(url, text)
+#         profile = Profile.find_by_user(user_id)
+#         if profile:
+#             url = profile.get("integrations", {}).get("teams_webhook")
+
+#     # 3. Environment variable (last resort)
+#     if not url:
+#         url = os.environ.get("TEAMS_WEBHOOK_URL")
+
+#     if not url:
+#         return "❌ Teams Webhook URL not configured. Please set it in your Project Integrations."
+
+#     return send_teams_notification(url, text, title)
+
+
+# @tool
+
+# def send_slack_message_tool(
+#     text: str,
+#     webhook_url: Optional[str] = None,
+#     project_id: Optional[str] = None,
+# ) -> str:
+#     """
+#     Send a message to a Slack channel via Slack BOT TOKEN (preferred) or Webhook.
+
+#     Args:
+#         text: The message text to send.
+#         webhook_url: Optional override for the Slack webhook URL.
+#         project_id: Project ID to use project/team integration if available.
+#     """
+#     ctx = get_tool_context()
+#     user_id = ctx.get("user_id")
+#     url = webhook_url
+#     bot_token = None
+#     channel_id = None
+
+#     # 1. Project/team integration (preferred)
+#     if project_id:
+#         try:
+#             from models.team_integration import TeamIntegration
+
+#             integration = TeamIntegration.find_by_project_and_platform(
+#                 project_id, "slack"
+#             )
+#             if integration:
+#                 creds = integration.get("credentials", {})
+#                 # Prefer bot token mode if available
+#                 bot_token = creds.get("bot_token")
+#                 channel_id = creds.get("channel_id")
+#                 if creds.get("webhook_url") and not (bot_token and channel_id):
+#                     url = creds.get("webhook_url")
+#         except Exception as e:
+#             logger.warning(f"Failed to fetch Slack team integration: {e}")
+
+#     # 2. User profile integration (fallback, webhook only)
+#     if not (bot_token and channel_id) and not url and user_id:
+#         from models.profile import Profile
+
+#         profile = Profile.find_by_user(user_id)
+#         if profile:
+#             url = profile.get("integrations", {}).get("slack_webhook")
+
+#     # 3. Environment variable (last resort, webhook only)
+#     if not (bot_token and channel_id) and not url:
+#         url = os.environ.get("SLACK_WEBHOOK_URL")
+
+#     # Send using bot token if available, else webhook
+#     from utils.notification_utils import send_slack_notification
+#     if bot_token and channel_id:
+#         return send_slack_notification(bot_token=bot_token, channel_id=channel_id, text=text)
+#     elif url:
+#         return send_slack_notification(webhook_url=url, text=text)
+#     else:
+#         return "❌ Slack credentials not configured. Please set them in your Project Integrations."
+
 
 def get_all_langgraph_tools():
     """Return all available LangGraph tools."""
@@ -2409,8 +2662,6 @@ def get_all_langgraph_tools():
         auto_triage_task_tool,
         search_project_knowledge_tool,
         # External Integrations
-        send_discord_message_tool,
-        send_teams_message_tool,
         send_slack_message_tool,
         send_whatsapp_message_tool,
     ]

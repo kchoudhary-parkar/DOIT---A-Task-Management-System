@@ -20,3 +20,6 @@ sprints = sprints_collection
 datasets = db.datasets  # Stores dataset metadata and small datasets
 dataset_files = db.dataset_files  # Stores large file chunks (GridFS alternative)
 visualizations = db.visualizations  # Stores generated visualizations
+
+# Add missing team_integrations collection for project-level integrations
+team_integrations = db.team_integrations

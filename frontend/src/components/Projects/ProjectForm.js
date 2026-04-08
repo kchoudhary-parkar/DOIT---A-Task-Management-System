@@ -16,16 +16,23 @@ function ProjectForm({ onSubmit, onCancel, initialData = null }) {
   const [description, setDescription] = useState("");
   const [gitRepoUrl, setGitRepoUrl] = useState("");
   const [gitAccessToken, setGitAccessToken] = useState("");
+  // Teams Webhook URI for integration
+  const [teamsWebhook, setTeamsWebhook] = useState("");
+  // Slack Workspace Bot Token (optional)
+  const [slackToken, setSlackToken] = useState("");
   const [error, setError] = useState("");
-
-  useEffect(() => {
-    if (initialData) {
-      setName(initialData.name);
-      setDescription(initialData.description || "");
-      setGitRepoUrl(initialData.git_repo_url || "");
-      // Don't populate token for security
-    }
-  }, [initialData]);
+useEffect(() => {
+  if (initialData) {
+    setName(initialData.name);
+    setDescription(initialData.description || "");
+    setGitRepoUrl(initialData.git_repo_url || "");
+    // Don't populate token for security
+    setTeamsWebhook(initialData.teams_webhook || "");
+    setSlackToken(""); // Always clear slack token on edit/new
+  } else {
+    setSlackToken(""); // Also clear on new
+  }
+}, [initialData]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -42,13 +49,20 @@ function ProjectForm({ onSubmit, onCancel, initialData = null }) {
       return;
     }
 
+
     const projectData = { 
       name: name.trim(), 
       description: description.trim(),
       git_repo_url: gitRepoUrl.trim(),
-      git_access_token: gitAccessToken.trim()
+      git_access_token: gitAccessToken.trim(),
+      integrations: {}
     };
-
+    if (slackToken.trim()) {
+      projectData.integrations.slack = { workspace_token: slackToken.trim() };
+    }
+    if (teamsWebhook.trim()) {
+      projectData.integrations.teams = { webhook_url: teamsWebhook.trim() };
+    }
     onSubmit(projectData);
   };
 
@@ -124,9 +138,47 @@ function ProjectForm({ onSubmit, onCancel, initialData = null }) {
             </div>
           </div>
 
+
           <div className="form-section-divider">
-            <FiGithub size={16} />
-            <span>GitHub Integration (Optional)</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span role="img" aria-label="integration">🔗</span>
+              Integrations
+            </span>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="slackToken" className="form-label">
+              <span style={{ color: '#4A154B', fontWeight: 600, marginRight: 6 }}>Slack Workspace Bot Token</span>
+              <span className="form-hint">(optional)</span>
+            </label>
+            <input
+              type="password"
+              id="slackToken"
+              value={slackToken}
+              onChange={e => setSlackToken(e.target.value)}
+              placeholder="xoxb-xxxxxxxxxxxx-xxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxx"
+              maxLength={200}
+            />
+            <div className="form-hint">
+              <span>Provide your Slack bot token to create the channel in your workspace. Leave blank to use the default workspace.</span>
+            </div>
+          </div>
+          <div className="form-group">
+            <label htmlFor="teamsWebhook" className="form-label">
+              <span style={{ color: '#7B83EB', fontWeight: 600, marginRight: 6 }}>MS Teams Webhook URI</span>
+              <span className="form-hint">(optional)</span>
+            </label>
+            <input
+              type="url"
+              id="teamsWebhook"
+              value={teamsWebhook}
+              onChange={e => setTeamsWebhook(e.target.value)}
+              placeholder="https://yourcompany.webhook.office.com/..."
+              maxLength={300}
+            />
+            <div className="form-hint">
+              <span>Slack and Discord channels will be auto-created. Enter a Teams Webhook URI to enable Teams notifications.</span>
+            </div>
           </div>
 
           <div className="form-group">

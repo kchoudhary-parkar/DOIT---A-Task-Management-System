@@ -2,13 +2,26 @@
 """
 Helper utilities for FastAPI routers to handle controller responses
 """
+
 import json
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
+
+# Import the agent token verifier
+from middleware.agent_auth import verify_agent_token
+
+
+async def get_user_id_from_request(request: Request):
+    """
+    Extract user_id from the request using authentication middleware.
+    Returns user_id (str) or raises HTTPException if not authenticated.
+    """
+    return await verify_agent_token(request)
+
 
 def handle_controller_response(response):
     """
     Process controller response and raise HTTPException if error
-    
+
     Controllers return format:
     {
         "success": True/False,
@@ -16,7 +29,7 @@ def handle_controller_response(response):
         "headers": [...],
         "body": json.dumps({...})  # JSON string
     }
-    
+
     This function:
     1. Extracts the body
     2. Parses it if it's a JSON string
@@ -25,7 +38,7 @@ def handle_controller_response(response):
     """
     status_code = response.get("status", 500)
     body = response.get("body", "{}")
-    
+
     # Parse body if it's a string
     if isinstance(body, str):
         try:
@@ -34,12 +47,12 @@ def handle_controller_response(response):
             body_data = {"error": body}
     else:
         body_data = body
-    
+
     # Raise HTTPException if error
     if status_code >= 400:
         error_msg = body_data.get("error", "Unknown error")
         if isinstance(error_msg, dict):
             error_msg = json.dumps(error_msg)
         raise HTTPException(status_code=status_code, detail=error_msg)
-    
+
     return body_data

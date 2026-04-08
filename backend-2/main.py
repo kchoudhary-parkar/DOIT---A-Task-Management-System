@@ -27,6 +27,7 @@ from routers import (
 from routers.voice_chat_router import router as voice_chat_router
 from routers.local_agent_router import router as local_agent_router
 from routers.agent_data_router import router as agent_data_router
+from routers.team_integration_router import router as team_integration_router
 from init_db import initialize_super_admin, initialize_default_channels
 from routers.langgraph_agent_router import router as langgraph_agent_router
 from routers.mcp_agent_router import router as mcp_agent_router
@@ -88,6 +89,9 @@ app.add_middleware(
 # ── Routers ────────────────────────────────────────────────────────────────────
 app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(project_router, prefix="/api/projects", tags=["Projects"])
+app.include_router(
+    team_integration_router, prefix="/api/projects", tags=["Team Integrations"]
+)
 app.include_router(member_router, prefix="/api/projects", tags=["Members"])
 app.include_router(task_router, prefix="/api/tasks", tags=["Tasks"])
 app.include_router(sprint_router, prefix="/api", tags=["Sprints"])
