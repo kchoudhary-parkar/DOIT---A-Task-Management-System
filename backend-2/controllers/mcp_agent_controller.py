@@ -12,6 +12,7 @@ Flow:
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime
 from typing import Any, Dict, Optional
 
@@ -150,13 +151,54 @@ def _pick_first(params: Dict[str, Any], keys: list[str]) -> Optional[str]:
     return None
 
 
-def _normalize_action_params(action: str, params: Dict[str, Any]) -> Dict[str, Any]:
+def _normalize_action_params(
+    action: str,
+    params: Dict[str, Any],
+    raw_command: Optional[str] = None,
+    user_email: Optional[str] = None,
+) -> Dict[str, Any]:
     normalized = dict(params or {})
 
     if action == "create_task":
         title = _pick_first(normalized, ["title", "task_name", "task_title", "name", "task"])
         if title:
             normalized["title"] = title
+
+        assignee = _pick_first(
+            normalized,
+            [
+                "assignee_email",
+                "assignee_name",
+                "assignee",
+                "assigned_to",
+                "assign_to",
+                "assigned",
+                "owner",
+                "member",
+                "member_name",
+                "user",
+            ],
+        )
+
+        if not assignee and raw_command:
+            # Best-effort fallback for prompts like "assign to John" or "assigned to john@example.com".
+            match = re.search(
+                r"(?:assign(?:ed)?\s+to\s+)([\w.+\-@ ]{2,80})",
+                raw_command,
+                flags=re.IGNORECASE,
+            )
+            if match:
+                assignee = match.group(1).strip(" .,;:!\"'")
+
+        if assignee:
+            value = str(assignee).strip()
+            lowered = value.lower()
+            if lowered in {"me", "myself", "self"} and user_email:
+                normalized["assignee_email"] = user_email
+            elif "@" in value:
+                normalized["assignee_email"] = value
+            else:
+                normalized["assignee_name"] = value
 
     if action in {"assign_task", "update_task", "add_task_to_sprint", "remove_task_from_sprint"}:
         task_identifier = _pick_first(
@@ -633,7 +675,12 @@ async def send_message_to_mcp(
 
             if parsed.get("success"):
                 parsed_action = parsed.get("action")
-                params = _normalize_action_params(parsed_action, parsed.get("params", {}))
+                params = _normalize_action_params(
+                    parsed_action,
+                    parsed.get("params", {}),
+                    raw_command=content,
+                    user_email=user_email,
+                )
 
                 if not parsed_action:
                     ai_content = (
