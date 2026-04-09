@@ -1,5 +1,7 @@
 import json
 import os
+import threading
+import time
 from models.task import Task
 from models.project import Project
 from models.git_activity import GitBranch, GitCommit, GitPullRequest
@@ -8,6 +10,53 @@ from utils.response import success_response, error_response
 from utils.github_utils import extract_ticket_id, decrypt_token, calculate_time_ago
 from utils.notification_utils import send_slack_notification
 from datetime import datetime, timezone
+
+
+_project_sync_lock = threading.Lock()
+_project_sync_state = {}
+
+
+def _run_project_sync_job(project_id, tasks_list, min_interval_seconds):
+    """Internal worker for asynchronous project git sync."""
+    try:
+        sync_project_git_notifications(project_id, tasks_list)
+    finally:
+        with _project_sync_lock:
+            state = _project_sync_state.get(project_id, {})
+            state["running"] = False
+            state["last_started_at"] = time.time()
+            state["min_interval_seconds"] = min_interval_seconds
+            _project_sync_state[project_id] = state
+
+
+def schedule_project_git_sync(project_id, tasks_list, min_interval_seconds=90):
+    """Schedule non-blocking git sync on project visit with per-project cooldown."""
+    if not project_id or not tasks_list:
+        return False
+
+    now = time.time()
+    with _project_sync_lock:
+        state = _project_sync_state.get(project_id, {})
+        if state.get("running"):
+            return False
+
+        last_started_at = state.get("last_started_at", 0)
+        if now - last_started_at < min_interval_seconds:
+            return False
+
+        _project_sync_state[project_id] = {
+            "running": True,
+            "last_started_at": now,
+            "min_interval_seconds": min_interval_seconds,
+        }
+
+    worker = threading.Thread(
+        target=_run_project_sync_job,
+        args=(project_id, tasks_list, min_interval_seconds),
+        daemon=True,
+    )
+    worker.start()
+    return True
 
 
 def _get_project_slack_bot_credentials(project_id):

@@ -472,10 +472,16 @@ def get_project_tasks(project_id, user_id):
     print(f"[TASKS] Processed tasks successfully")
 
     # Trigger best-effort Git latest-event Slack sync on project visit.
+    # Run in background with cooldown to avoid blocking tasks page response.
     try:
         from controllers import git_controller
 
-        git_controller.sync_project_git_notifications(project_id, tasks_list)
+        lightweight_tasks = [
+            {"_id": task.get("_id"), "ticket_id": task.get("ticket_id")}
+            for task in tasks_list
+            if task.get("_id") and task.get("ticket_id")
+        ]
+        git_controller.schedule_project_git_sync(project_id, lightweight_tasks)
     except Exception as e:
         logger.warning("Git project-visit sync skipped for project %s: %s", project_id, e)
 
