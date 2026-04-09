@@ -51,32 +51,22 @@ def _notify_task_event_to_slack(task, actor_name, event_type):
     assignee = task.get("assignee_name") or "Unassigned"
 
     if event_type == "created":
-        heading = "Task Created"
+        heading = "➡️Task Created"
         body = (
-            f"A new task was created by *{actor_name}*.\n"
-            f"• Ticket: *{ticket_id}*\n"
-            f"• Title: *{title}*\n"
-            f"• Status: *{status}*\n"
-            f"• Priority: *{priority}*\n"
-            f"• Assignee: *{assignee}*"
+            f"A new task was created by *{actor_name}* 📄 Ticket: *{ticket_id}* • Title: *{title}*\n"
+            f"• Status: *{status}* • Priority: *{priority}* 👤 Assignee: *{assignee}*"
         )
     elif event_type == "updated":
-        heading = "Task Updated"
+        heading = "⚙️Task Updated"
         body = (
-            f"Task updated by *{actor_name}*.\n"
-            f"• Ticket: *{ticket_id}*\n"
-            f"• Title: *{title}*\n"
-            f"• Status: *{status}*\n"
-            f"• Priority: *{priority}*\n"
-            f"• Assignee: *{assignee}*"
+            f"Task updated by *{actor_name}* 📄 Ticket: *{ticket_id}*• Title: *{title}*\n"
+            f"• Status: *{status}*• Priority: *{priority}* 👤 Assignee: *{assignee}*"
         )
     elif event_type == "done":
-        heading = "Task Marked Done"
+        heading = "✅Task Marked Done"
         body = (
-            f"Task marked as *Done* by *{actor_name}*.\n"
-            f"• Ticket: *{ticket_id}*\n"
-            f"• Title: *{title}*\n"
-            f"• Assignee: *{assignee}*"
+            f"Task marked as *Done* by *{actor_name}* 📄 Ticket: *{ticket_id}*\n"
+            f"• Title: *{title}* 👤 Assignee: *{assignee}*"
         )
     else:
         return

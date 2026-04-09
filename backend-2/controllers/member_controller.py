@@ -265,15 +265,105 @@ def remove_project_member(project_id, member_user_id, user_id):
     if member_user_id == user_id:
         return error_response("Cannot remove project owner", 400)
 
+    # Capture member info for Slack removal flow before deleting membership entry.
+    member_entry = next(
+        (m for m in project.get("members", []) if m.get("user_id") == member_user_id),
+        None,
+    )
+
     # First, unassign all tasks assigned to this member
     from models.task import Task
 
     Task.unassign_user_tasks(project_id, member_user_id)
 
+    # Best-effort: remove user from project's Slack channel.
+    slack_remove = {
+        "attempted": False,
+        "success": False,
+        "message": "Slack integration not configured for this project",
+    }
+
+    try:
+        integration = TeamIntegration.find_by_project_and_platform(project_id, "slack")
+        if integration:
+            credentials = integration.get("credentials", {}) or {}
+            workspace_token = credentials.get("workspace_token") or credentials.get(
+                "bot_token"
+            )
+            channel_id = credentials.get("channel_id") or integration.get("channel_id")
+            user_oauth_token = credentials.get("user_oauth_token") or os.getenv(
+                "SLACK_INVITE_USER_TOKEN"
+            )
+
+            if workspace_token and channel_id:
+                slack_remove["attempted"] = True
+                target_email = (
+                    (
+                        (member_entry or {}).get("email")
+                        or (User.find_by_id(member_user_id) or {}).get("email")
+                        or ""
+                    )
+                    .strip()
+                    .lower()
+                )
+
+                if target_email:
+                    lookup = SlackAPI.get_user_id_by_email(
+                        user_oauth_token or workspace_token, target_email
+                    )
+                    if "error" in lookup:
+                        slack_remove["message"] = lookup.get("error")
+                    else:
+                        target_slack_user_id = lookup.get("user_id")
+
+                        token_candidates = [workspace_token]
+                        if (
+                            user_oauth_token
+                            and user_oauth_token not in token_candidates
+                        ):
+                            token_candidates.append(user_oauth_token)
+
+                        remove_result = None
+                        for token in token_candidates:
+                            remove_result = SlackAPI.remove_user_from_channel(
+                                token, channel_id, target_slack_user_id
+                            )
+                            if "error" not in remove_result:
+                                break
+
+                        if remove_result and "error" in remove_result:
+                            slack_remove["message"] = remove_result.get("error")
+                        else:
+                            slack_remove["success"] = True
+                            slack_remove["message"] = (remove_result or {}).get(
+                                "message", "Member removed from Slack channel"
+                            )
+
+                        verify = SlackAPI.verify_user_in_channel(
+                            workspace_token, channel_id, target_slack_user_id
+                        )
+                        if "error" not in verify:
+                            slack_remove["in_channel"] = verify.get("in_channel")
+                else:
+                    slack_remove["message"] = (
+                        "Member email not available for Slack removal"
+                    )
+            else:
+                slack_remove["attempted"] = True
+                slack_remove["message"] = "Slack integration credentials incomplete"
+    except Exception as e:
+        slack_remove["attempted"] = True
+        slack_remove["message"] = f"Slack removal error: {str(e)}"
+
     # Then remove the member from the project
     success = Project.remove_member(project_id, member_user_id)
 
     if success:
-        return success_response({"message": "Member removed from project successfully"})
+        return success_response(
+            {
+                "message": "Member removed from project successfully",
+                "slack_remove": slack_remove,
+            }
+        )
     else:
         return error_response("Failed to remove member or member not found", 400)

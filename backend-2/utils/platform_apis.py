@@ -389,6 +389,43 @@ class SlackAPI:
             return {"error": str(e)}
 
     @staticmethod
+    def remove_user_from_channel(
+        workspace_token: str, channel_id: str, user_id: str
+    ) -> Dict[str, Any]:
+        """Remove a user from a channel using conversations.kick."""
+        if not all([workspace_token, channel_id, user_id]):
+            return {"error": "Missing required parameters"}
+
+        headers = {
+            "Authorization": f"Bearer {workspace_token}",
+            "Content-Type": "application/json",
+        }
+        payload = {"channel": channel_id, "user": user_id}
+
+        try:
+            result = requests.post(
+                f"{SLACK_API_BASE}/conversations.kick",
+                headers=headers,
+                json=payload,
+                timeout=10,
+            ).json()
+
+            if result.get("ok"):
+                return {"success": True, "message": "User removed from Slack channel"}
+
+            error = result.get("error", "Unknown error")
+            if error in ["not_in_channel", "cant_kick_self"]:
+                return {
+                    "success": True,
+                    "message": "User already not in Slack channel",
+                }
+
+            return {"error": f"Failed to remove user: {error}"}
+        except Exception as e:
+            logger.error(f"Error removing user from Slack channel: {str(e)}")
+            return {"error": str(e)}
+
+    @staticmethod
     def create_channel(
         workspace_token: str, channel_name: str, is_private: bool = False
     ) -> Dict[str, Any]:
