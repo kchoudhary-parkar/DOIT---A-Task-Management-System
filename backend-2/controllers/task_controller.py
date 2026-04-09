@@ -1,10 +1,12 @@
 import json
 import asyncio
 import logging
+import os
 from models.task import Task
 from models.project import Project
 from models.user import User
 from models.team_integration import TeamIntegration
+from utils.platform_apis import SlackAPI
 from utils.response import success_response, error_response, datetime_to_iso
 from utils.validators import validate_required_fields
 from utils.ticket_utils import generate_ticket_id
@@ -49,24 +51,34 @@ def _notify_task_event_to_slack(task, actor_name, event_type):
     status = task.get("status", "-")
     priority = task.get("priority", "-")
     assignee = task.get("assignee_name") or "Unassigned"
+    assignee_email = (task.get("assignee_email") or "").strip().lower()
+
+    assignee_display = assignee
+    if assignee_email:
+        lookup_token = os.getenv("SLACK_INVITE_USER_TOKEN") or bot_token
+        lookup = SlackAPI.get_user_id_by_email(lookup_token, assignee_email)
+        if "error" not in lookup and lookup.get("user_id"):
+            assignee_display = f"<@{lookup.get('user_id')}>"
+        elif assignee and assignee != "Unassigned":
+            assignee_display = f"{assignee} ({assignee_email})"
 
     if event_type == "created":
         heading = "➡️Task Created"
         body = (
             f"A new task was created by *{actor_name}* 📄 Ticket: *{ticket_id}* • Title: *{title}*\n"
-            f"• Status: *{status}* • Priority: *{priority}* 👤 Assignee: *{assignee}*"
+            f"• Status: *{status}* • Priority: *{priority}* 👤 Assignee: {assignee_display}"
         )
     elif event_type == "updated":
         heading = "⚙️Task Updated"
         body = (
             f"Task updated by *{actor_name}* 📄 Ticket: *{ticket_id}*• Title: *{title}*\n"
-            f"• Status: *{status}*• Priority: *{priority}* 👤 Assignee: *{assignee}*"
+            f"• Status: *{status}*• Priority: *{priority}* 👤 Assignee: {assignee_display}"
         )
     elif event_type == "done":
         heading = "✅Task Marked Done"
         body = (
             f"Task marked as *Done* by *{actor_name}* 📄 Ticket: *{ticket_id}*\n"
-            f"• Title: *{title}* 👤 Assignee: *{assignee}*"
+            f"• Title: *{title}* 👤 Assignee: {assignee_display}"
         )
     else:
         return
