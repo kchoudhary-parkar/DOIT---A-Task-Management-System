@@ -9,8 +9,9 @@ import {
 import AboutPage from "./pages/About/AboutPage";
 import LandingAuth from "./pages/Auth/LandingAuth";  // adjust path
 import LandingPage from "./pages/Landing/LandingPage";
-import { FiActivity } from 'react-icons/fi';
+import { FiActivity, FiCompass } from 'react-icons/fi';
 import { BsStars, BsBriefcase } from 'react-icons/bs';  // For AI Assistant and PM icons
+import ExploreDOITPage from "./pages/ExploreDOIT/ExploreDOITPage";
 import { AuthContext } from "./context/AuthContext";
 import { DashboardPage } from "./pages/Dashboard";
 import { ProjectsPage } from "./pages/Projects";
@@ -156,6 +157,7 @@ function AuthenticatedApp({ user, theme, toggleTheme, logout }) {
         },
         { label: 'DOIT-AI', path: '/ai-assistant', icon: <BsStars size={17} /> },
         { label: 'Analytics', path: '/data-viz', icon: <FiActivity size={17} /> },
+        { label: 'Explore DOIT', path: '/explore-doit', icon: <FiCompass size={17} /> },
         {
           label: 'Profile',
           path: '/profile',
@@ -218,6 +220,7 @@ function AuthenticatedApp({ user, theme, toggleTheme, logout }) {
         },
         { label: 'DOIT-AI', path: '/ai-assistant', icon: <BsStars size={17} /> },
         { label: 'Analytics', path: '/data-viz', icon: <FiActivity size={17} /> },
+        { label: 'Explore DOIT', path: '/explore-doit', icon: <FiCompass size={17} /> },
         {
           label: 'Profile',
           path: '/profile',
@@ -318,6 +321,12 @@ function AuthenticatedApp({ user, theme, toggleTheme, logout }) {
               <span>Analytics</span>
             </button>
 
+            {/* Explore DOIT */}
+            <button onClick={() => navigate('/explore-doit')} className="nav-link-btn explore">
+              <FiCompass size={17} />
+              <span>Explore DOIT</span>
+            </button>
+
             {/* Divider */}
             <div className="nav-divider" />
 
@@ -362,6 +371,7 @@ function AuthenticatedApp({ user, theme, toggleTheme, logout }) {
             <Route path="/system-dashboard" element={<SystemDashboardPage />} />
             <Route path="/data-viz" element={<DataVisualization />} />
             <Route path="/ai-assistant" element={<AIAssistantPage />} />
+            <Route path="/explore-doit" element={<ExploreDOITPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
             <Route path="/about" element={<AboutPage />} />
 
