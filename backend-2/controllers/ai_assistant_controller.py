@@ -2316,8 +2316,141 @@ def extract_image_prompt(message: str) -> str:
     return prompt or text
 
 
+def _pick_first_assignee(params: dict, keys: list):
+    """Return the first non-empty assignee value from candidate keys."""
+    for key in keys:
+        value = params.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
+def _normalize_command_params(
+    action: str, params: dict, raw_command: str = "", user_email: str = ""
+):
+    """Normalize parsed command params across synonyms and natural language variants."""
+    normalized = dict(params or {})
+
+    if action in ["create_task", "assign_task"]:
+        assignee_value = _pick_first_assignee(
+            normalized,
+            [
+                "assignee_email",
+                "assignee",
+                "assign_to",
+                "assigned_to",
+                "assignee_name",
+                "assigneeName",
+                "owner",
+                "member",
+                "email",
+            ],
+        )
+
+        if not assignee_value and raw_command:
+            assign_match = re.search(
+                r"(?:assign(?:ed)?\s+(?:it|this|task|ticket)?\s*(?:to)?\s+)([^,\n]+)",
+                raw_command,
+                flags=re.IGNORECASE,
+            )
+            if assign_match:
+                assignee_value = assign_match.group(1).strip().strip('"\'').rstrip(".!?;")
+
+        if assignee_value:
+            lowered = assignee_value.lower()
+            if lowered in {"me", "myself", "self", "my"} and user_email:
+                normalized["assignee_email"] = user_email
+            elif re.match(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$", assignee_value):
+                normalized["assignee_email"] = assignee_value
+            else:
+                normalized["assignee_name"] = assignee_value
+
+    return normalized
+
+
+def _deterministic_task_parse(command: str, context: dict = None):
+    """Rule-based fallback parser for common task commands when LLM parsing is unavailable."""
+    text = (command or "").strip()
+    lower = text.lower()
+
+    is_create = any(
+        token in lower
+        for token in [
+            "create task",
+            "create a task",
+            "create ticket",
+            "create a ticket",
+            "new task",
+            "new ticket",
+            "make a task",
+            "add task",
+            "add a task",
+        ]
+    )
+
+    if not is_create:
+        return None
+
+    params = {}
+
+    title_match = re.search(r'["\']([^"\']{2,200})["\']', text)
+    if title_match:
+        params["title"] = title_match.group(1).strip()
+
+    if not params.get("title"):
+        fallback_title = re.search(
+            r"(?:create|make|add)\s+(?:a\s+)?(?:task|ticket)(?:\s+named|\s+called)?\s+(.+?)(?=\s+(?:in|for)\s+(?:the\s+)?project\b|\s+with\b|\s+and\s+assign\b|$)",
+            text,
+            flags=re.IGNORECASE,
+        )
+        if fallback_title:
+            params["title"] = fallback_title.group(1).strip().strip('"\'')
+
+    project_match = re.search(
+        r"(?:in|for)\s+(?:the\s+)?project\s+[\"']?([A-Za-z0-9_ -]+?)[\"']?(?=\s+(?:with|and|assign|due|$)|$)",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if project_match:
+        params["project_name"] = project_match.group(1).strip()
+
+    for priority_word, normalized_priority in [
+        ("critical", "Critical"),
+        ("high", "High"),
+        ("medium", "Medium"),
+        ("low", "Low"),
+    ]:
+        if re.search(rf"\b{priority_word}\b", lower):
+            params["priority"] = normalized_priority
+            break
+
+    due_match = re.search(r"\bdue\s+(?:on\s+)?(\d{4}-\d{2}-\d{2})\b", lower)
+    if due_match:
+        params["due_date"] = due_match.group(1)
+
+    if not params.get("title"):
+        return None
+
+    if context and isinstance(context, dict) and not params.get("project_name"):
+        context_project = context.get("project_name") or context.get("project")
+        if isinstance(context_project, str) and context_project.strip():
+            params["project_name"] = context_project.strip()
+
+    return {
+        "success": True,
+        "action": "create_task",
+        "params": params,
+        "parse_mode": "deterministic",
+    }
+
+
 def parse_task_command(command: str, context: dict = None):
     """Use Azure OpenAI to parse natural language commands into structured actions"""
+    deterministic_result = _deterministic_task_parse(command, context)
+    if deterministic_result:
+        print(f"   📋 Parsed command (deterministic): {deterministic_result}")
+        return deterministic_result
+
     try:
         system_prompt = """You are a task management command parser. Extract the action and parameters from user commands.
 
@@ -2404,6 +2537,14 @@ Examples:
         return {"success": True, **parsed}
 
     except Exception as e:
+        deterministic_result = _deterministic_task_parse(command, context)
+        if deterministic_result:
+            print(
+                "   ⚠️ LLM parsing failed; recovered using deterministic parser "
+                f"(error: {str(e)})"
+            )
+            return deterministic_result
+
         print(f"Error parsing command: {str(e)}")
         import traceback
 
@@ -2439,6 +2580,7 @@ def execute_task_command(user_id: str, command: str, context: dict = None):
 
         action = parsed_command["action"]
         params = parsed_command["params"]
+        params = _normalize_command_params(action, params, command, user_email)
 
         print(f"   ⚡ Action: {action}")
         print(f"   📝 Params: {params}")
