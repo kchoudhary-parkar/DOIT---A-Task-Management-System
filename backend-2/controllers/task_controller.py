@@ -20,6 +20,17 @@ from datetime import datetime, timezone
 logger = logging.getLogger(__name__)
 
 
+def _serialize_datetimes(value):
+    """Recursively convert datetime instances to ISO strings for JSON safety."""
+    if isinstance(value, datetime):
+        return datetime_to_iso(value)
+    if isinstance(value, dict):
+        return {k: _serialize_datetimes(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_serialize_datetimes(item) for item in value]
+    return value
+
+
 def _get_project_slack_bot_credentials(project_id):
     """Fetch Slack bot credentials for a project integration."""
     integration = TeamIntegration.find_by_project_and_platform(project_id, "slack")
@@ -314,6 +325,7 @@ def create_task(body_str, user_id):
     task["created_at"] = datetime_to_iso(task["created_at"])
     task["updated_at"] = datetime_to_iso(task["updated_at"])
     task = _enrich_task_display_fields(task)
+    task = _serialize_datetimes(task)
 
     # Broadcast task creation to Kanban board
     asyncio.create_task(
@@ -438,6 +450,8 @@ def get_project_tasks(project_id, user_id):
         if "moved_to_backlog_at" in task and task["moved_to_backlog_at"]:
             task["moved_to_backlog_at"] = datetime_to_iso(task["moved_to_backlog_at"])
 
+        task = _serialize_datetimes(task)
+
         # Add sprint name from batch-fetched data
         if task.get("sprint_id"):
             task["sprint_name"] = sprint_map.get(task["sprint_id"], "")
@@ -527,6 +541,8 @@ def get_task_by_id(task_id, user_id):
     # Convert moved_to_backlog_at if present
     if "moved_to_backlog_at" in task and task["moved_to_backlog_at"]:
         task["moved_to_backlog_at"] = datetime_to_iso(task["moved_to_backlog_at"])
+
+    task = _serialize_datetimes(task)
 
     return success_response({"task": task})
 
@@ -712,6 +728,8 @@ def update_task(body_str, task_id, user_id):
             updated_task["moved_to_backlog_at"] = datetime_to_iso(
                 updated_task["moved_to_backlog_at"]
             )
+
+        updated_task = _serialize_datetimes(updated_task)
 
         # Broadcast task update to Kanban board
         asyncio.create_task(

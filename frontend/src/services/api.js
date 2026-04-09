@@ -2184,8 +2184,22 @@ export const taskAPI = {
       headers: getAuthHeaders(),
       body: JSON.stringify(taskData),
     });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "Failed to update task");
+
+    let data = null;
+    try {
+      const text = await response.text();
+      data = text ? JSON.parse(text) : {};
+    } catch {
+      // Some proxies/servers can return non-JSON on success.
+      data = {};
+    }
+
+    if (!response.ok) {
+      const errorMessage =
+        data?.error || data?.detail || data?.message || "Failed to update task";
+      throw new Error(errorMessage);
+    }
+
     requestCache.invalidatePattern('tasks:');
     requestCache.invalidatePattern('dashboard:');
     return data;

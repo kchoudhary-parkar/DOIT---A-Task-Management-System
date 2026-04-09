@@ -219,7 +219,9 @@ def sync_project_git_notifications(project_id, tasks_list):
                     update_fields["last_git_pr_slack_signature"] = latest_pr_signature
 
             if update_fields:
-                update_fields["last_git_slack_synced_at"] = datetime.now(timezone.utc).replace(tzinfo=None)
+                update_fields["last_git_slack_synced_at"] = (
+                    datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
+                )
                 tasks_collection.update_one({"_id": db_task.get("_id")}, {"$set": update_fields})
     except Exception as e:
         print(f"[GIT->SLACK] project visit sync failed: {e}")

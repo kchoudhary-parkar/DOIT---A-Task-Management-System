@@ -340,12 +340,16 @@ function KanbanBoard({ projectId, initialTasks, onTaskUpdate, user, isOwner }) {
     try {
       setLoading(true);
       
-      // Update backend
+      // Update backend first; only this should decide success/failure UX.
       await taskAPI.update(activeId, { status: finalStatus });
 
-      // Notify parent component with updated task data
+      // Notify parent component with updated task data (best-effort).
       if (onTaskUpdate) {
-        onTaskUpdate(activeId, { status: finalStatus });
+        try {
+          onTaskUpdate(activeId, { status: finalStatus });
+        } catch (syncError) {
+          console.warn("⚠️ Parent state sync failed after successful status update:", syncError);
+        }
       }
 
       toast.success(
