@@ -50,11 +50,14 @@ class ProjectCreate(BaseModel):
     name: str = Field(..., min_length=3)
     description: Optional[str] = ""
     integrations: Optional[Dict[str, Any]] = None
-    integrations: Optional[Dict[str, Any]] = None
+    git_repo_url: Optional[str] = ""
+    git_access_token: Optional[str] = ""
 
 class ProjectUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=3)
     description: Optional[str] = None
+    git_repo_url: Optional[str] = None
+    git_access_token: Optional[str] = None
 
 class AddMemberRequest(BaseModel):
     email: EmailStr

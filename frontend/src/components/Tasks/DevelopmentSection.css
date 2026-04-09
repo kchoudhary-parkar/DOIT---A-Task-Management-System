@@ -75,18 +75,106 @@
   font-size: 13px;
 }
 
-/* Pull Requests List */
-.pull-requests-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+.development-list-wrap {
   margin-top: 16px;
   padding-top: 16px;
   border-top: 1px solid rgba(148, 163, 184, 0.15);
 }
 
-[data-theme="light"] .pull-requests-list {
+[data-theme="light"] .development-list-wrap {
   border-top-color: rgba(226, 232, 240, 0.8);
+}
+
+.development-subtitle {
+  margin: 0 0 10px 0;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--dark-text-secondary, #94a3b8);
+}
+
+[data-theme="light"] .development-subtitle {
+  color: var(--light-text-secondary, #64748b);
+}
+
+.dev-activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dev-activity-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(15, 23, 42, 0.3);
+  border-radius: 8px;
+}
+
+[data-theme="light"] .dev-activity-item {
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.dev-activity-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dev-activity-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--dark-text-primary, #f1f5f9);
+  line-height: 1.4;
+}
+
+[data-theme="light"] .dev-activity-title {
+  color: var(--light-text-primary, #1e293b);
+}
+
+.dev-activity-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: 24px;
+}
+
+.dev-activity-author,
+.dev-activity-sha {
+  font-size: 12px;
+  color: var(--dark-text-secondary, #94a3b8);
+}
+
+[data-theme="light"] .dev-activity-author,
+[data-theme="light"] .dev-activity-sha {
+  color: var(--light-text-secondary, #64748b);
+}
+
+.dev-activity-sha {
+  background: rgba(148, 163, 184, 0.15);
+  padding: 1px 8px;
+  border-radius: 12px;
+}
+
+.dev-activity-link {
+  font-size: 12px;
+  color: #06b6d4;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.dev-activity-link:hover {
+  text-decoration: underline;
+}
+
+/* Pull Requests List */
+.pull-requests-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .pr-item {
@@ -202,5 +290,9 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 6px;
+  }
+
+  .dev-activity-meta {
+    margin-left: 0;
   }
 }

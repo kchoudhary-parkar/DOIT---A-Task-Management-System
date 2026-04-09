@@ -1,6 +1,7 @@
 import requests
 import os
 import re
+from urllib.parse import quote_plus
 from datetime import datetime, timezone
 from cryptography.fernet import Fernet
 
@@ -225,8 +226,9 @@ def search_commits(repo_url, token, ticket_id):
     try:
         owner, repo = parse_repo_url(repo_url)
         # Use quotes for exact match to prevent false positives
-        query = f'repo:{owner}/{repo}+"{ticket_id}"'
-        url = f"{GITHUB_API_BASE}/search/commits?q={query}"
+        query = f'repo:{owner}/{repo} "{ticket_id}"'
+        encoded_query = quote_plus(query)
+        url = f"{GITHUB_API_BASE}/search/commits?q={encoded_query}"
         
         headers = get_github_headers(token)
         headers["Accept"] = "application/vnd.github.cloak-preview"
@@ -239,17 +241,49 @@ def search_commits(repo_url, token, ticket_id):
         if response.status_code == 200:
             commits = response.json().get('items', [])
             # Additional filtering with word boundary to ensure exact match
-            import re
             pattern = re.compile(r'\b' + re.escape(ticket_id) + r'\b')
             filtered_commits = []
             for commit in commits:
                 message = commit.get('commit', {}).get('message', '')
                 if pattern.search(message):
                     filtered_commits.append(commit)
-            return filtered_commits
+            if filtered_commits:
+                return filtered_commits
+
+            print("[GITHUB API] Commit search returned 0 matches after filtering; trying branch fallback")
         else:
             print(f"[GITHUB API] Error response: {response.text}")
-            return []
+
+        # Fallback: fetch commits directly from branches that match ticket ID.
+        # This avoids depending solely on GitHub Search API indexing delays.
+        pattern = re.compile(r'\b' + re.escape(ticket_id) + r'\b')
+        matched_branches = get_branches(repo_url, token, ticket_id)
+        seen_shas = set()
+        fallback_commits = []
+
+        for branch in matched_branches:
+            branch_name = branch.get('name')
+            if not branch_name:
+                continue
+
+            commits_url = f"{GITHUB_API_BASE}/repos/{owner}/{repo}/commits?sha={quote_plus(branch_name)}&per_page=30"
+            commits_response = requests.get(commits_url, headers=get_github_headers(token))
+            if commits_response.status_code != 200:
+                continue
+
+            branch_commits = commits_response.json() or []
+            for commit in branch_commits:
+                sha = commit.get('sha')
+                if not sha or sha in seen_shas:
+                    continue
+
+                message = commit.get('commit', {}).get('message', '')
+                if pattern.search(message) or pattern.search(branch_name):
+                    fallback_commits.append(commit)
+                    seen_shas.add(sha)
+
+        print(f"[GITHUB API] Branch fallback commits found: {len(fallback_commits)}")
+        return fallback_commits
     
     except Exception as e:
         print(f"Error searching commits: {e}")
@@ -272,50 +306,74 @@ def search_pull_requests(repo_url, token, ticket_id):
     try:
         owner, repo = parse_repo_url(repo_url)
         # Use quotes for exact match to prevent false positives
-        query = f'repo:{owner}/{repo}+type:pr+"{ticket_id}"'
-        url = f"{GITHUB_API_BASE}/search/issues?q={query}"
+        query = f'repo:{owner}/{repo} type:pr "{ticket_id}"'
+        encoded_query = quote_plus(query)
+        url = f"{GITHUB_API_BASE}/search/issues?q={encoded_query}"
+        pattern = re.compile(r'\b' + re.escape(ticket_id) + r'\b', re.IGNORECASE)
+
+        def matches_ticket(pr_data):
+            title = pr_data.get('title', '') or ''
+            body = pr_data.get('body', '') or ''
+            head_ref = pr_data.get('head', {}).get('ref', '') or ''
+            base_ref = pr_data.get('base', {}).get('ref', '') or ''
+            return (
+                pattern.search(title)
+                or pattern.search(body)
+                or pattern.search(head_ref)
+                or pattern.search(base_ref)
+            )
+
+        def fetch_pr_details(pr_number):
+            pr_url = f"{GITHUB_API_BASE}/repos/{owner}/{repo}/pulls/{pr_number}"
+            pr_response = requests.get(pr_url, headers=get_github_headers(token))
+            if pr_response.status_code == 200:
+                return pr_response.json()
+            return None
         
         response = requests.get(url, headers=get_github_headers(token))
         
         if response.status_code == 200:
             prs = response.json().get('items', [])
-            
-            # Additional filtering with word boundary to ensure exact match
-            import re
-            pattern = re.compile(r'\b' + re.escape(ticket_id) + r'\b')
-            
-            # Filter PRs first
-            filtered_prs = []
-            for pr in prs:
-                title = pr.get('title', '')
-                body = pr.get('body', '') or ''
-                if pattern.search(title) or pattern.search(body):
-                    filtered_prs.append(pr)
-            
-            # Fetch detailed PR info in parallel to get merge status
             from concurrent.futures import ThreadPoolExecutor
-            
-            def fetch_pr_details(pr):
-                pr_url = f"{GITHUB_API_BASE}/repos/{owner}/{repo}/pulls/{pr['number']}"
-                pr_response = requests.get(pr_url, headers=get_github_headers(token))
-                if pr_response.status_code == 200:
-                    pr_data = pr_response.json()
-                    # Also check branch name
-                    branch_name = pr_data.get('head', {}).get('ref', '')
-                    title = pr_data.get('title', '')
-                    body = pr_data.get('body', '') or ''
-                    if pattern.search(title) or pattern.search(body) or pattern.search(branch_name):
-                        return pr_data
-                return None
-            
+
+            search_pr_numbers = [pr.get('number') for pr in prs if pr.get('number') is not None]
             detailed_prs = []
             with ThreadPoolExecutor(max_workers=5) as executor:
-                results = executor.map(fetch_pr_details, filtered_prs)
+                results = executor.map(fetch_pr_details, search_pr_numbers)
                 detailed_prs = [pr for pr in results if pr is not None]
-            
-            return detailed_prs
+
+            filtered_search_prs = [pr for pr in detailed_prs if matches_ticket(pr)]
+            if filtered_search_prs:
+                return filtered_search_prs
+
+            print("[GITHUB API] PR search returned 0 matches after filtering; trying repo PR fallback")
         else:
-            return []
+            print(f"[GITHUB API] PR search error: {response.status_code} {response.text}")
+
+        # Fallback: list repo PRs (open + closed), then filter by ticket pattern across
+        # title/body/head/base. This covers cases where ticket ID appears in branch name
+        # but not in PR title/body search index.
+        fallback_prs = []
+        seen_numbers = set()
+        for state in ["open", "closed"]:
+            list_url = (
+                f"{GITHUB_API_BASE}/repos/{owner}/{repo}/pulls"
+                f"?state={state}&sort=updated&direction=desc&per_page=100"
+            )
+            list_response = requests.get(list_url, headers=get_github_headers(token))
+            if list_response.status_code != 200:
+                continue
+
+            for pr in list_response.json() or []:
+                number = pr.get('number')
+                if number in seen_numbers:
+                    continue
+                if matches_ticket(pr):
+                    fallback_prs.append(pr)
+                    seen_numbers.add(number)
+
+        print(f"[GITHUB API] PR fallback found: {len(fallback_prs)}")
+        return fallback_prs
     
     except Exception as e:
         print(f"Error searching pull requests: {e}")

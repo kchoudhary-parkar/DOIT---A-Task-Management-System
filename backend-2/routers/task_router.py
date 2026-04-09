@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
 from schemas import (
     TaskCreate, TaskUpdate, AddLabelRequest, AddAttachmentRequest,
     RemoveAttachmentRequest, AddLinkRequest, RemoveLinkRequest, AddCommentRequest
@@ -178,4 +178,13 @@ async def add_comment(task_id: str, data: AddCommentRequest, user_id: str = Depe
 async def get_git_activity(task_id: str, user_id: str = Depends(get_current_user)):
     """Get GitHub activity for a task (branches, commits, PRs)"""
     response = git_controller.get_task_git_activity(task_id, user_id)
+    return handle_controller_response(response)
+
+
+@router.post("/github/webhook")
+async def github_webhook(request: Request):
+    """Receive GitHub webhook events for branch/commit/PR tracking."""
+    payload = await request.json()
+    headers_dict = dict(request.headers)
+    response = git_controller.github_webhook(json.dumps(payload), headers_dict)
     return handle_controller_response(response)

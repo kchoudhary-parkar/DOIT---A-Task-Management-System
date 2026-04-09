@@ -22,7 +22,7 @@ function DevelopmentSection({ taskId }) {
       console.log("Git activity response:", result);
       
       // Handle the response structure from success_response
-      const data = result.data || result;
+      const data = result?.data?.data || result?.data || result;
       setGitActivity(data);
       
       console.log("Branches:", data.branches_count);
@@ -55,7 +55,17 @@ function DevelopmentSection({ taskId }) {
     return null;
   }
 
-  const { branches_count, commits_count, pull_requests_count, pull_requests } = gitActivity;
+  const {
+    branches_count = 0,
+    commits_count = 0,
+    pull_requests_count = 0,
+    latest_commits = [],
+    latest_pull_requests = [],
+    commits = [],
+    pull_requests = [],
+  } = gitActivity;
+  const recentCommits = latest_commits.length > 0 ? latest_commits : commits;
+  const recentPullRequests = latest_pull_requests.length > 0 ? latest_pull_requests : pull_requests;
 
   // Don't show section if there's no activity
   if (branches_count === 0 && commits_count === 0 && pull_requests_count === 0) {
@@ -103,36 +113,76 @@ function DevelopmentSection({ taskId }) {
         )}
       </div>
 
-      {pull_requests && pull_requests.length > 0 && (
-        <div className="pull-requests-list">
-          {pull_requests.map((pr) => (
-            <div key={pr.pr_number} className={`pr-item pr-status-${pr.status}`}>
-              <div className="pr-header">
-                <FiGitPullRequest className="pr-icon" />
-                <span className="pr-title">#{pr.pr_number}: {pr.title}</span>
+      {recentCommits.length > 0 && (
+        <div className="development-list-wrap">
+          <h4 className="development-subtitle">Latest Commits</h4>
+          <div className="dev-activity-list">
+            {recentCommits.map((commit, index) => (
+              <div key={`${commit.sha || "commit"}-${index}`} className="dev-activity-item">
+                <div className="dev-activity-header">
+                  <FiGitCommit className="pr-icon" />
+                  <span className="dev-activity-title">{commit.message || "No commit message"}</span>
+                </div>
+                <div className="dev-activity-meta">
+                  <span className="dev-activity-author">by {commit.author || "Unknown"}</span>
+                  {commit.sha && <span className="dev-activity-sha">{commit.sha}</span>}
+                  {commit.time_ago && (
+                    <span className="pr-time">
+                      <FiClock size={12} />
+                      {commit.time_ago}
+                    </span>
+                  )}
+                  {commit.url && (
+                    <a href={commit.url} target="_blank" rel="noreferrer" className="dev-activity-link">
+                      View
+                    </a>
+                  )}
+                </div>
               </div>
-              <div className="pr-meta">
-                {pr.status === 'merged' && (
-                  <>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {recentPullRequests.length > 0 && (
+        <div className="development-list-wrap">
+          <h4 className="development-subtitle">Latest Pull Requests</h4>
+          <div className="pull-requests-list">
+            {recentPullRequests.map((pr, index) => (
+              <div key={`${pr.pr_number || "pr"}-${index}`} className={`pr-item pr-status-${pr.status}`}>
+                <div className="pr-header">
+                  <FiGitPullRequest className="pr-icon" />
+                  <span className="pr-title">#{pr.pr_number}: {pr.title}</span>
+                </div>
+                <div className="pr-meta">
+                  {pr.status === 'merged' && (
                     <span className="pr-status-badge pr-merged">
                       <FiCheck size={12} />
                       MERGED
                     </span>
+                  )}
+                  {pr.status === 'open' && (
+                    <span className="pr-status-badge pr-open">OPEN</span>
+                  )}
+                  {pr.status === 'closed' && (
+                    <span className="pr-status-badge pr-closed">CLOSED</span>
+                  )}
+                  {pr.author && <span className="dev-activity-author">by {pr.author}</span>}
+                  {pr.time_ago && (
                     <span className="pr-time">
                       <FiClock size={12} />
                       {pr.time_ago}
                     </span>
-                  </>
-                )}
-                {pr.status === 'open' && (
-                  <span className="pr-status-badge pr-open">OPEN</span>
-                )}
-                {pr.status === 'closed' && (
-                  <span className="pr-status-badge pr-closed">CLOSED</span>
-                )}
+                  )}
+                  {pr.url && (
+                    <a href={pr.url} target="_blank" rel="noreferrer" className="dev-activity-link">
+                      View
+                    </a>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       )}
     </div>

@@ -3,7 +3,24 @@ from models.project import Project
 from models.user import User
 from utils.response import success_response, error_response
 from utils.validators import validate_required_fields
+from utils.github_utils import encrypt_token
 from bson import ObjectId
+
+
+def _sanitize_project_for_response(project, current_user_id=None):
+    """Convert IDs/dates and avoid returning encrypted Git tokens to clients."""
+    project["_id"] = str(project["_id"])
+    project["created_at"] = project["created_at"].isoformat()
+    project["updated_at"] = project["updated_at"].isoformat()
+    project["owner_id"] = project.get("user_id")
+    if current_user_id is not None:
+        project["is_owner"] = project.get("user_id") == current_user_id
+
+    if "git_access_token" in project:
+        project["git_access_token_configured"] = bool(project.get("git_access_token"))
+        project.pop("git_access_token", None)
+
+    return project
 
 
 def create_project(body_str, user_id):
@@ -62,15 +79,19 @@ def create_project(body_str, user_id):
     project_data = {
         "name": data["name"].strip(),
         "description": data.get("description", "").strip(),
+        "git_repo_url": (data.get("git_repo_url") or "").strip(),
+        "git_access_token": "",
         "user_id": user_id,
     }
 
+    raw_git_token = (data.get("git_access_token") or "").strip()
+    if raw_git_token:
+        project_data["git_access_token"] = encrypt_token(raw_git_token)
+
     project = Project.create(project_data)
 
-    # Convert ObjectId to string for JSON response
-    project["_id"] = str(project["_id"])
-    project["created_at"] = project["created_at"].isoformat()
-    project["updated_at"] = project["updated_at"].isoformat()
+    # Convert and sanitize for JSON response
+    project = _sanitize_project_for_response(project, user_id)
 
     # Auto-provision integrations if provided
 
@@ -151,13 +172,7 @@ def get_user_projects(user_id):
 
     # Convert ObjectId and datetime to strings
     for project in projects_list:
-        project["_id"] = str(project["_id"])
-        project["created_at"] = project["created_at"].isoformat()
-        project["updated_at"] = project["updated_at"].isoformat()
-        # Add owner_id for frontend
-        project["owner_id"] = project["user_id"]
-        # Add flag to indicate if current user is the owner
-        project["is_owner"] = project["user_id"] == user_id
+        _sanitize_project_for_response(project, user_id)
 
     return success_response({"projects": projects_list, "count": len(projects_list)})
 
@@ -178,13 +193,8 @@ def get_project_by_id(project_id, user_id):
             "Access denied. You are not a member of this project.", 403
         )
 
-    # Convert ObjectId and datetime to strings
-    project["_id"] = str(project["_id"])
-    project["created_at"] = project["created_at"].isoformat()
-    project["updated_at"] = project["updated_at"].isoformat()
-
-    # Add owner_id for frontend to determine permissions
-    project["owner_id"] = project["user_id"]
+    # Convert and sanitize
+    project = _sanitize_project_for_response(project, user_id)
 
     return success_response({"project": project})
 
@@ -217,6 +227,13 @@ def update_project(body_str, project_id, user_id):
     if "description" in data:
         update_data["description"] = data["description"].strip()
 
+    if "git_repo_url" in data:
+        update_data["git_repo_url"] = (data.get("git_repo_url") or "").strip()
+
+    if "git_access_token" in data:
+        raw_git_token = (data.get("git_access_token") or "").strip()
+        update_data["git_access_token"] = encrypt_token(raw_git_token) if raw_git_token else ""
+
     if not update_data:
         return error_response("No valid fields to update", 400)
 
@@ -225,9 +242,7 @@ def update_project(body_str, project_id, user_id):
 
     if success:
         updated_project = Project.find_by_id(project_id)
-        updated_project["_id"] = str(updated_project["_id"])
-        updated_project["created_at"] = updated_project["created_at"].isoformat()
-        updated_project["updated_at"] = updated_project["updated_at"].isoformat()
+        updated_project = _sanitize_project_for_response(updated_project, user_id)
 
         return success_response(
             {"message": "Project updated successfully", "project": updated_project}

@@ -77,6 +77,13 @@ class GitCommit:
         """Get all commits for a project"""
         return list(git_commits.find({"project_id": project_id}).sort("timestamp", -1))
 
+    @staticmethod
+    def find_by_sha(commit_sha):
+        """Find a commit by SHA"""
+        if not commit_sha:
+            return None
+        return git_commits.find_one({"commit_sha": commit_sha})
+
 
 class GitPullRequest:
     @staticmethod
@@ -135,3 +142,10 @@ class GitPullRequest:
     def find_by_project(project_id):
         """Get all pull requests for a project"""
         return list(git_pull_requests.find({"project_id": project_id}).sort("created_at_github", -1))
+
+    @staticmethod
+    def find_by_project_and_number(project_id, pr_number):
+        """Find PR by project and PR number"""
+        if not project_id or pr_number is None:
+            return None
+        return git_pull_requests.find_one({"project_id": project_id, "pr_number": pr_number})

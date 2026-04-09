@@ -457,6 +457,14 @@ def get_project_tasks(project_id, user_id):
 
     print(f"[TASKS] Processed tasks successfully")
 
+    # Trigger best-effort Git latest-event Slack sync on project visit.
+    try:
+        from controllers import git_controller
+
+        git_controller.sync_project_git_notifications(project_id, tasks_list)
+    except Exception as e:
+        logger.warning("Git project-visit sync skipped for project %s: %s", project_id, e)
+
     return success_response({"tasks": tasks_list, "count": len(tasks_list)})
 
 

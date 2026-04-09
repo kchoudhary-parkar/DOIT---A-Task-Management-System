@@ -14,6 +14,8 @@ class Project:
             "name": project_data.get("name"),
             "prefix": prefix,  # Store project prefix for ticket IDs
             "description": project_data.get("description", ""),
+            "git_repo_url": project_data.get("git_repo_url", ""),
+            "git_access_token": project_data.get("git_access_token", ""),
             "user_id": project_data.get("user_id"),  # Owner of the project
             "members": [],  # Project members who can be assigned tasks
             "created_at": datetime.now(timezone.utc).replace(tzinfo=None),
