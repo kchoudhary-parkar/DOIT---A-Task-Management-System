@@ -441,7 +441,7 @@ def get_project_tasks(project_id, user_id):
         }
 
     # Convert ObjectId and datetime to strings, add creator details
-    for task in tasks_list:
+    for idx, task in enumerate(tasks_list):
         task["_id"] = str(task["_id"])
         task["created_at"] = datetime_to_iso(task["created_at"])
         task["updated_at"] = datetime_to_iso(task["updated_at"])
@@ -450,7 +450,7 @@ def get_project_tasks(project_id, user_id):
         if "moved_to_backlog_at" in task and task["moved_to_backlog_at"]:
             task["moved_to_backlog_at"] = datetime_to_iso(task["moved_to_backlog_at"])
 
-        task = _serialize_datetimes(task)
+        tasks_list[idx] = _serialize_datetimes(task)
 
         # Add sprint name from batch-fetched data
         if task.get("sprint_id"):
@@ -849,6 +849,10 @@ def get_my_tasks(user_id):
             if owner:
                 task["created_by_name"] = owner.get("name", "Unknown")
                 task["created_by_email"] = owner.get("email", "")
+
+        # Convert any additional datetime fields (e.g., git sync metadata)
+        # to keep response JSON-safe.
+        task = _serialize_datetimes(task)
 
     return success_response({"tasks": tasks_list, "count": len(tasks_list)})
 

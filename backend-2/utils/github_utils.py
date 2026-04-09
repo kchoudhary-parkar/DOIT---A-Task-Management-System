@@ -72,9 +72,9 @@ def extract_ticket_id(text):
         return None
     
     # Pattern: PROJECT_PREFIX-NUMBER
-    match = re.search(r'([A-Z]+)-(\d+)', text)
+    match = re.search(r'([A-Z]+)-(\d+)', text, re.IGNORECASE)
     if match:
-        return match.group(0)  # Returns full match like "CC-16"
+        return match.group(0).upper()  # Normalize ticket IDs (e.g., dgft-2 -> DGFT-2)
     
     return None
 
@@ -197,7 +197,7 @@ def get_branches(repo_url, token, ticket_id=None):
                 # Use word boundary matching to prevent false positives
                 # e.g., GTP-003 should NOT match GTP-0030
                 import re
-                pattern = re.compile(r'\b' + re.escape(ticket_id) + r'\b')
+                pattern = re.compile(r'\b' + re.escape(ticket_id) + r'\b', re.IGNORECASE)
                 branches = [b for b in branches if pattern.search(b['name'])]
             
             return branches
@@ -225,6 +225,7 @@ def search_commits(repo_url, token, ticket_id):
     """
     try:
         owner, repo = parse_repo_url(repo_url)
+        ticket_id = (ticket_id or "").upper()
         # Use quotes for exact match to prevent false positives
         query = f'repo:{owner}/{repo} "{ticket_id}"'
         encoded_query = quote_plus(query)
@@ -241,7 +242,7 @@ def search_commits(repo_url, token, ticket_id):
         if response.status_code == 200:
             commits = response.json().get('items', [])
             # Additional filtering with word boundary to ensure exact match
-            pattern = re.compile(r'\b' + re.escape(ticket_id) + r'\b')
+            pattern = re.compile(r'\b' + re.escape(ticket_id) + r'\b', re.IGNORECASE)
             filtered_commits = []
             for commit in commits:
                 message = commit.get('commit', {}).get('message', '')
@@ -256,7 +257,7 @@ def search_commits(repo_url, token, ticket_id):
 
         # Fallback: fetch commits directly from branches that match ticket ID.
         # This avoids depending solely on GitHub Search API indexing delays.
-        pattern = re.compile(r'\b' + re.escape(ticket_id) + r'\b')
+        pattern = re.compile(r'\b' + re.escape(ticket_id) + r'\b', re.IGNORECASE)
         matched_branches = get_branches(repo_url, token, ticket_id)
         seen_shas = set()
         fallback_commits = []
@@ -305,6 +306,7 @@ def search_pull_requests(repo_url, token, ticket_id):
     """
     try:
         owner, repo = parse_repo_url(repo_url)
+        ticket_id = (ticket_id or "").upper()
         # Use quotes for exact match to prevent false positives
         query = f'repo:{owner}/{repo} type:pr "{ticket_id}"'
         encoded_query = quote_plus(query)
