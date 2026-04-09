@@ -98,6 +98,58 @@ def _notify_task_event_to_slack(task, actor_name, event_type):
         )
 
 
+def _resolve_slack_actor_display(user_id, bot_token):
+    """Return Slack mention for actor when possible, otherwise actor display name."""
+    actor = User.find_by_id(user_id)
+    actor_name = actor.get("name", "Unknown") if actor else "Unknown"
+    actor_email = actor.get("email", "").strip().lower() if actor else ""
+
+    if actor_email:
+        lookup_token = os.getenv("SLACK_INVITE_USER_TOKEN") or bot_token
+        lookup = SlackAPI.get_user_id_by_email(lookup_token, actor_email)
+        if "error" not in lookup and lookup.get("user_id"):
+            return f"<@{lookup.get('user_id')}>"
+
+    return actor_name
+
+
+def _notify_task_detail_to_slack(
+    task, actor_user_id, action_label, detail_label, detail_value
+):
+    """Best-effort Slack notification for task comment/label/attachment activities."""
+    project_id = task.get("project_id")
+    if not project_id:
+        return
+
+    bot_token, channel_id = _get_project_slack_bot_credentials(project_id)
+    if not all([bot_token, channel_id]):
+        return
+
+    ticket_id = task.get("ticket_id", "-")
+    title = task.get("title", "Untitled task")
+    actor_display = _resolve_slack_actor_display(actor_user_id, bot_token)
+    safe_detail = (detail_value or "-").strip()
+
+    body = (
+        f"Ticket - {ticket_id} Title - {title} {action_label} by {actor_display}\n"
+        f"{detail_label} : {safe_detail}"
+    )
+
+    result = send_slack_notification(
+        bot_token=bot_token,
+        channel_id=channel_id,
+        text=body,
+        title="Task Activity",
+    )
+    if isinstance(result, str) and result.startswith("❌"):
+        logger.warning(
+            "Slack task detail notification failed for project %s (%s): %s",
+            project_id,
+            action_label,
+            result,
+        )
+
+
 def _enrich_task_display_fields(task):
     """Populate creator/assignee display fields for task payloads used by UI and WebSocket updates."""
     if not task:
@@ -673,6 +725,16 @@ def update_task(body_str, task_id, user_id):
         if update_data:
             _notify_task_event_to_slack(updated_task, user_name, "updated")
 
+        comment_text = data.get("comment", "").strip()
+        if comment_text:
+            _notify_task_detail_to_slack(
+                updated_task,
+                user_id,
+                "Commented",
+                "Comment",
+                comment_text,
+            )
+
         if (
             "status" in update_data
             and update_data.get("status") == "Done"
@@ -813,6 +875,14 @@ def add_label_to_task(task_id, body_str, user_id):
         }
         Task.add_activity(task_id, activity_data)
 
+        _notify_task_detail_to_slack(
+            task,
+            user_id,
+            "Label Added",
+            "Label",
+            label,
+        )
+
         return success_response({"message": "Label added successfully", "label": label})
     else:
         return success_response(
@@ -857,6 +927,14 @@ def remove_label_from_task(task_id, label, user_id):
             "new_value": None,
         }
         Task.add_activity(task_id, activity_data)
+
+        _notify_task_detail_to_slack(
+            task,
+            user_id,
+            "Label Removed",
+            "Label",
+            label,
+        )
 
         return success_response(
             {"message": "Label removed successfully", "label": label}
@@ -982,6 +1060,14 @@ def add_attachment_to_task(task_id, body_str, user_id):
         }
         Task.add_activity(task_id, activity_data)
 
+        _notify_task_detail_to_slack(
+            task,
+            user_id,
+            "Attachment Added",
+            "Attachment",
+            name,
+        )
+
         return success_response(
             {"message": "Attachment added successfully", "attachment": attachment}
         )
@@ -1042,6 +1128,14 @@ def remove_attachment_from_task(task_id, body_str, user_id):
             "new_value": None,
         }
         Task.add_activity(task_id, activity_data)
+
+        _notify_task_detail_to_slack(
+            task,
+            user_id,
+            "Attachment Removed",
+            "Attachment",
+            attachment_name,
+        )
 
         return success_response({"message": "Attachment removed successfully"})
     else:
@@ -1144,6 +1238,15 @@ def add_link_to_task(task_id, body_str, user_id):
             }
             Task.add_activity(task_id, activity)
 
+        linked_ticket = linked_task.get("ticket_id", linked_task_id)
+        _notify_task_detail_to_slack(
+            task,
+            user_id,
+            "Linked Ticket Added",
+            "Linked Ticket",
+            f"{link_type} -> {linked_ticket}",
+        )
+
         # Create reverse link automatically for bidirectional relationships
         reverse_link_map = {
             "blocks": "blocked-by",
@@ -1214,6 +1317,14 @@ def remove_link_from_task(task_id, body_str, user_id):
                 .isoformat(),
             }
             Task.add_activity(task_id, activity)
+
+        _notify_task_detail_to_slack(
+            task,
+            user_id,
+            "Linked Ticket Removed",
+            "Linked Ticket",
+            f"{link_type} -> {linked_task_id}",
+        )
 
         # Remove reverse link automatically
         reverse_link_map = {
@@ -1635,5 +1746,13 @@ def add_task_comment(task_id, body_str, user_id):
         "new_value": None,
     }
     Task.add_activity(task_id, activity_data)
+
+    _notify_task_detail_to_slack(
+        task,
+        user_id,
+        "Commented",
+        "Comment",
+        comment,
+    )
 
     return success_response({"message": "Comment added successfully"}, 201)

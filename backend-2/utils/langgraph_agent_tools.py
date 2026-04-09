@@ -1029,6 +1029,7 @@ def update_task_status_tool(task_identifier: str, new_status: str) -> str:
         Success message
     """
     try:
+        from controllers import task_controller
         from utils.langgraph_agent_automation import find_task_by_title_or_id
 
         ctx = get_tool_context()
@@ -1042,6 +1043,18 @@ def update_task_status_tool(task_identifier: str, new_status: str) -> str:
             {"_id": ObjectId(task["_id"])},
             {"$set": {"status": new_status, "updated_at": datetime.utcnow()}},
         )
+
+        updated_task = db.tasks.find_one({"_id": ObjectId(task["_id"])})
+        if updated_task:
+            updated_task["_id"] = str(updated_task["_id"])
+            actor_name = ctx.get("user_email") or user_id or "AI Agent"
+            task_controller._notify_task_event_to_slack(
+                updated_task, actor_name, "updated"
+            )
+            if new_status == "Done":
+                task_controller._notify_task_event_to_slack(
+                    updated_task, actor_name, "done"
+                )
 
         return f"✅ Task '{task['title']}' status updated to '{new_status}'"
 
@@ -1074,6 +1087,7 @@ def bulk_update_tasks_tool(
         Summary of updates
     """
     try:
+        from controllers import task_controller
         from utils.langgraph_agent_automation import resolve_project_id
 
         ctx = get_tool_context()
@@ -1101,7 +1115,27 @@ def bulk_update_tasks_tool(
                 update_data["assignee_name"] = assignee.get("name", new_assignee_email)
                 update_data["assignee_id"] = str(assignee["_id"])
 
+        # Capture task ids before update so we can emit per-task notifications.
+        candidate_ids = [
+            str(t["_id"]) for t in db.tasks.find(query, {"_id": 1}).limit(50)
+        ]
+
         result = db.tasks.update_many(query, {"$set": update_data})
+
+        actor_name = ctx.get("user_email") or user_id or "AI Agent"
+        for task_id in candidate_ids:
+            updated_task = db.tasks.find_one({"_id": ObjectId(task_id)})
+            if not updated_task:
+                continue
+            updated_task["_id"] = str(updated_task["_id"])
+            task_controller._notify_task_event_to_slack(
+                updated_task, actor_name, "updated"
+            )
+            if new_status == "Done":
+                task_controller._notify_task_event_to_slack(
+                    updated_task, actor_name, "done"
+                )
+
         return f"✅ Updated {result.modified_count} tasks in {project_name}"
 
     except Exception as e:
@@ -1762,6 +1796,143 @@ def get_overdue_tasks_tool(project_name: Optional[str] = None) -> str:
     except Exception as e:
         logger.error(f"get_overdue_tasks_tool error: {e}")
         return f"❌ Failed to get overdue tasks: {str(e)}"
+
+
+@tool
+def send_project_brief_summary_to_slack_tool(project_name: str) -> str:
+    """
+    Generate a brief summary of a project and post it to the configured Slack channel.
+
+    Args:
+        project_name: Name of the project
+
+    Returns:
+        Success or error message with key summary metrics
+    """
+    try:
+        from utils.langgraph_agent_automation import resolve_project_id
+
+        ctx = get_tool_context()
+        user_id = ctx.get("user_id")
+        sender_email = ctx.get("user_email") or "LangGraph Agent"
+
+        if not user_id:
+            return "❌ User context missing."
+
+        project_id = resolve_project_id(user_id, project_name=project_name)
+        if not project_id:
+            return f"❌ Project '{project_name}' not found."
+
+        project = db.projects.find_one({"_id": ObjectId(project_id)})
+        if not project:
+            return f"❌ Project '{project_name}' not found."
+
+        integration = db.team_integrations.find_one(
+            {
+                "project_id": str(project["_id"]),
+                "platform": "slack",
+                "is_active": True,
+            }
+        )
+        if not integration:
+            return "❌ Slack is not configured for this project."
+
+        creds = integration.get("credentials", {})
+        token = creds.get("workspace_token") or creds.get("bot_token")
+        channel_id = creds.get("channel_id")
+        channel_name = creds.get("channel_name", "unknown")
+
+        if not token or not channel_id:
+            return "❌ Slack credentials incomplete for this project."
+
+        tasks = list(db.tasks.find({"project_id": project_id}))
+        total = len(tasks)
+        done = 0
+        in_progress = 0
+        todo = 0
+        blocked = 0
+        high_priority = 0
+        overdue = 0
+        today = datetime.utcnow().strftime("%Y-%m-%d")
+
+        for task in tasks:
+            status = str(task.get("status", "To Do")).strip().lower()
+            priority = str(task.get("priority", "Medium")).strip().lower()
+            due_date = task.get("due_date")
+
+            if status == "done":
+                done += 1
+            elif status in {"in progress", "in-progress", "in_progress"}:
+                in_progress += 1
+            elif status in {"blocked", "on hold", "on-hold"}:
+                blocked += 1
+            else:
+                todo += 1
+
+            if priority in {"high", "critical"}:
+                high_priority += 1
+
+            if due_date and str(due_date) < today and status != "done":
+                overdue += 1
+
+        completion_rate = (done / total * 100.0) if total else 0.0
+
+        next_due_tasks = sorted(
+            [
+                t
+                for t in tasks
+                if t.get("due_date")
+                and str(t.get("status", "")).strip().lower() != "done"
+            ],
+            key=lambda t: str(t.get("due_date")),
+        )[:3]
+
+        message_lines = [
+            f"📌 Brief Project Summary: {project.get('name', project_name)}",
+            f"👤 Requested by: {sender_email}",
+            "",
+            f"• Total tasks: {total}",
+            f"• Done: {done}",
+            f"• In Progress: {in_progress}",
+            f"• To Do/Other: {todo}",
+            f"• Blocked: {blocked}",
+            f"• High/Critical: {high_priority}",
+            f"• Overdue: {overdue}",
+            f"• Completion: {completion_rate:.1f}%",
+        ]
+
+        if next_due_tasks:
+            message_lines.append("")
+            message_lines.append("🗓️ Next due tasks:")
+            for task in next_due_tasks:
+                message_lines.append(
+                    f"- [{task.get('ticket_id', 'N/A')}] {task.get('title', 'Untitled')} (Due: {task.get('due_date')})"
+                )
+
+        slack_message = "\n".join(message_lines)
+
+        res = requests.post(
+            "https://slack.com/api/chat.postMessage",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+            },
+            json={"channel": channel_id, "text": slack_message},
+        )
+
+        data = res.json()
+        if not data.get("ok"):
+            return f"❌ Slack API error: {data.get('error')}"
+
+        return (
+            f"✅ Sent brief project summary for '{project.get('name', project_name)}' "
+            f"to Slack channel #{channel_name}. "
+            f"(Total: {total}, Done: {done}, Overdue: {overdue})"
+        )
+
+    except Exception as e:
+        logger.error(f"send_project_brief_summary_to_slack_tool error: {e}")
+        return f"❌ Failed to send project summary to Slack: {str(e)}"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -2647,6 +2818,7 @@ def get_all_langgraph_tools():
         get_project_analytics_tool,
         get_user_workload_tool,
         get_overdue_tasks_tool,
+        send_project_brief_summary_to_slack_tool,
         # Profile Management
         update_user_profile_tool,
         generate_pdf_report_tool,

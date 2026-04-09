@@ -182,7 +182,10 @@ def send_message_to_langgraph(
         if not result["success"]:
             err = result.get("error", "LangGraph agent call failed")
             print(f"   ❌ LangGraph agent error: {err}")
-            ai_content = f"❌ LangGraph AI error: {err}"
+            if "blocked by Azure AI safety filters" in str(err):
+                ai_content = str(err)
+            else:
+                ai_content = f"❌ LangGraph AI error: {err}"
         else:
             ai_content = result["response"]
             tool_info = (
