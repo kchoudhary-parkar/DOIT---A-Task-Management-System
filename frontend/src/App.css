@@ -151,6 +151,7 @@ html, body {
 }
 .nav-link-btn:hover { color: var(--accent-blue); }
 .nav-link-btn.analytics:hover { color: var(--accent-green); }
+.nav-link-btn.explore:hover { color: #00c8aa; }
 
 .nav-divider {
   width: 1px;

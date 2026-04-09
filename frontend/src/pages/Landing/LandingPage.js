@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   FiZap, FiUsers, FiBarChart2, FiShield, FiMessageCircle,
-  FiCode, FiArrowRight, FiPlay, FiCheckCircle,
+  FiCode, FiArrowRight, FiPlay, FiCheckCircle, FiTarget, FiCpu,
 } from 'react-icons/fi';
 import { BsStars } from 'react-icons/bs';
 import doitLogo from '../../doit.png';
@@ -112,21 +112,81 @@ const features = [
   },
 ];
 
+const capabilityAtlas = [
+  {
+    icon: <FiTarget size={20} />,
+    title: 'Delivery Engine',
+    points: [
+      'Project lifecycle: create, update, delete, ownership-aware access',
+      'Task workflows: labels, links, comments, attachments, approvals',
+      'Sprint planning: backlog, start/complete, task assignment cycles',
+      'Realtime Kanban updates through WebSocket channels',
+    ],
+  },
+  {
+    icon: <FiMessageCircle size={20} />,
+    title: 'Collaboration Layer',
+    points: [
+      'Team chat with channels, threads, reactions, mentions, and search',
+      'Read receipts, file sharing, and channel-level live presence',
+      'Slack, Microsoft Teams, and Discord integration orchestration',
+      'Notification paths tied directly to task and sprint events',
+    ],
+  },
+  {
+    icon: <FiCpu size={20} />,
+    title: 'Intelligence Stack',
+    points: [
+      '5 AI framework modes: LLM Assistant, Foundry, MCP, LangGraph, Local',
+      'Voice pipeline: Whisper STT -> Foundry Agent -> Azure TTS',
+      'Document Intelligence analysis with PDF report export',
+      'Analytics and dashboard insights for teams and super admins',
+    ],
+  },
+];
+
+const agentFrameworks = [
+  {
+    name: 'DOIT-AI LLM',
+    desc: 'General project copilot mode with context-aware assistant capabilities.',
+    badge: 'Core Assistant',
+  },
+  {
+    name: 'Azure AI Foundry',
+    desc: 'Managed agent thread flow with upload and health operations.',
+    badge: 'Enterprise Agent',
+  },
+  {
+    name: 'LangGraph',
+    desc: 'Tool-chaining workflow agent for structured orchestration.',
+    badge: 'Workflow Agent',
+  },
+  {
+    name: 'MCP Agent',
+    desc: 'Model Context Protocol mode for task/project/sprint/member operations.',
+    badge: 'Tool Protocol',
+  },
+  {
+    name: 'Local Agent',
+    desc: 'Local-first inference route with independent conversation lifecycle.',
+    badge: 'Offline Ready',
+  },
+];
+
 const stackItems = [
-  { emoji: '⚛️', name: 'React 19' },
-  { emoji: '🐍', name: 'FastAPI' },
-  { emoji: '🍃', name: 'MongoDB' },
-  { emoji: '🔴', name: 'Redis' },
-  { emoji: '🌿', name: 'Celery' },
-  { emoji: '🔗', name: 'LangChain' },
-  { emoji: '🕸️', name: 'LangGraph' },
-  { emoji: '📚', name: 'LlamaIndex' },
-  { emoji: '🎨', name: 'ChromaDB' },
-  { emoji: '☁️', name: 'Azure AI' },
-  { emoji: '🤖', name: 'GPT-4o' },
-  { emoji: '🦙', name: 'Ollama' },
-  { emoji: '🔌', name: 'MCP' },
-  { emoji: '🔐', name: 'Clerk' },
+  { name: 'React 19', logo: 'https://cdn.simpleicons.org/react/61DAFB', short: 'R' },
+  { name: 'FastAPI', logo: 'https://cdn.simpleicons.org/fastapi/009688', short: 'F' },
+  { name: 'MongoDB', logo: 'https://cdn.simpleicons.org/mongodb/47A248', short: 'M' },
+  { name: 'Redis', logo: 'https://cdn.simpleicons.org/redis/DC382D', short: 'Re' },
+  { name: 'Celery', logo: 'https://cdn.simpleicons.org/celery/37814A', short: 'C' },
+  { name: 'LangChain', logo: 'https://cdn.simpleicons.org/langchain/1C3C3C', short: 'LC' },
+  { name: 'LangGraph', logo: 'https://cdn.simpleicons.org/langgraph/1D293D', short: 'LG' },
+  { name: 'LlamaIndex', logo: 'https://cdn.simpleicons.org/llamaindex/4D6BFE', short: 'LI' },
+  { name: 'ChromaDB', logo: 'https://cdn.simpleicons.org/chromadb/7B61FF', short: 'CH' },
+  { name: 'Azure AI', logo: 'https://cdn.simpleicons.org/microsoftazure/0078D4', short: 'Az' },
+  { name: 'GPT-4o', logo: 'https://cdn.simpleicons.org/openai/FFFFFF', short: 'AI' },
+  { name: 'Ollama', logo: 'https://cdn.simpleicons.org/ollama/FFFFFF', short: 'O' },
+  { name: 'Clerk', logo: 'https://cdn.simpleicons.org/clerk/6C47FF', short: 'Cl' },
 ];
 
 const techPills = [
@@ -162,15 +222,18 @@ export default function LandingPage() {
         </div>
 
         <nav className="landing-nav-links">
+          <button className="landing-nav-link" onClick={() => navigate('/')}>
+            Home
+          </button>
           {['Products', 'Features', 'Docs', 'Pricing', 'Company'].map(item => (
-            <span key={item} className="landing-nav-link">
+            <button key={item} className="landing-nav-link" onClick={() => navigate('/login')}>
               {item}
               {['Products', 'Company'].includes(item) && (
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <path d="M6 9l6 6 6-6"/>
                 </svg>
               )}
-            </span>
+            </button>
           ))}
         </nav>
 
@@ -417,6 +480,58 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ── Capability Atlas ───────────────────────────────────────────── */}
+      <section className="landing-section" ref={addRef}>
+        <div className="landing-container landing-fade-up">
+          <div className="landing-section-label">Capability Atlas</div>
+          <h2 className="landing-section-title centered">All DOIT capabilities in one platform</h2>
+          <p className="landing-section-sub">
+            No separate explorer required. Project execution, collaboration, AI orchestration,
+            voice interaction, and reporting live in a single product surface.
+          </p>
+
+          <div className="landing-atlas-grid">
+            {capabilityAtlas.map((group) => (
+              <article key={group.title} className="landing-atlas-card">
+                <div className="landing-atlas-head">
+                  <div className="landing-atlas-icon">{group.icon}</div>
+                  <h3>{group.title}</h3>
+                </div>
+                <div className="landing-atlas-points">
+                  {group.points.map((point) => (
+                    <div key={point} className="landing-atlas-point">
+                      <FiCheckCircle size={14} />
+                      <span>{point}</span>
+                    </div>
+                  ))}
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Agent Frameworks ───────────────────────────────────────────── */}
+      <section className="landing-section landing-section-alt" ref={addRef}>
+        <div className="landing-container landing-fade-up">
+          <div className="landing-section-label">Agent Frameworks</div>
+          <h2 className="landing-section-title centered">5 agent frameworks, one control plane</h2>
+          <p className="landing-section-sub">
+            Route each problem to the right execution mode without changing your workspace.
+          </p>
+
+          <div className="landing-framework-grid">
+            {agentFrameworks.map((framework) => (
+              <article key={framework.name} className="landing-framework-card">
+                <div className="framework-badge">{framework.badge}</div>
+                <h3>{framework.name}</h3>
+                <p>{framework.desc}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ── Stack ───────────────────────────────────────────────────────── */}
       <section className="landing-section" ref={addRef}>
         <div className="landing-container landing-fade-up">
@@ -425,13 +540,33 @@ export default function LandingPage() {
           <p className="landing-section-sub">
             Every component hand-picked for performance, scalability, and developer experience.
           </p>
-          <div className="landing-stack-grid">
-            {stackItems.map(({ emoji, name }) => (
-              <div key={name} className="stack-item">
-                <span className="stack-item-emoji">{emoji}</span>
-                {name}
-              </div>
-            ))}
+          <div className="landing-stack-marquee" aria-label="Technology stack logos">
+            <div className="landing-stack-track">
+              {[...stackItems, ...stackItems].map(({ name, logo, short }, index) => (
+                <div
+                  key={`${name}-${index}`}
+                  className="stack-logo-item"
+                  aria-hidden={index >= stackItems.length}
+                >
+                  <div className="stack-logo-mark" aria-hidden="true">
+                    <img
+                      src={logo}
+                      alt={`${name} logo`}
+                      className="stack-logo-img"
+                      loading="lazy"
+                      decoding="async"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                        const fallback = e.currentTarget.nextElementSibling;
+                        if (fallback) fallback.style.display = 'inline-flex';
+                      }}
+                    />
+                    <span className="stack-logo-fallback">{short}</span>
+                  </div>
+                  <span>{name}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
