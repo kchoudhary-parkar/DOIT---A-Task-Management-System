@@ -292,7 +292,7 @@ html, body {
   justify-content: center;
   padding: 14px 10px;
   border-bottom: 1px solid var(--sidebar-border);
-  min-height: 62px;
+  min-height: 80px;
   flex-shrink: 0;
 }
 

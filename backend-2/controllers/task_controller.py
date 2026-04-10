@@ -831,7 +831,7 @@ def get_my_tasks(user_id):
     # Enrich tasks with project name and owner name
     from database import db
 
-    for task in tasks_list:
+    for idx, task in enumerate(tasks_list):
         task["_id"] = str(task["_id"])
         task["created_at"] = datetime_to_iso(task["created_at"])
         task["updated_at"] = datetime_to_iso(task["updated_at"])
@@ -852,7 +852,7 @@ def get_my_tasks(user_id):
 
         # Convert any additional datetime fields (e.g., git sync metadata)
         # to keep response JSON-safe.
-        task = _serialize_datetimes(task)
+        tasks_list[idx] = _serialize_datetimes(task)
 
     return success_response({"tasks": tasks_list, "count": len(tasks_list)})
 
