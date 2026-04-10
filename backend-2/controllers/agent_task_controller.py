@@ -767,7 +767,9 @@ def agent_bulk_update_task_due_dates(
         for identifier in task_identifiers:
             task = _resolve_task_by_identifier(identifier)
             if not task:
-                errors.append({"task_identifier": identifier, "error": "Task not found"})
+                errors.append(
+                    {"task_identifier": identifier, "error": "Task not found"}
+                )
                 continue
 
             if task.get("project_id") != project_id:
@@ -781,7 +783,9 @@ def agent_bulk_update_task_due_dates(
 
             actual_task_id = str(task["_id"])
             response = task_controller.update_task(
-                json.dumps({"due_date": normalized_due_date}), actual_task_id, modifier_id
+                json.dumps({"due_date": normalized_due_date}),
+                actual_task_id,
+                modifier_id,
             )
 
             status_code = response.get("statusCode", 200)
@@ -888,7 +892,9 @@ def agent_bulk_update_tasks(
         # Keep only explicitly allowed fields and reject unsupported fields early.
         provided_fields = set(updates.keys())
         unsupported_fields = sorted(
-            field for field in provided_fields if field not in ALLOWED_BULK_TASK_UPDATE_FIELDS
+            field
+            for field in provided_fields
+            if field not in ALLOWED_BULK_TASK_UPDATE_FIELDS
         )
         if unsupported_fields:
             raise HTTPException(
@@ -907,7 +913,10 @@ def agent_bulk_update_tasks(
             if key in ALLOWED_BULK_TASK_UPDATE_FIELDS
         }
 
-        if "due_date" in normalized_updates and normalized_updates.get("due_date") is not None:
+        if (
+            "due_date" in normalized_updates
+            and normalized_updates.get("due_date") is not None
+        ):
             normalized_updates["due_date"] = _normalize_due_date_to_iso(
                 str(normalized_updates.get("due_date"))
             )
@@ -918,7 +927,9 @@ def agent_bulk_update_tasks(
         for identifier in task_identifiers:
             task = _resolve_task_by_identifier(identifier)
             if not task:
-                errors.append({"task_identifier": identifier, "error": "Task not found"})
+                errors.append(
+                    {"task_identifier": identifier, "error": "Task not found"}
+                )
                 continue
 
             if task.get("project_id") != project_id:
@@ -980,7 +991,9 @@ def agent_bulk_update_tasks(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed bulk task update: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed bulk task update: {str(e)}"
+        )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1078,6 +1091,15 @@ def agent_create_task_sync(
             {"_id": ObjectId(project_id)}, {"$inc": {"task_count": 1}}
         )
 
+        # Emit the same Slack lifecycle notifications as the primary controller.
+        actor = User.find_by_email(requesting_user) if requesting_user else None
+        actor_name = (
+            actor.get("name") if actor else (requesting_user or "LangGraph Agent")
+        )
+        task_controller._notify_task_event_to_slack(task, actor_name, "created")
+        if task.get("status") == "Done":
+            task_controller._notify_task_event_to_slack(task, actor_name, "done")
+
         return {"success": True, "task": task, "ticket_id": ticket_id}
 
     except Exception as e:
@@ -1141,6 +1163,16 @@ def agent_assign_task_sync(
         # Get updated task
         updated_task = db.tasks.find_one({"_id": ObjectId(task_id)})
         updated_task["_id"] = str(updated_task["_id"])
+
+        actor = User.find_by_email(requesting_user) if requesting_user else None
+        actor_name = (
+            actor.get("name") if actor else (requesting_user or "LangGraph Agent")
+        )
+        task_controller._notify_task_event_to_slack(updated_task, actor_name, "updated")
+        if updated_task.get("status") == "Done":
+            task_controller._notify_task_event_to_slack(
+                updated_task, actor_name, "done"
+            )
 
         return {"success": True, "task": updated_task}
 

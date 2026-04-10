@@ -32,8 +32,8 @@ LANGGRAPH_LLM_PROVIDER = os.getenv("LANGGRAPH_LLM_PROVIDER", "auto").strip().low
 # Azure OpenAI configuration (preferred by default)
 AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
 AZURE_OPENAI_KEY = os.getenv("AZURE_OPENAI_KEY")
-AZURE_OPENAI_DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o-mini")
-AZURE_OPENAI_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2024-10-21")
+AZURE_OPENAI_DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-5.4-mini")
+AZURE_OPENAI_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-preview")
 AZURE_OPENAI_API_VERSION_FALLBACKS = [
     v.strip()
     for v in os.getenv(
@@ -328,14 +328,20 @@ def _is_jailbreak_heuristic_trigger(exc: Exception) -> bool:
     return bool(jailbreak.get("detected") or jailbreak.get("filtered"))
 
 
+# def _build_sanitized_retry_message(message: str) -> str:
+#     """Wrap user intent in a neutral business-task framing for one retry."""
+#     return (
+#         "Business task request for project/task management. "
+#         "Interpret literally and execute only allowed workspace tools. "
+#         f"User request: {message}"
+#     )
 def _build_sanitized_retry_message(message: str) -> str:
-    """Wrap user intent in a neutral business-task framing for one retry."""
     return (
-        "Business task request for project/task management. "
-        "Interpret literally and execute only allowed workspace tools. "
-        f"User request: {message}"
+        "Execute the following project management task using available tools. "
+        "Fetch project list dynamically via list_projects_tool rather than using "
+        "any names from the user message. "
+        "Task: " + re.sub(r'\b[A-Z][a-zA-Z]+\b', '[entity]', message)
     )
-
 
 def _content_filter_fallback_error(exc: Exception) -> str:
     if _is_jailbreak_heuristic_trigger(exc):

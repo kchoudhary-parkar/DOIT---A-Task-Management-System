@@ -58,6 +58,7 @@ AZURE_DI_ENDPOINT = os.getenv(
     "DOCUMENT_INTELLIGENCE_ENDPOINT", "https://docint07.cognitiveservices.azure.com/"
 )
 AZURE_DI_KEY = os.getenv("DOCUMENT_INTELLIGENCE_KEY", "")
+AZURE_DI_TIMEOUT_SECONDS = int(os.getenv("DOCUMENT_INTELLIGENCE_TIMEOUT_SECONDS", "120"))
 
 # ── Azure OpenAI Configuration (GPT-4.1-mini profile) ─────────────────────
 DOC_INTEL_CONFIG = get_gpt4_mini_chat_config()
@@ -81,7 +82,16 @@ def get_document_intelligence_llm_config() -> dict:
         "key_loaded": bool(cfg.get("key_loaded")),
         "azure_di_endpoint": AZURE_DI_ENDPOINT,
         "azure_di_key_loaded": bool(AZURE_DI_KEY),
+        "azure_di_timeout_seconds": AZURE_DI_TIMEOUT_SECONDS,
     }
+
+
+def _normalize_di_error_message(err: Exception) -> str:
+    """Normalize common Azure DI error text for cleaner logs and API messages."""
+    msg = str(err) if err else "Unknown Azure Document Intelligence error"
+    msg = msg.replace("wass timeout", "was timeout")
+    msg = msg.replace("operation was timeout", "operation timed out")
+    return msg
 
 
 # ── Pydantic models ────────────────────────────────────────────────────────
@@ -160,7 +170,15 @@ def parse_with_azure_di(file_bytes: bytes, filename: str) -> str:
         body=file_bytes,
         content_type="application/octet-stream",
     )
-    result = poller.result()
+    try:
+        result = poller.result(timeout=AZURE_DI_TIMEOUT_SECONDS)
+    except Exception as e:
+        normalized = _normalize_di_error_message(e)
+        if "timeout" in normalized.lower():
+            raise RuntimeError(
+                f"Azure DI timed out after {AZURE_DI_TIMEOUT_SECONDS}s for '{filename}'."
+            ) from e
+        raise RuntimeError(f"Azure DI analyze failed for '{filename}': {normalized}") from e
 
     lines = [f"# Document: {filename}", ""]
 
@@ -1180,7 +1198,10 @@ def analyze_document_from_file(
             raw = extract_insights_azure(doc_text, question)
             return _build_report(filename, question, raw, "Azure Document Intelligence")
         except Exception as e:
-            print(f"⚠️  Azure DI failed, falling back to Docling: {e}")
+            print(
+                "⚠️  Azure DI failed, falling back to Docling: "
+                f"{_normalize_di_error_message(e)}"
+            )
 
     # For CSV/Excel or fallback
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:

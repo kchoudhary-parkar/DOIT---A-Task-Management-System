@@ -29,6 +29,7 @@ import AIAssistantPage from "./pages/AIAssistant/AIAssistantPage";  // NEW: AI A
 import "./App.css";
 import TeamChat from "./components/TeamChat/TeamChat";
 import DataVisualization from "./components/DataVizualization/DataVisualization";
+import DocumentIntelligence from "./components/DataVizualization/DocumentIntelligence";
 import AppSidebar from "./components/Layout/AppSidebar";
 import { dashboardAPI, projectAPI, taskAPI, profileAPI, userAPI, memberAPI } from "./services/api";
 // import AnalyticsStudio from "./components/DataVizualization/AnalyticsStudio";
@@ -70,6 +71,10 @@ function AuthenticatedApp({ user, theme, toggleTheme, logout }) {
 
     if (path === '/profile') {
       safePrefetch(profileAPI.getProfile());
+      return;
+    }
+
+    if (path === '/document-intelligence') {
       return;
     }
 
@@ -158,6 +163,19 @@ function AuthenticatedApp({ user, theme, toggleTheme, logout }) {
         { label: 'DOIT-AI', path: '/ai-assistant', icon: <BsStars size={17} /> },
         { label: 'Analytics', path: '/data-viz', icon: <FiActivity size={17} /> },
         {
+          label: 'Document Intelligence',
+          path: '/document-intelligence',
+          icon: (
+            <svg width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+              <polyline points="10 9 9 9 8 9"/>
+            </svg>
+          )
+        },
+        {
           label: 'Profile',
           path: '/profile',
           icon: (
@@ -220,6 +238,19 @@ function AuthenticatedApp({ user, theme, toggleTheme, logout }) {
         },
         { label: 'DOIT-AI', path: '/ai-assistant', icon: <BsStars size={17} /> },
         { label: 'Analytics', path: '/data-viz', icon: <FiActivity size={17} /> },
+        {
+          label: 'Document Intelligence',
+          path: '/document-intelligence',
+          icon: (
+            <svg width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+              <polyline points="10 9 9 9 8 9"/>
+            </svg>
+          )
+        },
         {
           label: 'Profile',
           path: '/profile',
@@ -315,12 +346,6 @@ function AuthenticatedApp({ user, theme, toggleTheme, logout }) {
               <span>DOIT-AI</span>
             </button>
 
-            {/* Analytics */}
-            <button onClick={() => navigate('/data-viz')} className="nav-link-btn analytics">
-              <FiActivity size={17} />
-              <span>Analytics</span>
-            </button>
-
             {/* Explore DOIT */}
             <button onClick={() => navigate('/explore-doit')} className="nav-link-btn explore">
               <FiCompass size={17} />
@@ -370,6 +395,7 @@ function AuthenticatedApp({ user, theme, toggleTheme, logout }) {
             <Route path="/user-management" element={<UserManagementPage />} />
             <Route path="/system-dashboard" element={<SystemDashboardPage />} />
             <Route path="/data-viz" element={<DataVisualization />} />
+            <Route path="/document-intelligence" element={<DocumentIntelligence />} />
             <Route path="/ai-assistant" element={<AIAssistantPage />} />
             <Route path="/explore-doit" element={<ExploreDOITPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
