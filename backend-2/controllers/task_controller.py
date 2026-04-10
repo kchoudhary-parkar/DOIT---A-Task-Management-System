@@ -827,7 +827,7 @@ def get_my_tasks(user_id):
         return error_response("Unauthorized. Please login.", 401)
 
     tasks_list = Task.find_by_assignee(user_id)
-
+    
     # Enrich tasks with project name and owner name
     from database import db
 
