@@ -157,7 +157,6 @@ function AuthenticatedApp({ user, theme, toggleTheme, logout }) {
         },
         { label: 'DOIT-AI', path: '/ai-assistant', icon: <BsStars size={17} /> },
         { label: 'Analytics', path: '/data-viz', icon: <FiActivity size={17} /> },
-        { label: 'Explore DOIT', path: '/explore-doit', icon: <FiCompass size={17} /> },
         {
           label: 'Profile',
           path: '/profile',
@@ -177,6 +176,7 @@ function AuthenticatedApp({ user, theme, toggleTheme, logout }) {
             </svg>
           )
         },
+        { label: 'Explore DOIT', path: '/explore-doit', icon: <FiCompass size={17} /> },
         {
           label: 'About DOIT',
           path: '/about',
@@ -220,7 +220,6 @@ function AuthenticatedApp({ user, theme, toggleTheme, logout }) {
         },
         { label: 'DOIT-AI', path: '/ai-assistant', icon: <BsStars size={17} /> },
         { label: 'Analytics', path: '/data-viz', icon: <FiActivity size={17} /> },
-        { label: 'Explore DOIT', path: '/explore-doit', icon: <FiCompass size={17} /> },
         {
           label: 'Profile',
           path: '/profile',
@@ -244,6 +243,7 @@ function AuthenticatedApp({ user, theme, toggleTheme, logout }) {
               }
             ]
           : []),
+        { label: 'Explore DOIT', path: '/explore-doit', icon: <FiCompass size={17} /> },
         {
           label: 'About DOIT',
           path: '/about',
