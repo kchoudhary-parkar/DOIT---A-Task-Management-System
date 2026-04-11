@@ -471,19 +471,20 @@ def get_project_tasks(project_id, user_id):
 
     print(f"[TASKS] Processed tasks successfully")
 
-    # Trigger best-effort Git latest-event Slack sync on project visit.
-    # Run in background with cooldown to avoid blocking tasks page response.
-    try:
-        from controllers import git_controller
+    # Trigger fallback Git sync on project visit only when webhook is NOT configured.
+    # With webhook configured, events arrive instantly and polling is unnecessary.
+    if not (project.get("github_webhook_url") or "").strip():
+        try:
+            from controllers import git_controller
 
-        lightweight_tasks = [
-            {"_id": task.get("_id"), "ticket_id": task.get("ticket_id")}
-            for task in tasks_list
-            if task.get("_id") and task.get("ticket_id")
-        ]
-        git_controller.schedule_project_git_sync(project_id, lightweight_tasks)
-    except Exception as e:
-        logger.warning("Git project-visit sync skipped for project %s: %s", project_id, e)
+            lightweight_tasks = [
+                {"_id": task.get("_id"), "ticket_id": task.get("ticket_id")}
+                for task in tasks_list
+                if task.get("_id") and task.get("ticket_id")
+            ]
+            git_controller.schedule_project_git_sync(project_id, lightweight_tasks)
+        except Exception as e:
+            logger.warning("Git project-visit sync skipped for project %s: %s", project_id, e)
 
     return success_response({"tasks": tasks_list, "count": len(tasks_list)})
 

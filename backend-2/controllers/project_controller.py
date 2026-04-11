@@ -20,6 +20,8 @@ def _sanitize_project_for_response(project, current_user_id=None):
         project["git_access_token_configured"] = bool(project.get("git_access_token"))
         project.pop("git_access_token", None)
 
+    project["github_webhook_configured"] = bool(project.get("github_webhook_url"))
+
     return project
 
 
@@ -80,6 +82,7 @@ def create_project(body_str, user_id):
         "name": data["name"].strip(),
         "description": data.get("description", "").strip(),
         "git_repo_url": (data.get("git_repo_url") or "").strip(),
+        "github_webhook_url": (data.get("github_webhook_url") or "").strip(),
         "git_access_token": "",
         "user_id": user_id,
     }
@@ -229,6 +232,9 @@ def update_project(body_str, project_id, user_id):
 
     if "git_repo_url" in data:
         update_data["git_repo_url"] = (data.get("git_repo_url") or "").strip()
+
+    if "github_webhook_url" in data:
+        update_data["github_webhook_url"] = (data.get("github_webhook_url") or "").strip()
 
     if "git_access_token" in data:
         raw_git_token = (data.get("git_access_token") or "").strip()

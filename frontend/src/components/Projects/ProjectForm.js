@@ -15,6 +15,7 @@ function ProjectForm({ onSubmit, onCancel, initialData = null }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [gitRepoUrl, setGitRepoUrl] = useState("");
+  const [githubWebhookUrl, setGithubWebhookUrl] = useState("");
   const [gitAccessToken, setGitAccessToken] = useState("");
   // Teams Webhook URI for integration
   const [teamsWebhook, setTeamsWebhook] = useState("");
@@ -26,10 +27,12 @@ useEffect(() => {
     setName(initialData.name);
     setDescription(initialData.description || "");
     setGitRepoUrl(initialData.git_repo_url || "");
+    setGithubWebhookUrl(initialData.github_webhook_url || "");
     // Don't populate token for security
     setTeamsWebhook(initialData.teams_webhook || "");
     setSlackToken(""); // Always clear slack token on edit/new
   } else {
+    setGithubWebhookUrl("");
     setSlackToken(""); // Also clear on new
   }
 }, [initialData]);
@@ -49,11 +52,17 @@ useEffect(() => {
       return;
     }
 
+    if (githubWebhookUrl && !githubWebhookUrl.includes('/api/tasks/github/webhook')) {
+      setError("Webhook URL should point to /api/tasks/github/webhook endpoint");
+      return;
+    }
+
 
     const projectData = { 
       name: name.trim(), 
       description: description.trim(),
       git_repo_url: gitRepoUrl.trim(),
+      github_webhook_url: githubWebhookUrl.trim(),
       git_access_token: gitAccessToken.trim(),
       integrations: {}
     };
@@ -216,6 +225,25 @@ useEffect(() => {
             <div className="form-hint">
               <FiInfo size={12} />
               <span>Personal access token with repo and webhook permissions</span>
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="githubWebhookUrl" className="form-label">
+              <FiGithub size={16} className="form-label-icon" />
+              GitHub Webhook URL
+            </label>
+            <input
+              type="url"
+              id="githubWebhookUrl"
+              value={githubWebhookUrl}
+              onChange={(e) => setGithubWebhookUrl(e.target.value)}
+              placeholder="https://your-backend-domain/api/tasks/github/webhook"
+              maxLength={300}
+            />
+            <div className="form-hint">
+              <FiInfo size={12} />
+              <span>Used for instant push/PR event triggers without page refresh.</span>
             </div>
           </div>
 

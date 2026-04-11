@@ -52,12 +52,14 @@ class ProjectCreate(BaseModel):
     integrations: Optional[Dict[str, Any]] = None
     git_repo_url: Optional[str] = ""
     git_access_token: Optional[str] = ""
+    github_webhook_url: Optional[str] = ""
 
 class ProjectUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=3)
     description: Optional[str] = None
     git_repo_url: Optional[str] = None
     git_access_token: Optional[str] = None
+    github_webhook_url: Optional[str] = None
 
 class AddMemberRequest(BaseModel):
     email: EmailStr
