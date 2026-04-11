@@ -212,45 +212,14 @@ export default function DataVisualization() {
 
   return (
     <div className="powerbi-container">
-      {/* ── Top Navigation Bar ── */}
-      <div className="powerbi-navbar">
-        <div className="navbar-brand">
-          <BarChart3 className="brand-icon" />
-          <h1>Analytics Studio</h1>
-        </div>
-
-        {/* Insights button lives in the navbar so it's always visible */}
-        <button
-          className={`tab-button ${isDocumentsTab ? 'active' : ''}`}
-          onClick={() => setActiveTab('documents')}
-        >
-          <Sparkles size={18} />
-          🧠 Insights
-        </button>
-        <button
-            className={`tab-button ${activeTab === 'global-insights' ? 'active' : ''}`}
-            onClick={() => setActiveTab('global-insights')}
-          >
-            <Eye size={18} />
-            🌎 Global Insights
-            <span className="new-badge">NEW</span>
-          </button>
-
-        <div className="navbar-actions">
-          <input
-            type="file"
-            id="file-upload-input"
-            accept=".csv,.xlsx,.xls"
-            onChange={handleFileUpload}
-            style={{ display: 'none' }}
-            disabled={loading}
-          />
-          <label htmlFor="file-upload-input" className="btn-primary">
-            <Upload size={18} />
-            <span>Import Data</span>
-          </label>
-        </div>
-      </div>
+      <input
+        type="file"
+        id="file-upload-input"
+        accept=".csv,.xlsx,.xls"
+        onChange={handleFileUpload}
+        style={{ display: 'none' }}
+        disabled={loading}
+      />
 
       <div className="powerbi-workspace">
         {/* ── Left Sidebar — always visible ── */}
