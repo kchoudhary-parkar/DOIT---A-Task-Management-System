@@ -239,6 +239,8 @@ def search_commits(repo_url, token, ticket_id):
         print(f"[GITHUB API] Search commits: {url}")
         print(f"[GITHUB API] Response status: {response.status_code}")
         
+        search_commits_matched = []
+
         if response.status_code == 200:
             commits = response.json().get('items', [])
             # Additional filtering with word boundary to ensure exact match
@@ -248,10 +250,10 @@ def search_commits(repo_url, token, ticket_id):
                 message = commit.get('commit', {}).get('message', '')
                 if pattern.search(message):
                     filtered_commits.append(commit)
-            if filtered_commits:
-                return filtered_commits
+            search_commits_matched = filtered_commits
 
-            print("[GITHUB API] Commit search returned 0 matches after filtering; trying branch fallback")
+            if not filtered_commits:
+                print("[GITHUB API] Commit search returned 0 matches after filtering; trying branch fallback")
         else:
             print(f"[GITHUB API] Error response: {response.text}")
 
@@ -284,7 +286,19 @@ def search_commits(repo_url, token, ticket_id):
                     seen_shas.add(sha)
 
         print(f"[GITHUB API] Branch fallback commits found: {len(fallback_commits)}")
-        return fallback_commits
+
+        # Merge search + fallback results by SHA so fresh branch commits are not missed
+        # while still preserving search matches.
+        merged_commits = []
+        seen_shas = set()
+        for commit in (search_commits_matched + fallback_commits):
+            sha = commit.get('sha')
+            if not sha or sha in seen_shas:
+                continue
+            merged_commits.append(commit)
+            seen_shas.add(sha)
+
+        return merged_commits
     
     except Exception as e:
         print(f"Error searching commits: {e}")
