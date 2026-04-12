@@ -3,24 +3,22 @@
    Aesthetic: Deep-space glassmorphism + liquid gradients
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Cal+Sans&family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
-
 /* ── Tokens ─────────────────────────────────────────────── */
 :root,
 [data-theme="light"] {
-  --di-bg:          #f0f2fa;
-  --di-surface:     rgba(255,255,255,0.72);
-  --di-glass:       rgba(255,255,255,0.55);
-  --di-glass-heavy: rgba(255,255,255,0.82);
-  --di-card:        rgba(255,255,255,0.68);
-  --di-border:      rgba(180,190,220,0.45);
+  --di-bg:          var(--bg-tertiary, #f1f5f9);
+  --di-surface:     rgba(255,255,255,0.86);
+  --di-glass:       rgba(255,255,255,0.9);
+  --di-glass-heavy: rgba(255,255,255,0.95);
+  --di-card:        rgba(255,255,255,0.92);
+  --di-border:      var(--border-primary, rgba(180,190,220,0.45));
   --di-border-glow: rgba(99,130,255,0.35);
-  --di-text:        #0d0f1a;
-  --di-muted:       #5a627a;
-  --di-blue:        #4f6ef7;
+  --di-text:        var(--text-primary, #171717);
+  --di-muted:       var(--text-secondary, #5a627a);
+  --di-blue:        var(--powerbi-primary, #0078d4);
   --di-indigo:      #6366f1;
   --di-cyan:        #06b6d4;
-  --di-green:       #10d9a0;
+  --di-green:       var(--powerbi-success, #107c10);
   --di-danger:      #f43f5e;
   --di-warning:     #f59e0b;
   --di-shadow-sm:   0 2px 8px rgba(80,100,200,0.08);
@@ -35,16 +33,16 @@
 
 [data-theme="dark"],
 html.dark {
-  --di-bg:          #080a14;
+  --di-bg:          var(--bg-tertiary, #1a1d37);
   --di-surface:     rgba(18,20,40,0.82);
-  --di-glass:       rgba(20,24,50,0.62);
-  --di-glass-heavy: rgba(16,18,38,0.88);
-  --di-card:        rgba(22,26,52,0.72);
-  --di-border:      rgba(60,70,120,0.45);
+  --di-glass:       rgba(20,24,50,0.76);
+  --di-glass-heavy: rgba(16,18,38,0.9);
+  --di-card:        rgba(22,26,52,0.84);
+  --di-border:      var(--border-primary, rgba(60,70,120,0.45));
   --di-border-glow: rgba(99,130,255,0.45);
-  --di-text:        #e8ecff;
-  --di-muted:       #8892b0;
-  --di-blue:        #6480ff;
+  --di-text:        var(--text-primary, #f8fafc);
+  --di-muted:       var(--text-secondary, #cbd5e1);
+  --di-blue:        var(--powerbi-primary, #4f9eff);
   --di-indigo:      #818cf8;
   --di-cyan:        #22d3ee;
   --di-green:       #00e5a0;
@@ -63,17 +61,20 @@ html.dark {
 /* ── Page shell ─────────────────────────────────────────── */
 .di-page {
   position: relative;
-  min-height: calc(100vh - 82px);
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   background: var(--di-bg);
   color: var(--di-text);
-  font-family: 'Instrument Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
   overflow: hidden;
 }
 
 /* animated mesh gradient backdrop */
 .di-page::before {
   content: '';
-  position: fixed;
+  position: absolute;
   inset: 0;
   background:
     radial-gradient(ellipse 70% 55% at 18% 22%, var(--di-mesh-1) 0%, transparent 62%),
@@ -87,7 +88,7 @@ html.dark {
 /* grain texture overlay */
 .di-page::after {
   content: '';
-  position: fixed;
+  position: absolute;
   inset: 0;
   background-image: var(--di-noise);
   background-size: 200px 200px;
@@ -106,6 +107,7 @@ html.dark {
 .di-hero {
   position: relative;
   z-index: 2;
+  flex-shrink: 0;
   padding: 20px 22px 16px;
   border-bottom: 1px solid var(--di-border);
   background: var(--di-glass-heavy);
@@ -224,7 +226,7 @@ html.dark {
   line-height: 1.15;
   letter-spacing: -0.04em;
   font-weight: 700;
-  font-family: 'Cal Sans', 'Instrument Sans', sans-serif;
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
   background: linear-gradient(135deg, var(--di-text) 0%, var(--di-muted) 120%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -254,7 +256,7 @@ html.dark {
   padding: 9px 16px;
   font-size: 12.5px;
   font-weight: 700;
-  font-family: 'Instrument Sans', sans-serif;
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
   letter-spacing: 0.01em;
   cursor: pointer;
   transition: transform 0.22s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.22s ease, opacity 0.2s;
@@ -380,8 +382,11 @@ html.dark {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: 306px 1fr;
-  min-height: calc(100vh - 280px);
+  grid-template-columns: minmax(280px, 320px) 1fr;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
 }
 
 /* ── Sidebar panel ──────────────────────────────────────── */
@@ -391,7 +396,10 @@ html.dark {
   backdrop-filter: blur(24px) saturate(160%);
   -webkit-backdrop-filter: blur(24px) saturate(160%);
   padding: 14px;
+  min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -584,7 +592,7 @@ html.dark {
   border-radius: 10px;
   padding: 9px 12px;
   font-size: 12.5px;
-  font-family: 'Instrument Sans', sans-serif;
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
   outline: none;
   transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
   backdrop-filter: blur(8px);
@@ -691,8 +699,10 @@ html.dark {
 .di-content {
   position: relative;
   z-index: 1;
+  min-height: 0;
   padding: 16px;
   overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -798,7 +808,7 @@ html.dark {
   margin-bottom: 10px;
   font-weight: 800;
   color: var(--di-text);
-  font-family: 'Cal Sans', 'Instrument Sans', sans-serif;
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
   background: linear-gradient(135deg, var(--di-text), var(--di-blue));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -951,7 +961,7 @@ html.dark {
   line-height: 1.2;
   letter-spacing: -0.03em;
   color: var(--di-text);
-  font-family: 'Cal Sans', 'Instrument Sans', sans-serif;
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 .di-empty-sub {
@@ -1012,8 +1022,12 @@ html.dark {
 
 /* ── Responsive ─────────────────────────────────────────── */
 @media (max-width: 1100px) {
-  .di-layout { grid-template-columns: 1fr; }
-  .di-panel { border-right: none; border-bottom: 1px solid var(--di-border); }
+  .di-layout { grid-template-columns: 1fr; overflow-y: auto; }
+  .di-panel {
+    border-right: none;
+    border-bottom: 1px solid var(--di-border);
+    overflow: visible;
+  }
 }
 
 @media (max-width: 900px) {
