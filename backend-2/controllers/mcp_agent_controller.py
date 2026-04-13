@@ -11,7 +11,6 @@ Flow:
 
 from __future__ import annotations
 
-import json
 import re
 from datetime import datetime
 from typing import Any, Dict, Optional
@@ -355,8 +354,45 @@ def _render_action_success(
         verb = "added to" if action == "add_member" else "removed from"
         return f"✅ {member} was {verb} {project_name} successfully."
 
+    if action == "list_members":
+        members = payload.get("members") if isinstance(payload.get("members"), list) else []
+        total = payload.get("total")
+        if not isinstance(total, int):
+            total = len(members)
+
+        project_name = _resolve_project_name(params.get("project_id"), params)
+        if not members:
+            return f"✅ Found {total} member(s) in {project_name}."
+
+        preview = []
+        for member in members[:10]:
+            if not isinstance(member, dict):
+                continue
+            name = member.get("name") or "Unknown"
+            email = member.get("email") or "no-email"
+            role = member.get("role") or "Member"
+            preview.append(f"- {name} ({email}) [{role}]")
+
+        suffix = "\n- ..." if len(members) > 10 else ""
+        return (
+            f"✅ Found {total} member(s) in {project_name}:\n"
+            + "\n".join(preview)
+            + suffix
+        )
+
     if action.startswith("list_"):
         count = payload.get("count")
+        if not isinstance(count, int):
+            count = payload.get("total")
+
+        if not isinstance(count, int):
+            if isinstance(payload.get("tasks"), list):
+                count = len(payload.get("tasks"))
+            elif isinstance(payload.get("sprints"), list):
+                count = len(payload.get("sprints"))
+            elif isinstance(payload.get("projects"), list):
+                count = len(payload.get("projects"))
+
         if isinstance(count, int):
             return f"✅ Found {count} item(s) for {action.replace('_', ' ')}."
 
@@ -636,6 +672,16 @@ def _render_mcp_result(
     if not result.get("success"):
         error = result.get("error") or result.get("result", {}).get("error")
         return f"❌ MCP action failed: {action}\n\nError: {error or 'Unknown error'}"
+
+    payload = result.get("result") if isinstance(result.get("result"), dict) else {}
+    if payload and payload.get("success") is False:
+        error = payload.get("error") or payload.get("message") or result.get("error")
+        status = payload.get("status")
+        status_text = f" (status {status})" if status is not None else ""
+        return (
+            f"❌ MCP action failed: {action}{status_text}\n\n"
+            f"Error: {error or 'Unknown error'}"
+        )
 
     return _render_action_success(action, result, params)
 
