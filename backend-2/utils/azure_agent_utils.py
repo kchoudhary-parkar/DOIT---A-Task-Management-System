@@ -123,12 +123,19 @@ def send_message_to_agent(
     message: str,
     thread_id: Optional[str] = None,
     context: Optional[Dict] = None,
+    reuse_cached_thread: bool = True,
 ) -> Dict[str, Any]:
     client = get_agents_client()
+    is_temp_thread = False
 
     try:
         if not thread_id:
-            thread_id = get_or_create_thread(user_id)
+            if reuse_cached_thread:
+                thread_id = get_or_create_thread(user_id)
+            else:
+                thread = client.threads.create()
+                thread_id = thread.id
+                is_temp_thread = True
 
         full_message = message
         if context:
@@ -189,6 +196,14 @@ def send_message_to_agent(
     except Exception as exc:
         logger.error(f"Error communicating with Azure agent: {exc}", exc_info=True)
         return {"success": False, "error": str(exc), "thread_id": thread_id or ""}
+    finally:
+        if is_temp_thread and thread_id:
+            try:
+                client.threads.delete(thread_id)
+            except Exception as cleanup_exc:
+                logger.debug(
+                    f"Skipping temp thread cleanup for {thread_id}: {cleanup_exc}"
+                )
 
 
 def get_thread_messages(thread_id: str) -> Dict[str, Any]:

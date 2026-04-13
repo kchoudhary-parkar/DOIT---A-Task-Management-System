@@ -1453,7 +1453,8 @@ def send_message(
                     conversation_id=conversation_id,
                     role="assistant",
                     content=ai_content,
-                    image_url=image_result.get("image_url") or image_result.get("filepath"),
+                    image_url=image_result.get("image_url")
+                    or image_result.get("filepath"),
                 )
                 print(f"   ✅ Image generated and saved: {ai_message_id}")
 
@@ -1467,7 +1468,8 @@ def send_message(
                         "_id": str(ai_message_id),
                         "role": "assistant",
                         "content": ai_content,
-                        "image_url": image_result.get("image_url") or image_result.get("filepath"),
+                        "image_url": image_result.get("image_url")
+                        or image_result.get("filepath"),
                         "created_at": datetime.utcnow().isoformat(),
                     },
                     "image": image_result,
@@ -1665,7 +1667,7 @@ def send_message(
                 user_message_id=user_message_id,
                 user_content=content,
                 user_data=user_data,
-                conversation_message_count=conversation.get("message_count", 0)
+                conversation_message_count=conversation.get("message_count", 0),
             )
         else:
             print(f"   🚀 Calling Azure OpenAI with data-driven context...")
@@ -1732,6 +1734,87 @@ def send_message(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def generate_voice_assistant_reply(
+    user_id: str,
+    content: str,
+    conversation_history: Optional[List[dict]] = None,
+    max_tokens: int = 160,
+):
+    """
+    Lightweight DOIT AI Assistant reply path for voice usage.
+    Reuses existing LLM/data-insight stack, but skips conversation persistence.
+    """
+    try:
+        if not content or not content.strip():
+            return {"success": False, "error": "Empty prompt"}
+
+        # Keep command capabilities available in voice mode.
+        if detect_task_command(content):
+            command_result = execute_task_command(user_id, content)
+            if command_result.get("success"):
+                command_message = command_result.get(
+                    "message", "Command executed successfully."
+                )
+                return {
+                    "success": True,
+                    "response": command_message,
+                    "command_executed": True,
+                    "command_result": command_result,
+                }
+
+            return {
+                "success": False,
+                "error": command_result.get("error", "Command execution failed"),
+                "command_executed": True,
+            }
+
+        compact_history = []
+        for msg in (conversation_history or [])[-6:]:
+            if not isinstance(msg, dict):
+                continue
+
+            role = str(msg.get("role", "user")).strip().lower()
+            role = "assistant" if role == "assistant" else "user"
+            text = str(msg.get("content", "")).replace("\n", " ").strip()
+            if not text:
+                continue
+
+            compact_history.append({"role": role, "content": text[:300]})
+
+        compact_history.append({"role": "user", "content": content.strip()})
+
+        user_data = analyze_user_data_for_ai(user_id)
+        voice_system_prompt = (
+            "You are DOIT voice assistant. Reply in plain spoken English only. "
+            "No markdown, no headings, no bullet points, no emojis, and no special symbols. "
+            "Keep answers concise and actionable, ideally under 35 words unless explicitly asked for detail."
+        )
+        data_context = build_ai_system_prompt(user_data) if user_data else ""
+        system_prompt = (
+            f"{voice_system_prompt}\n\n{data_context}"
+            if data_context
+            else voice_system_prompt
+        )
+
+        api_messages = get_context_with_system_prompt(
+            compact_history,
+            system_prompt=system_prompt,
+        )
+        api_messages = truncate_context(api_messages, max_tokens=1800)
+
+        response = chat_completion(messages=api_messages, max_tokens=max_tokens)
+        return {
+            "success": True,
+            "response": (response.get("content") or "").strip(),
+            "tokens": response.get("tokens", {}),
+            "command_executed": False,
+        }
+
+    except Exception as e:
+        print(f"❌ Error in generate_voice_assistant_reply: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
 # ============================================================================
 # STREAMING & OTHER FEATURES (Keep existing implementations)
 # ============================================================================
@@ -1743,11 +1826,11 @@ def stream_ai_response(
     user_message_id: str = None,
     user_content: str = None,
     user_data: dict = None,
-    conversation_message_count: int = 0
+    conversation_message_count: int = 0,
 ):
     """
     Stream AI response chunks - COMPATIBLE with existing frontend
-    
+
     🚀 OPTIMIZED: Uses existing SSE format for backwards compatibility
     """
 
@@ -1763,18 +1846,19 @@ def stream_ai_response(
             ai_message_id = AIMessage.create(
                 conversation_id=conversation_id, role="assistant", content=full_content
             )
-            
+
             # Update conversation title if it's the first message
             if user_content and conversation_message_count <= 2:
                 title = user_content[:50] + ("..." if len(user_content) > 50 else "")
                 AIConversation.update_title(conversation_id, title)
-            
+
             # Emit completion (original format)
             yield f"data: {json.dumps({'done': True, 'message_id': str(ai_message_id)})}\n\n"
-            
+
         except Exception as e:
             print(f"❌ Error in stream: {str(e)}")
             import traceback
+
             traceback.print_exc()
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
@@ -2354,13 +2438,17 @@ def _normalize_command_params(
                 flags=re.IGNORECASE,
             )
             if assign_match:
-                assignee_value = assign_match.group(1).strip().strip('"\'').rstrip(".!?;")
+                assignee_value = (
+                    assign_match.group(1).strip().strip("\"'").rstrip(".!?;")
+                )
 
         if assignee_value:
             lowered = assignee_value.lower()
             if lowered in {"me", "myself", "self", "my"} and user_email:
                 normalized["assignee_email"] = user_email
-            elif re.match(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$", assignee_value):
+            elif re.match(
+                r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$", assignee_value
+            ):
                 normalized["assignee_email"] = assignee_value
             else:
                 normalized["assignee_name"] = assignee_value
@@ -2404,7 +2492,7 @@ def _deterministic_task_parse(command: str, context: dict = None):
             flags=re.IGNORECASE,
         )
         if fallback_title:
-            params["title"] = fallback_title.group(1).strip().strip('"\'')
+            params["title"] = fallback_title.group(1).strip().strip("\"'")
 
     project_match = re.search(
         r"(?:in|for)\s+(?:the\s+)?project\s+[\"']?([A-Za-z0-9_ -]+?)[\"']?(?=\s+(?:with|and|assign|due|$)|$)",
