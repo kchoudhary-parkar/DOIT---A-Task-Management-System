@@ -197,21 +197,11 @@ async def call_mcp_tool(
 
                 # Prefer structured data
                 if structured_data:
-                    # If MCP returned a single structured object, preserve its success/error fields.
-                    if (
-                        isinstance(structured_data, list)
-                        and len(structured_data) == 1
-                        and isinstance(structured_data[0], dict)
-                    ):
-                        parsed = dict(structured_data[0])
-                        if text_output and "summary" not in parsed:
-                            parsed["summary"] = text_output
-                    else:
-                        parsed = {
-                            "success": True,
-                            "data": structured_data,
-                            "summary": text_output,
-                        }
+                    parsed = {
+                        "success": True,
+                        "data": structured_data,
+                        "summary": text_output,
+                    }
 
                 else:
                     try:
