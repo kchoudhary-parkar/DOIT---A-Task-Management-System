@@ -156,12 +156,13 @@ def _normalize_action_params(
     params: Dict[str, Any],
     raw_command: Optional[str] = None,
     user_email: Optional[str] = None,
-    user_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     normalized = dict(params or {})
 
     if action == "create_task":
-        title = _pick_first(normalized, ["title", "task_name", "task_title", "name", "task"])
+        title = _pick_first(
+            normalized, ["title", "task_name", "task_title", "name", "task"]
+        )
         if title:
             normalized["title"] = title
 
@@ -201,32 +202,12 @@ def _normalize_action_params(
             else:
                 normalized["assignee_name"] = value
 
-    if action == "list_tasks":
-        assignee = _pick_first(
-            normalized,
-            [
-                "assignee_email",
-                "assignee_name",
-                "assignee",
-                "assigned_to",
-                "owner",
-                "member",
-                "user",
-            ],
-        )
-        if assignee:
-            value = str(assignee).strip()
-            lowered = value.lower()
-            if lowered in {"me", "myself", "self", "my"} and user_email:
-                normalized["assignee_email"] = user_email
-                if user_id:
-                    normalized["assignee_id"] = user_id
-            elif "@" in value:
-                normalized["assignee_email"] = value
-            else:
-                normalized["assignee_name"] = value
-
-    if action in {"assign_task", "update_task", "add_task_to_sprint", "remove_task_from_sprint"}:
+    if action in {
+        "assign_task",
+        "update_task",
+        "add_task_to_sprint",
+        "remove_task_from_sprint",
+    }:
         task_identifier = _pick_first(
             normalized,
             ["task_id", "ticket_id", "task_title", "title", "task_name", "task"],
@@ -234,8 +215,16 @@ def _normalize_action_params(
         if task_identifier:
             normalized["task_id"] = task_identifier
 
-    if action in {"create_sprint", "start_sprint", "complete_sprint", "add_task_to_sprint", "remove_task_from_sprint"}:
-        sprint_name = _pick_first(normalized, ["sprint_name", "name", "title", "sprint"])
+    if action in {
+        "create_sprint",
+        "start_sprint",
+        "complete_sprint",
+        "add_task_to_sprint",
+        "remove_task_from_sprint",
+    }:
+        sprint_name = _pick_first(
+            normalized, ["sprint_name", "name", "title", "sprint"]
+        )
         if sprint_name:
             normalized["sprint_name"] = sprint_name
 
@@ -281,7 +270,9 @@ def _render_create_task_result(result: Dict[str, Any], params: Dict[str, Any]) -
         task = parsed.result.task if parsed.result else None
         ticket_id = task.ticket_id if task else None
         task_title = task.title if task else None
-        priority = _title_case_priority(task.priority if task else params.get("priority"))
+        priority = _title_case_priority(
+            task.priority if task else params.get("priority")
+        )
         project_name = _resolve_project_name(parsed.project_id, params)
 
         if ticket_id and task_title:
@@ -298,7 +289,9 @@ def _render_create_task_result(result: Dict[str, Any], params: Dict[str, Any]) -
     except Exception:
         pass
 
-    fallback_title = _pick_first(params, ["title", "task_name", "task_title", "name"]) or "task"
+    fallback_title = (
+        _pick_first(params, ["title", "task_name", "task_title", "name"]) or "task"
+    )
     fallback_priority = _title_case_priority(params.get("priority"))
     fallback_project = _resolve_project_name(params.get("project_id"), params)
     return (
@@ -307,15 +300,23 @@ def _render_create_task_result(result: Dict[str, Any], params: Dict[str, Any]) -
     )
 
 
-def _render_action_success(action: str, result: Dict[str, Any], params: Dict[str, Any]) -> str:
+def _render_action_success(
+    action: str, result: Dict[str, Any], params: Dict[str, Any]
+) -> str:
     payload = result.get("result", {}) if isinstance(result.get("result"), dict) else {}
 
     if action == "create_task":
         return _render_create_task_result(result, params)
 
     if action == "assign_task":
-        ticket = _pick_first(params, ["ticket_id", "task_id", "task_title", "title"]) or "task"
-        assignee = _pick_first(params, ["assignee_email", "assignee_name", "assignee"]) or "the user"
+        ticket = (
+            _pick_first(params, ["ticket_id", "task_id", "task_title", "title"])
+            or "task"
+        )
+        assignee = (
+            _pick_first(params, ["assignee_email", "assignee_name", "assignee"])
+            or "the user"
+        )
         return f"✅ {ticket} was assigned to {assignee} successfully."
 
     if action == "create_sprint":
@@ -324,13 +325,20 @@ def _render_action_success(action: str, result: Dict[str, Any], params: Dict[str
         return f"✅ Sprint '{sprint_name}' was created successfully in {project_name}."
 
     if action in {"start_sprint", "complete_sprint"}:
-        sprint_name = _pick_first(params, ["sprint_name", "sprint_id", "name"]) or "the sprint"
+        sprint_name = (
+            _pick_first(params, ["sprint_name", "sprint_id", "name"]) or "the sprint"
+        )
         verb = "started" if action == "start_sprint" else "completed"
         return f"✅ Sprint '{sprint_name}' was {verb} successfully."
 
     if action in {"add_task_to_sprint", "remove_task_from_sprint"}:
-        task_name = _pick_first(params, ["task_id", "ticket_id", "task_title", "title"]) or "task"
-        sprint_name = _pick_first(params, ["sprint_name", "sprint_id", "name"]) or "sprint"
+        task_name = (
+            _pick_first(params, ["task_id", "ticket_id", "task_title", "title"])
+            or "task"
+        )
+        sprint_name = (
+            _pick_first(params, ["sprint_name", "sprint_id", "name"]) or "sprint"
+        )
         verb = "added to" if action == "add_task_to_sprint" else "removed from"
         return f"✅ {task_name} was {verb} {sprint_name} successfully."
 
@@ -339,115 +347,17 @@ def _render_action_success(action: str, result: Dict[str, Any], params: Dict[str
         return f"✅ Project '{project_name}' was created successfully."
 
     if action in {"add_member", "remove_member"}:
-        member = _pick_first(params, ["email", "member_email", "member_identifier"]) or "member"
+        member = (
+            _pick_first(params, ["email", "member_email", "member_identifier"])
+            or "member"
+        )
         project_name = _resolve_project_name(params.get("project_id"), params)
         verb = "added to" if action == "add_member" else "removed from"
         return f"✅ {member} was {verb} {project_name} successfully."
 
-    if action == "list_tasks":
-        tasks = payload.get("tasks") if isinstance(payload.get("tasks"), list) else []
-        count = payload.get("count") if isinstance(payload.get("count"), int) else len(tasks)
-
-        lines = ["## Tasks"]
-        project_name = _pick_first(params, ["project_name"]) or "All accessible projects"
-        lines.append(f"Project: **{project_name}**")
-
-        filters = []
-        if params.get("status"):
-            filters.append(f"status={params.get('status')}")
-        if params.get("priority"):
-            filters.append(f"priority={params.get('priority')}")
-        if filters:
-            lines.append(f"Filters: {', '.join(filters)}")
-
-        lines.append(f"Found **{count}** task(s).")
-
-        if not tasks:
-            lines.append("\nNo matching tasks found.")
-            return "\n".join(lines)
-
-        for index, task in enumerate(tasks, start=1):
-            ticket = task.get("ticket_id") or task.get("task_id") or "N/A"
-            title = task.get("title") or "Untitled task"
-            status = task.get("status") or "Unknown"
-            priority = task.get("priority") or "Unknown"
-            assignee = task.get("assignee_name") or task.get("assignee_email") or "Unassigned"
-            due_date = task.get("due_date") or "No due date"
-
-            lines.append(f"\n{index}. **[{ticket}] {title}**")
-            lines.append(f"- Status: {status} | Priority: {priority}")
-            lines.append(f"- Assigned to: {assignee}")
-            lines.append(f"- Due: {due_date}")
-
-        return "\n".join(lines)
-
-    if action == "list_projects":
-        projects = payload.get("projects") if isinstance(payload.get("projects"), list) else []
-        count = payload.get("count") if isinstance(payload.get("count"), int) else len(projects)
-
-        lines = ["## Projects", f"Found **{count}** project(s)."]
-        if not projects:
-            lines.append("\nNo projects found.")
-            return "\n".join(lines)
-
-        for index, project in enumerate(projects, start=1):
-            name = project.get("name") or "Unnamed project"
-            role = project.get("role") or ("Owner" if project.get("is_owner") else "Member")
-            description = project.get("description") or ""
-            lines.append(f"\n{index}. **{name}**")
-            lines.append(f"- Role: {role}")
-            if description:
-                lines.append(f"- Description: {description}")
-
-        return "\n".join(lines)
-
-    if action == "list_sprints":
-        sprints = payload.get("sprints") if isinstance(payload.get("sprints"), list) else []
-        count = payload.get("count") if isinstance(payload.get("count"), int) else len(sprints)
-
-        lines = ["## Sprints", f"Found **{count}** sprint(s)."]
-        if not sprints:
-            lines.append("\nNo sprints found.")
-            return "\n".join(lines)
-
-        for index, sprint in enumerate(sprints, start=1):
-            name = sprint.get("name") or sprint.get("sprint_id") or "Unnamed sprint"
-            status = sprint.get("status") or "planned"
-            total_tasks = sprint.get("total_tasks", 0)
-            completed_tasks = sprint.get("completed_tasks", 0)
-            start_date = sprint.get("start_date") or "N/A"
-            end_date = sprint.get("end_date") or "N/A"
-
-            lines.append(f"\n{index}. **{name}**")
-            lines.append(f"- Status: {status}")
-            lines.append(f"- Timeline: {start_date} -> {end_date}")
-            lines.append(f"- Tasks: {completed_tasks}/{total_tasks} completed")
-
-        return "\n".join(lines)
-
-    if action == "list_members":
-        members = payload.get("members") if isinstance(payload.get("members"), list) else []
-        count = payload.get("total") if isinstance(payload.get("total"), int) else len(members)
-        project_name = _resolve_project_name(params.get("project_id"), params)
-
-        lines = ["## Project Members", f"Project: **{project_name}**", f"Found **{count}** member(s)."]
-        if not members:
-            lines.append("\nNo members found.")
-            return "\n".join(lines)
-
-        for index, member in enumerate(members, start=1):
-            name = member.get("name") or "Unknown"
-            email = member.get("email") or "No email"
-            role = member.get("role") or ("Owner" if member.get("is_owner") else "Member")
-            lines.append(f"\n{index}. **{name}**")
-            lines.append(f"- Email: {email}")
-            lines.append(f"- Role: {role}")
-
-        return "\n".join(lines)
-
     if action.startswith("list_"):
-        count = payload.get("count") if isinstance(payload.get("count"), int) else None
-        if count is not None:
+        count = payload.get("count")
+        if isinstance(count, int):
             return f"✅ Found {count} item(s) for {action.replace('_', ' ')}."
 
     return f"✅ MCP action completed: {action}."
@@ -460,7 +370,9 @@ async def _execute_mcp_action(
     user_email: str,
 ) -> Dict[str, Any]:
     if action == "create_task":
-        title = _pick_first(params, ["title", "task_name", "task_title", "name", "task"])
+        title = _pick_first(
+            params, ["title", "task_name", "task_title", "name", "task"]
+        )
         if not title:
             return {"success": False, "error": "Task title is required."}
 
@@ -533,13 +445,9 @@ async def _execute_mcp_action(
             "list_tasks",
             {
                 "requesting_user_id": user_id,
-                "requesting_user_email": user_email,
                 "project_name": params.get("project_name"),
                 "status": params.get("status"),
                 "priority": params.get("priority"),
-                "assignee_id": params.get("assignee_id"),
-                "assignee_email": params.get("assignee_email"),
-                "assignee_name": params.get("assignee_name"),
             },
         )
 
@@ -721,160 +629,15 @@ async def _execute_mcp_action(
     }
 
 
-def _render_mcp_result(action: str, result: Dict[str, Any], params: Optional[Dict[str, Any]] = None) -> str:
+def _render_mcp_result(
+    action: str, result: Dict[str, Any], params: Optional[Dict[str, Any]] = None
+) -> str:
     params = params or {}
-    payload = result.get("result", {}) if isinstance(result.get("result"), dict) else {}
-    action_success = bool(result.get("success", False))
-    if isinstance(payload.get("success"), bool):
-        action_success = action_success and bool(payload.get("success"))
-
-    if not action_success:
-        error = result.get("error") or payload.get("error") or payload.get("message")
-        return (
-            f"❌ MCP action failed: {action}\n\n"
-            f"Error: {error or 'Unknown error'}"
-        )
+    if not result.get("success"):
+        error = result.get("error") or result.get("result", {}).get("error")
+        return f"❌ MCP action failed: {action}\n\nError: {error or 'Unknown error'}"
 
     return _render_action_success(action, result, params)
-
-
-def _looks_like_automation_intent(content: str) -> bool:
-    text = (content or "").strip().lower()
-    intent_tokens = [
-        "task",
-        "ticket",
-        "sprint",
-        "project",
-        "member",
-        "assign",
-        "create",
-        "update",
-        "list",
-        "show",
-        "remove",
-        "add",
-        "overdue",
-        "dashboard",
-        "summary",
-    ]
-    return any(token in text for token in intent_tokens)
-
-
-def _looks_like_summary_request(content: str) -> bool:
-    text = (content or "").strip().lower()
-    summary_tokens = [
-        "summary",
-        "overall",
-        "dashboard",
-        "overdue",
-        "assigned to me",
-        "my workload",
-        "my tasks",
-    ]
-    return any(token in text for token in summary_tokens)
-
-
-def _parse_due_date(value: Any) -> Optional[datetime]:
-    if not value:
-        return None
-    text = str(value).strip()
-    if not text:
-        return None
-
-    # Supports YYYY-MM-DD and ISO timestamps.
-    for candidate in [text, text + "T00:00:00"]:
-        try:
-            return datetime.fromisoformat(candidate.replace("Z", "+00:00"))
-        except Exception:
-            continue
-    return None
-
-
-def _render_personal_task_summary(tasks: list[Dict[str, Any]], user_email: str) -> str:
-    assigned = []
-    user_email_norm = (user_email or "").strip().lower()
-
-    for task in tasks:
-        assignee_email = str(task.get("assignee_email") or "").strip().lower()
-        if user_email_norm and assignee_email == user_email_norm:
-            assigned.append(task)
-
-    total_assigned = len(assigned)
-    now = datetime.utcnow()
-    overdue = []
-    status_counts: Dict[str, int] = {}
-
-    for task in assigned:
-        status = str(task.get("status") or "To Do")
-        status_counts[status] = status_counts.get(status, 0) + 1
-
-        due = _parse_due_date(task.get("due_date"))
-        if due and due.replace(tzinfo=None) < now and status.lower() not in {"done", "closed", "completed"}:
-            overdue.append(task)
-
-    lines = [
-        "## Overall Summary",
-        f"- Total Tasks Assigned to You: **{total_assigned}**",
-        f"- Overdue Tasks: **{len(overdue)}**",
-        "",
-        "### By Status",
-    ]
-
-    if status_counts:
-        for status, count in sorted(status_counts.items(), key=lambda item: item[0]):
-            lines.append(f"- {status}: {count}")
-    else:
-        lines.append("- No assigned tasks found.")
-
-    lines.append("")
-    lines.append("### Overdue Tasks")
-    if overdue:
-        for index, task in enumerate(overdue[:10], start=1):
-            ticket = task.get("ticket_id") or task.get("task_id") or "N/A"
-            title = task.get("title") or "Untitled task"
-            due = task.get("due_date") or "No due date"
-            priority = task.get("priority") or "Unknown"
-            lines.append(f"{index}. **[{ticket}] {title}**")
-            lines.append(f"- Due: {due} | Priority: {priority}")
-    else:
-        lines.append("No overdue tasks. Great job staying on track.")
-
-    return "\n".join(lines)
-
-
-def _is_task_assigned_to_user(
-    task: Dict[str, Any],
-    user_id: str,
-    user_email: str,
-    user_name: str,
-) -> bool:
-    assignee_id = str(task.get("assignee_id") or "").strip()
-    assignee_email = str(task.get("assignee_email") or "").strip().lower()
-    assignee_name = str(task.get("assignee_name") or "").strip().lower()
-
-    user_id_norm = str(user_id or "").strip()
-    user_email_norm = str(user_email or "").strip().lower()
-    user_name_norm = str(user_name or "").strip().lower()
-
-    return bool(
-        (user_id_norm and assignee_id == user_id_norm)
-        or (user_email_norm and assignee_email == user_email_norm)
-        or (user_name_norm and assignee_name == user_name_norm)
-    )
-
-
-def _render_personal_task_summary_for_user(
-    tasks: list[Dict[str, Any]],
-    user_id: str,
-    user_email: str,
-    user_name: str,
-) -> str:
-    filtered = [
-        task
-        for task in tasks
-        if _is_task_assigned_to_user(task, user_id=user_id, user_email=user_email, user_name=user_name)
-    ]
-    return _render_personal_task_summary(filtered, user_email)
 
 
 def _fallback_chat_reply(content: str, user_role: str) -> tuple[str, Dict[str, Any]]:
@@ -936,9 +699,7 @@ async def send_message_to_mcp(
         parsed_action: Optional[str] = None
         mcp_result: Optional[Dict[str, Any]] = None
 
-        should_try_automation = detect_task_command(content) or _looks_like_automation_intent(content)
-
-        if should_try_automation:
+        if detect_task_command(content):
             parsed = parse_task_command(
                 command=content,
                 context={
@@ -946,7 +707,9 @@ async def send_message_to_mcp(
                     "user_name": user_name,
                     "user_email": user_email,
                     "user_role": user_role,
-                    "allowed_actions": sorted(list(ROLE_ALLOWED_ACTIONS.get(user_role, set()))),
+                    "allowed_actions": sorted(
+                        list(ROLE_ALLOWED_ACTIONS.get(user_role, set()))
+                    ),
                 },
             )
 
@@ -957,7 +720,6 @@ async def send_message_to_mcp(
                     parsed.get("params", {}),
                     raw_command=content,
                     user_email=user_email,
-                    user_id=user_id,
                 )
 
                 if not parsed_action:
@@ -981,46 +743,15 @@ async def send_message_to_mcp(
                         user_id=user_id,
                         user_email=user_email,
                     )
-                    if parsed_action == "list_tasks" and _looks_like_summary_request(content):
-                        payload = mcp_result.get("result", {}) if isinstance(mcp_result.get("result"), dict) else {}
-                        tasks = payload.get("tasks") if isinstance(payload.get("tasks"), list) else []
-                        ai_content = _render_personal_task_summary_for_user(
-                            tasks,
-                            user_id=user_id,
-                            user_email=user_email,
-                            user_name=user_name,
-                        )
-                    else:
-                        ai_content = _render_mcp_result(parsed_action or "unknown", mcp_result, params)
+                    ai_content = _render_mcp_result(
+                        parsed_action or "unknown", mcp_result, params
+                    )
             else:
-                # Smart fallback: summary-style asks should not force rigid command words.
-                if _looks_like_summary_request(content):
-                    parsed_action = "list_tasks"
-                    summary_params = {
-                        "assignee_id": user_id,
-                        "assignee_email": user_email,
-                    }
-                    mcp_result = await _execute_mcp_action(
-                        action="list_tasks",
-                        params=summary_params,
-                        user_id=user_id,
-                        user_email=user_email,
-                    )
-
-                    payload = mcp_result.get("result", {}) if isinstance(mcp_result.get("result"), dict) else {}
-                    tasks = payload.get("tasks") if isinstance(payload.get("tasks"), list) else []
-                    ai_content = _render_personal_task_summary_for_user(
-                        tasks,
-                        user_id=user_id,
-                        user_email=user_email,
-                        user_name=user_name,
-                    )
-                else:
-                    ai_content = (
-                        "I detected an automation request, but I could not parse it clearly. "
-                        "Please restate with project/task details.\n\n"
-                        f"Parser error: {parsed.get('error', 'Unknown parse error')}"
-                    )
+                ai_content = (
+                    "I detected an automation request, but I could not parse it clearly. "
+                    "Please restate with project/task details.\n\n"
+                    f"Parser error: {parsed.get('error', 'Unknown parse error')}"
+                )
         else:
             ai_content, tokens = _fallback_chat_reply(content, user_role)
 
@@ -1046,17 +777,9 @@ async def send_message_to_mcp(
                 "created_at": datetime.utcnow().isoformat(),
                 "tokens_used": tokens.get("total", 0),
                 "mcp_action": parsed_action,
-                    "mcp_success": (
-                        None
-                        if mcp_result is None
-                        else bool(
-                            mcp_result.get("success")
-                            and (
-                                not isinstance(mcp_result.get("result"), dict)
-                                or mcp_result.get("result", {}).get("success", True)
-                            )
-                        )
-                    ),
+                "mcp_success": None
+                if mcp_result is None
+                else bool(mcp_result.get("success")),
             },
         }
 

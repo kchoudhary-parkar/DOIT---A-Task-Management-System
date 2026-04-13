@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import re
 import sys
 import contextlib
 from pathlib import Path
@@ -19,7 +18,10 @@ with contextlib.redirect_stdout(sys.stderr):
     from controllers import task_controller
     from controllers.agent_task_controller import agent_assign_task, agent_create_task
     from database import db
-    from utils.local_agent_automation import find_task_by_title_or_id, resolve_project_id
+    from utils.local_agent_automation import (
+        find_task_by_title_or_id,
+        resolve_project_id,
+    )
 
 mcp = FastMCP("doit-task-server")
 
@@ -61,13 +63,9 @@ def _run_silenced(func, *args, **kwargs):
 @mcp.tool()
 def list_tasks(
     requesting_user_id: str,
-    requesting_user_email: Optional[str] = None,
     project_name: Optional[str] = None,
     status: Optional[str] = None,
     priority: Optional[str] = None,
-    assignee_id: Optional[str] = None,
-    assignee_email: Optional[str] = None,
-    assignee_name: Optional[str] = None,
     limit: int = 25,
 ) -> str:
     """List tasks user can access, with optional project/status/priority filters."""
@@ -75,7 +73,9 @@ def list_tasks(
         query: Dict[str, Any] = {}
 
         if project_name:
-            project_id = resolve_project_id(requesting_user_id, project_name=project_name)
+            project_id = resolve_project_id(
+                requesting_user_id, project_name=project_name
+            )
             if not project_id:
                 return json.dumps(
                     {
@@ -103,32 +103,9 @@ def list_tasks(
         if priority:
             query["priority"] = priority
 
-        effective_assignee_id = str(assignee_id or "").strip()
-        effective_assignee_email = (assignee_email or "").strip().lower()
-        effective_assignee_name = (assignee_name or "").strip().lower()
-
-        if effective_assignee_id or effective_assignee_email or effective_assignee_name:
-            assignee_clauses: list[Dict[str, Any]] = []
-            if effective_assignee_id:
-                assignee_clauses.append({"assignee_id": effective_assignee_id})
-            if effective_assignee_email:
-                assignee_clauses.append({"assignee_email": effective_assignee_email})
-            if effective_assignee_name:
-                assignee_clauses.append(
-                    {
-                        "assignee_name": {
-                            "$regex": f"^{re.escape(effective_assignee_name)}$",
-                            "$options": "i",
-                        }
-                    }
-                )
-
-            if len(assignee_clauses) == 1:
-                query.update(assignee_clauses[0])
-            else:
-                query["$or"] = assignee_clauses
-
-        docs = list(db.tasks.find(query).sort("created_at", -1).limit(max(1, min(limit, 100))))
+        docs = list(
+            db.tasks.find(query).sort("created_at", -1).limit(max(1, min(limit, 100)))
+        )
 
         tasks = []
         for task in docs:

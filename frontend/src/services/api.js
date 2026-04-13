@@ -48,6 +48,15 @@ const getUploadHeaders = () => {
   return headers;
 };
 
+const decodeHeaderText = (value, fallback = '') => {
+  if (!value) return fallback;
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+};
+
 export const documentIntelligenceAPI = {
   analyzeFile: async (file, question = '') => {
     const formData = new FormData();
@@ -1313,8 +1322,8 @@ export const voiceChatAPI = {
       throw new Error(error.detail || error.error || 'Voice chat failed');
     }
 
-    const transcript = response.headers.get('X-Transcript') || 'Voice input';
-    const responseText = response.headers.get('X-Response-Text') || '';
+    const transcript = decodeHeaderText(response.headers.get('X-Transcript'), 'Voice input');
+    const responseText = decodeHeaderText(response.headers.get('X-Response-Text'), '');
     const audioBlob = await response.blob();
 
     return {
