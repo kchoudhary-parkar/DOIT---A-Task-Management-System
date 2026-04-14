@@ -94,13 +94,14 @@
 /* ══════════════════════════════════════════════════════════════════
    PAGE LAYOUT
    ══════════════════════════════════════════════════════════════════ */
+.dashboard-page,
 .dashboard-home-page {
   min-height: auto;
   background: var(--dash-bg-primary);
   padding: 24px 32px 12px;
   box-sizing: border-box;
   position: relative;
-  overflow-x: hidden;
+  overflow: visible;
   font-family: 'DM Sans', system-ui, sans-serif;
   transition: background-color 0.3s ease;
 }
@@ -114,7 +115,6 @@
 .page-transition.is-entered {
   opacity: 1;
   transform: translateY(0);
-  height: 100px;
 }
 
 .dashboard-skeleton-wrap {
@@ -175,6 +175,7 @@
 }
 
 /* Subtle ambient orbs — like LandingAuth left panel */
+.dashboard-page::before,
 .dashboard-home-page::before {
   content: '';
   position: fixed;
@@ -185,6 +186,7 @@
   pointer-events: none;
   z-index: 0;
 }
+.dashboard-page::after,
 .dashboard-home-page::after {
   content: '';
   position: fixed;
@@ -203,6 +205,7 @@
   z-index: 1;
 }
 
+.dashboard-page .dashboard-home-container,
 .dashboard-home-page .dashboard-home-container {
   max-width: 1600px;
   margin: 0 auto;
@@ -230,6 +233,12 @@
   width: 20%;
   min-width: 160px;
   box-sizing: border-box;
+  display: flex;
+  align-items: stretch;
+}
+
+.project-stat-col > div {
+  width: 100%;
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -252,6 +261,12 @@
   /* Gradient top accent — same as LandingAuth right panel */
   position: relative;
   overflow: hidden;
+}
+
+.dashboard-header-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 .dashboard-header::before {
   content: '';
@@ -414,13 +429,16 @@
 .stat-content { flex: 1; }
 
 .stat-value {
-  font-family: 'Clash Display', sans-serif;
+  font-family: 'Plus Jakarta Sans', 'Inter', 'DM Sans', system-ui, sans-serif;
   font-size: 30px;
   font-weight: 800;
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
   color: var(--dash-text-primary);
   line-height: 1;
   margin-bottom: 5px;
+  font-variant-numeric: lining-nums tabular-nums;
+  font-feature-settings: "lnum" 1, "tnum" 1;
+  text-rendering: geometricPrecision;
 }
 
 .stat-label {
@@ -444,6 +462,8 @@
 .project-stat-card {
   flex: 1;
   min-width: 160px;
+  min-height: 172px;
+  height: 172px;
   background: var(--dash-bg-card);
   border: 1px solid var(--dash-border-primary);
   border-radius: 14px;
@@ -454,6 +474,10 @@
   overflow: hidden;
   transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
   box-shadow: var(--dash-shadow-sm);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 .project-stat-card::before {
   content: '';
@@ -487,13 +511,16 @@
 .pstat-icon-dark   { background: rgba(100,116,139,0.12); color: var(--dash-text-tertiary); }
 
 .pstat-value {
-  font-family: 'Syne', sans-serif;
+  font-family: 'Plus Jakarta Sans', 'Inter', 'DM Sans', system-ui, sans-serif;
   font-size: 28px;
   font-weight: 800;
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
   color: var(--dash-text-primary);
   line-height: 1;
   margin-bottom: 6px;
+  font-variant-numeric: lining-nums tabular-nums;
+  font-feature-settings: "lnum" 1, "tnum" 1;
+  text-rendering: geometricPrecision;
 }
 .pstat-label {
   font-size: 13px;
@@ -515,6 +542,8 @@
   border-radius: 999px;
   padding: 3px 10px;
   transition: all 0.2s ease;
+  white-space: nowrap;
+  line-height: 1.1;
 }
 .project-stat-card:hover .pstat-action {
   background: rgba(79,142,247,0.18);
@@ -634,8 +663,8 @@
   flex-direction: column;
   gap: 10px;
   max-height: 360px;
-  overflow-y: auto;
-  padding-right: 6px;
+  overflow: hidden;
+  padding-right: 0;
 }
 .deadlines-list::-webkit-scrollbar,
 .activity-list::-webkit-scrollbar { width: 4px; }
@@ -752,8 +781,8 @@
   flex-direction: column;
   gap: 10px;
   max-height: 360px;
-  overflow-y: auto;
-  padding-right: 6px;
+  overflow: hidden;
+  padding-right: 0;
 }
 
 .activity-item-new {
@@ -1063,8 +1092,13 @@
 }
 
 @media (max-width: 768px) {
+  .dashboard-page,
   .dashboard-home-page { padding: 20px 16px 10px; }
   .dashboard-header { padding: 20px; }
+  .dashboard-header-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
   .header-content h1 { font-size: 22px; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
   .dashboard-export-wrap {
@@ -1100,7 +1134,10 @@
    PRINT
    ══════════════════════════════════════════════════════════════════ */
 @media print {
+  .dashboard-page,
   .dashboard-home-page { background: white !important; }
+  .dashboard-page::before,
+  .dashboard-page::after,
   .dashboard-home-page::before,
   .dashboard-home-page::after { display: none; }
   .stat-card, .chart-container, .deadlines-section-new,

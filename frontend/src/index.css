@@ -43,6 +43,7 @@ html {
   overflow-x: hidden;
   overscroll-behavior: none;
   touch-action: pan-y;
+  height: 100%;
 }
 
 body {
@@ -54,22 +55,19 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
-  overscroll-behavior: none;
-  position: fixed;
-  width: 100%;
-  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior-y: none;
+  min-height: 100%;
+}
+
+body.auth-shell-active {
+  overflow: hidden;
 }
 
 #root {
   width: 100%;
-  height: 100%;
-  overflow-y: auto;
+  min-height: 100%;
   overflow-x: hidden;
-}
-
-/* Prevent rubber band effect on macOS/iOS */
-body {
-  overscroll-behavior-y: none;
 }
 
 /* Disable pull-to-refresh */

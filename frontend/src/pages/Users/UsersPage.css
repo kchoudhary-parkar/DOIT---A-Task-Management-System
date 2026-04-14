@@ -56,14 +56,14 @@
   mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black 20%, transparent 100%);
 }
 
-.dashboard-page {
+.users-page {
   min-height: 100vh;
   background: var(--bg-primary);
   position: relative;
   overflow-x: hidden;
 }
 
-.dashboard-container {
+.users-container {
   position: relative;
   z-index: 1;
   max-width: 1400px;
