@@ -52,7 +52,6 @@ llama-index>=0.11.0
 llama-index-llms-ollama>=0.3.0
 llama-index-embeddings-ollama>=0.3.0
 llama-index-vector-stores-chroma>=0.2.0
-chromadb>=0.6.0
 
 # LangChain for AI Agents
 langchain>=0.3.0

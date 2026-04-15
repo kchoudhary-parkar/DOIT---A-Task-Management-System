@@ -136,6 +136,13 @@ function AuthenticatedApp({ user, theme, toggleTheme, logout }) {
     return () => mediaQuery.removeEventListener("change", handleScreenChange);
   }, []);
 
+  useEffect(() => {
+    document.body.classList.add("auth-shell-active");
+    return () => {
+      document.body.classList.remove("auth-shell-active");
+    };
+  }, []);
+
   const isSuperAdmin = user.role === 'super-admin';
 
   const navLinks = isSuperAdmin
@@ -382,7 +389,7 @@ function AuthenticatedApp({ user, theme, toggleTheme, logout }) {
           </div>
         </nav>
 
-        <main style={{ minHeight: 'calc(100vh - 80px)' }}>
+        <main className="app-main">
           <Routes>
             <Route path="/" element={user.role === 'super-admin' ? <SuperAdminDashboard /> : <DashboardPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
@@ -579,7 +586,7 @@ function App() {
 
   return (
     <Router>
-      <div className="App">
+      <div className={`App ${user ? "app-authenticated" : "app-public"}`}>
         {user ? (
           <AuthenticatedApp 
             user={user} 

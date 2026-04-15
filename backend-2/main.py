@@ -79,6 +79,7 @@ app.add_middleware(
         "http://localhost:3001",
         "https://doit-a-task-management-system.vercel.app",
         "https://*.vercel.app",
+        "https://doitai.dpdns.org",
     ],
     allow_credentials=True,
     allow_methods=["*"],

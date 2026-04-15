@@ -262,8 +262,8 @@ const UsersPage = () => {
 
   if (loading && !error && ((isAdmin && adminProjects.length === 0 && !selectedAdminProject) || (isSuperAdmin && admins.length === 0 && !selectedAdmin))) {
     return (
-      <div className="dashboard-page">
-        <div className="dashboard-container">
+      <div className="users-page">
+        <div className="users-container">
           <div style={{ position: "relative", minHeight: "360px" }}>
             <Loader />
           </div>
@@ -274,8 +274,8 @@ const UsersPage = () => {
 
   if (error && !loading) {
     return (
-      <div className="dashboard-page">
-        <div className="dashboard-container">
+      <div className="users-page">
+        <div className="users-container">
           <div className="error-message">{error}</div>
         </div>
       </div>
@@ -358,7 +358,7 @@ const UsersPage = () => {
   };
 
   return (
-    <div className="dashboard-page">
+    <div className="users-page">
       {/* ── Background Decoration ────────────────────────────────────── */}
       <div className="users-hero-bg" aria-hidden="true">
         <div className="hero-orb hero-orb-1" />
@@ -366,7 +366,7 @@ const UsersPage = () => {
         <div className="hero-grid" />
       </div>
 
-      <div className="dashboard-container">
+      <div className="users-container">
         <header className="dashboard-header about-fade-up" ref={addRef}>
           <div className="users-hero-badge">
             <Search size={12} />
