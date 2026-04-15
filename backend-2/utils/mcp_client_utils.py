@@ -5,7 +5,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 from dotenv import load_dotenv
 
 load_dotenv(override=True)
@@ -29,6 +29,9 @@ MCP_SERVER_SCRIPTS: Dict[str, Path] = {
     "member": Path(__file__).resolve().parents[1]
     / "mcp_servers"
     / "member_mcp_server.py",
+    "email": Path(__file__).resolve().parents[1]
+    / "mcp_servers"
+    / "email_mcp_server.py",
 }
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
@@ -102,7 +105,7 @@ def _extract_text_from_tool_result(result: Any) -> Dict[str, Any]:
     if isinstance(result, str):
         try:
             return {"text": result, "data": json.loads(result)}
-        except:
+        except Exception:
             return {"text": result, "data": None}
 
     # Case 3: dict already
@@ -218,14 +221,17 @@ async def call_mcp_tool(
                     parsed["success"] = True
 
                 formatted_output = _format_mcp_result(parsed)
+                tool_success = bool(parsed.get("success", True))
+                tool_error = parsed.get("error") if isinstance(parsed, dict) else None
 
                 return {
-                    "success": True,
+                    "success": tool_success,
                     "server": server_name,
                     "tool": tool_name,
                     "result": parsed,
-                    "formatted": formatted_output, 
+                    "formatted": formatted_output,
                     "raw_text": text_output,
+                    "error": tool_error,
                 }
     except Exception as exc:
         return {

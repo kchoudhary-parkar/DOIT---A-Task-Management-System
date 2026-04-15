@@ -11,7 +11,6 @@ Flow:
 
 from __future__ import annotations
 
-import json
 import re
 from datetime import datetime
 from typing import Any, Dict, Optional
@@ -40,6 +39,9 @@ ROLE_ALLOWED_ACTIONS = {
         "list_sprints",
         "list_projects",
         "list_members",
+        "generate_status_summary",
+        "send_email_with_attachments",
+        "send_status_summary_email",
     },
     "admin": {
         "create_task",
@@ -57,6 +59,9 @@ ROLE_ALLOWED_ACTIONS = {
         "add_member",
         "remove_member",
         "list_members",
+        "generate_status_summary",
+        "send_email_with_attachments",
+        "send_status_summary_email",
     },
     "super-admin": {
         "create_task",
@@ -74,8 +79,17 @@ ROLE_ALLOWED_ACTIONS = {
         "add_member",
         "remove_member",
         "list_members",
+        "generate_status_summary",
+        "send_email_with_attachments",
+        "send_status_summary_email",
     },
 }
+
+EMAIL_ATTACHMENT_PATTERN = re.compile(
+    r"([\w./\\\- ]+\.(?:pdf|doc|docx|txt|csv|xls|xlsx|ppt|pptx|png|jpg|jpeg))",
+    flags=re.IGNORECASE,
+)
+EMAIL_PATTERN = re.compile(r"\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b")
 
 
 class _TaskSummary(BaseModel):
@@ -149,6 +163,155 @@ def _pick_first(params: Dict[str, Any], keys: list[str]) -> Optional[str]:
         if isinstance(value, str) and value.strip():
             return value.strip()
     return None
+
+
+def _detect_email_command(message: str) -> bool:
+    lowered = (message or "").lower()
+    if not lowered:
+        return False
+
+    email_terms = {"email", "mail", "send"}
+    summary_terms = {"summary", "status", "report"}
+
+    has_email_term = any(term in lowered for term in email_terms)
+    has_summary_term = any(term in lowered for term in summary_terms)
+
+    if has_email_term and ("attachment" in lowered or "attach" in lowered):
+        return True
+
+    if has_email_term and has_summary_term:
+        return True
+
+    if "status summary" in lowered or "project status" in lowered:
+        return True
+
+    if "analytics report" in lowered or "email it to" in lowered:
+        return True
+
+    return False
+
+
+def _extract_email_command_params(command: str) -> Dict[str, Any]:
+    text = command or ""
+
+    emails = EMAIL_PATTERN.findall(text)
+    cc_emails: list[str] = []
+    bcc_emails: list[str] = []
+
+    cc_match = re.search(
+        r"\bcc\b\s*[:=]?\s*(.+?)(?:\bbcc\b|$)", text, flags=re.IGNORECASE
+    )
+    if cc_match:
+        cc_emails = EMAIL_PATTERN.findall(cc_match.group(1))
+
+    bcc_match = re.search(r"\bbcc\b\s*[:=]?\s*(.+)$", text, flags=re.IGNORECASE)
+    if bcc_match:
+        bcc_emails = EMAIL_PATTERN.findall(bcc_match.group(1))
+
+    cc_set = set(cc_emails)
+    bcc_set = set(bcc_emails)
+    to_emails = [
+        email for email in emails if email not in cc_set and email not in bcc_set
+    ]
+
+    subject = None
+    subject_match = re.search(
+        r"\bsubject\b\s*[:=]\s*(.+?)(?:\bbody\b\s*[:=]|$)", text, flags=re.IGNORECASE
+    )
+    if subject_match:
+        subject = subject_match.group(1).strip(" \t\n\r\"'")
+
+    body = None
+    body_match = re.search(
+        r"\b(?:body|message)\b\s*[:=]\s*(.+)$", text, flags=re.IGNORECASE | re.DOTALL
+    )
+    if body_match:
+        body = body_match.group(1).strip()
+
+    project_name = None
+    # Pattern 1: "for Parkar project"
+    project_for_match = re.search(
+        r"\bfor\s+([A-Za-z0-9 _\-]{2,80}?)\s+project\b",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if project_for_match:
+        project_name = project_for_match.group(1).strip(" .,:;\"'")
+
+    # Pattern 2: "project Parkar" but stop before routing keywords like "to", "with", etc.
+    if not project_name:
+        project_match = re.search(
+            r"\bproject\s+([A-Za-z0-9 _\-]{2,80}?)(?:\s+(?:to|with|and|attach|attachment|email|cc|bcc|subject|body)\b|$)",
+            text,
+            flags=re.IGNORECASE,
+        )
+        if project_match:
+            candidate = project_match.group(1).strip(" .,:;\"'")
+            if candidate.lower() not in {"to", "all", "all project", "all projects"}:
+                project_name = candidate
+
+    attachments = [
+        match.strip().strip("\"'") for match in EMAIL_ATTACHMENT_PATTERN.findall(text)
+    ]
+
+    params: Dict[str, Any] = {}
+    if to_emails:
+        params["to_emails"] = to_emails
+    if cc_emails:
+        params["cc_emails"] = cc_emails
+    if bcc_emails:
+        params["bcc_emails"] = bcc_emails
+    if subject:
+        params["subject"] = subject
+    if body:
+        params["body"] = body
+    if project_name:
+        params["project_name"] = project_name
+    if attachments:
+        params["attachment_paths"] = attachments
+
+    return params
+
+
+def _parse_email_command(command: str) -> Dict[str, Any]:
+    params = _extract_email_command_params(command)
+    lowered = (command or "").lower()
+
+    wants_summary = any(
+        term in lowered for term in ["summary", "status", "report", "analytics"]
+    )
+    wants_send = any(term in lowered for term in ["send", "email", "mail"])
+
+    if wants_send and not params.get("to_emails"):
+        return {
+            "success": False,
+            "error": (
+                "Recipient email not detected. Include a valid recipient like "
+                "'email it to name@example.com'."
+            ),
+        }
+
+    if wants_summary and wants_send:
+        return {
+            "success": True,
+            "action": "send_status_summary_email",
+            "params": params,
+        }
+
+    if wants_summary:
+        return {"success": True, "action": "generate_status_summary", "params": params}
+
+    if wants_send:
+        return {
+            "success": True,
+            "action": "send_email_with_attachments",
+            "params": params,
+        }
+
+    return {
+        "success": False,
+        "error": "Could not infer email action. Try including 'send' or 'status summary'.",
+    }
 
 
 def _normalize_action_params(
@@ -232,6 +395,21 @@ def _normalize_action_params(
         member_email = _pick_first(normalized, ["email", "member_email"])
         if member_email:
             normalized["email"] = member_email
+
+    if action in {"send_email_with_attachments", "send_status_summary_email"}:
+        if isinstance(normalized.get("to_email"), str) and not normalized.get(
+            "to_emails"
+        ):
+            normalized["to_emails"] = [normalized["to_email"]]
+
+        if isinstance(normalized.get("attachment_path"), str) and not normalized.get(
+            "attachment_paths"
+        ):
+            normalized["attachment_paths"] = [normalized["attachment_path"]]
+
+        for list_key in ["to_emails", "cc_emails", "bcc_emails", "attachment_paths"]:
+            if isinstance(normalized.get(list_key), str):
+                normalized[list_key] = [normalized[list_key]]
 
     return normalized
 
@@ -359,6 +537,31 @@ def _render_action_success(
         count = payload.get("count")
         if isinstance(count, int):
             return f"✅ Found {count} item(s) for {action.replace('_', ' ')}."
+
+    if action == "generate_status_summary":
+        overall = payload.get("overall", {}) if isinstance(payload, dict) else {}
+        project_count = overall.get("project_count")
+        task_count = overall.get("task_count")
+        if project_count is not None and task_count is not None:
+            return (
+                f"✅ Generated status summary across {project_count} project(s) "
+                f"with {task_count} total task(s)."
+            )
+        return "✅ Generated status summary successfully."
+
+    if action in {"send_email_with_attachments", "send_status_summary_email"}:
+        email_payload = (
+            payload.get("email", payload) if isinstance(payload, dict) else {}
+        )
+        subject = (
+            email_payload.get("subject") or params.get("subject") or "(no subject)"
+        )
+        recipients = email_payload.get("to") or params.get("to_emails") or []
+        attachment_count = email_payload.get("attachment_count", 0)
+        return (
+            f"✅ Email sent successfully to {', '.join(recipients) if recipients else 'recipient(s)'} "
+            f"with subject '{subject}' and {attachment_count} attachment(s)."
+        )
 
     return f"✅ MCP action completed: {action}."
 
@@ -623,6 +826,64 @@ async def _execute_mcp_action(
             },
         )
 
+    if action == "generate_status_summary":
+        return await call_mcp_tool(
+            "email",
+            "generate_status_summary",
+            {
+                "requesting_user_id": user_id,
+                "project_name": params.get("project_name"),
+                "include_task_samples": params.get("include_task_samples", True),
+                "max_tasks_per_project": params.get("max_tasks_per_project", 5),
+            },
+        )
+
+    if action == "send_email_with_attachments":
+        to_emails = params.get("to_emails") or []
+        if not to_emails:
+            return {
+                "success": False,
+                "error": "At least one recipient email is required for send_email_with_attachments.",
+            }
+
+        return await call_mcp_tool(
+            "email",
+            "send_email_with_attachments",
+            {
+                "to_emails": to_emails,
+                "subject": params.get("subject") or "DOIT Update",
+                "body": params.get("body")
+                or "Please find the latest project update from DOIT.",
+                "attachment_paths": params.get("attachment_paths") or [],
+                "cc_emails": params.get("cc_emails") or [],
+                "bcc_emails": params.get("bcc_emails") or [],
+            },
+        )
+
+    if action == "send_status_summary_email":
+        to_emails = params.get("to_emails") or []
+        if not to_emails:
+            return {
+                "success": False,
+                "error": "At least one recipient email is required for send_status_summary_email.",
+            }
+
+        return await call_mcp_tool(
+            "email",
+            "send_status_summary_email",
+            {
+                "requesting_user_id": user_id,
+                "to_emails": to_emails,
+                "subject": params.get("subject"),
+                "project_name": params.get("project_name"),
+                "attachment_paths": params.get("attachment_paths") or [],
+                "include_task_samples": params.get("include_task_samples", True),
+                "max_tasks_per_project": params.get("max_tasks_per_project", 5),
+                "cc_emails": params.get("cc_emails") or [],
+                "bcc_emails": params.get("bcc_emails") or [],
+            },
+        )
+
     return {
         "success": False,
         "error": f"Action '{action}' is not mapped to MCP tools yet.",
@@ -699,19 +960,24 @@ async def send_message_to_mcp(
         parsed_action: Optional[str] = None
         mcp_result: Optional[Dict[str, Any]] = None
 
-        if detect_task_command(content):
-            parsed = parse_task_command(
-                command=content,
-                context={
-                    "user_id": user_id,
-                    "user_name": user_name,
-                    "user_email": user_email,
-                    "user_role": user_role,
-                    "allowed_actions": sorted(
-                        list(ROLE_ALLOWED_ACTIONS.get(user_role, set()))
-                    ),
-                },
-            )
+        is_email_command = _detect_email_command(content)
+
+        if is_email_command or detect_task_command(content):
+            if is_email_command:
+                parsed = _parse_email_command(content)
+            else:
+                parsed = parse_task_command(
+                    command=content,
+                    context={
+                        "user_id": user_id,
+                        "user_name": user_name,
+                        "user_email": user_email,
+                        "user_role": user_role,
+                        "allowed_actions": sorted(
+                            list(ROLE_ALLOWED_ACTIONS.get(user_role, set()))
+                        ),
+                    },
+                )
 
             if parsed.get("success"):
                 parsed_action = parsed.get("action")
@@ -752,6 +1018,21 @@ async def send_message_to_mcp(
                     "Please restate with project/task details.\n\n"
                     f"Parser error: {parsed.get('error', 'Unknown parse error')}"
                 )
+        elif any(
+            keyword in (content or "").lower()
+            for keyword in [
+                "email",
+                "mail",
+                "attachment",
+                "summary",
+                "report",
+                "analytics",
+            ]
+        ):
+            ai_content = (
+                "I detected an email/report request but couldn't map it to a valid automation action. "
+                "Try: 'email analytics report for Parkar project to name@example.com'."
+            )
         else:
             ai_content, tokens = _fallback_chat_reply(content, user_role)
 
