@@ -1,6 +1,6 @@
 """
 LangGraph AI Agent Utilities
-Stack: Azure OpenAI/Groq + LangGraph + LangChain
+Stack: Azure OpenAI (gpt-5.4-mini) + LangGraph + LangChain
 Provides advanced agentic automation with:
 - Multi-step reasoning
 - Tool orchestration
@@ -17,7 +17,6 @@ from dotenv import load_dotenv
 from urllib.parse import urlparse, parse_qs
 from openai import NotFoundError, BadRequestError
 from langchain_openai import AzureChatOpenAI
-from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.prebuilt import create_react_agent
@@ -27,29 +26,19 @@ load_dotenv(override=True)
 logger = logging.getLogger(__name__)
 
 # ─── Configuration ────────────────────────────────────────────────────────────
-LANGGRAPH_LLM_PROVIDER = os.getenv("LANGGRAPH_LLM_PROVIDER", "auto").strip().lower()
 
-# Azure OpenAI configuration (preferred by default)
+# Azure OpenAI configuration (gpt-5.4-mini)
 AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
 AZURE_OPENAI_KEY = os.getenv("AZURE_OPENAI_KEY")
 AZURE_OPENAI_DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-5.4-mini")
-AZURE_OPENAI_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-preview")
+AZURE_OPENAI_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2025-04-01-preview")
 AZURE_OPENAI_API_VERSION_FALLBACKS = [
     v.strip()
     for v in os.getenv(
-        "AZURE_OPENAI_API_VERSION_FALLBACKS", "2024-12-01-preview,2024-10-21"
+        "AZURE_OPENAI_API_VERSION_FALLBACKS", "2025-04-01-preview,2024-12-01-preview"
     ).split(",")
     if v.strip()
 ]
-
-# Groq configuration (optional fallback)
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
-# Optional comma-separated fallback list.
-# Example: GROQ_FALLBACK_MODELS=qwen/qwen3-32b,llama-3.1-8b-instant
-GROQ_FALLBACK_MODELS = os.getenv(
-    "GROQ_FALLBACK_MODELS", "qwen/qwen3-32b,llama-3.1-8b-instant"
-)
 
 LANGGRAPH_AGENT_TIMEOUT = int(os.getenv("LANGGRAPH_AGENT_TIMEOUT", "120"))
 LANGGRAPH_TOOLS_POLICY_VERSION = "readonly-v1"
@@ -129,13 +118,7 @@ _agents = {}  # Cache of agents per user
 
 
 def _get_provider_order() -> List[str]:
-    provider = LANGGRAPH_LLM_PROVIDER
-    if provider in {"azure", "groq"}:
-        return [provider]
-
-    # auto mode: prefer Azure first to match the rest of the backend stack,
-    # then fall back to Groq when Azure credentials are absent or invalid.
-    return ["azure", "groq"]
+    return ["azure"]
 
 
 def _normalize_azure_chat_endpoint(endpoint_raw: Optional[str]):
@@ -261,27 +244,6 @@ def _try_rotate_azure_api_version() -> bool:
             )
 
     return False
-
-
-def _build_groq_llm() -> ChatGroq:
-    if not GROQ_API_KEY:
-        raise RuntimeError("Missing GROQ_API_KEY in environment")
-
-    candidates: List[str] = [GROQ_MODEL]
-    if GROQ_FALLBACK_MODELS.strip():
-        candidates.extend(
-            [m.strip() for m in GROQ_FALLBACK_MODELS.split(",") if m.strip()]
-        )
-
-    for model_name in candidates:
-        if model_name:
-            return ChatGroq(
-                api_key=GROQ_API_KEY,
-                model=model_name,
-                timeout=LANGGRAPH_AGENT_TIMEOUT,
-            )
-
-    raise RuntimeError("No Groq model candidates configured")
 
 
 def _extract_openai_error_body(exc: Exception) -> Dict[str, Any]:
@@ -473,44 +435,25 @@ def _try_direct_task_create_fallback(
 
 
 def get_llm():
-    """Return (and lazily init) the chat LLM (Azure preferred, Groq fallback)."""
+    """Return (and lazily init) the Azure OpenAI LLM (gpt-5.4-mini)."""
     global _llm, _llm_provider, _llm_model, _llm_api_version
     if _llm is not None:
         return _llm
 
     try:
-        errors: List[str] = []
-        for provider in _get_provider_order():
-            try:
-                if provider == "azure":
-                    preferred_version = _azure_api_version_candidates()[0]
-                    _llm = _build_azure_llm(api_version=preferred_version)
-                    _llm_provider = "azure"
-                    info = _build_azure_runtime_info(api_version=preferred_version)
-                    _llm_model = info.get("deployment")
-                    _llm_api_version = info.get("api_version")
-                    logger.info(
-                        "✅ LangGraph LLM ready: provider=azure deployment=%s api_version=%s endpoint=%s",
-                        _llm_model,
-                        _llm_api_version,
-                        info.get("endpoint"),
-                    )
-                else:
-                    _llm = _build_groq_llm()
-                    _llm_provider = "groq"
-                    _llm_model = GROQ_MODEL
-                    _llm_api_version = None
-                    logger.info(
-                        f"✅ LangGraph LLM ready: provider=groq model={_llm_model}"
-                    )
-                return _llm
-            except Exception as exc:
-                errors.append(f"{provider}: {exc}")
-                logger.warning(f"LangGraph provider init failed ({provider}): {exc}")
-
-        raise RuntimeError(
-            "Unable to initialize any LangGraph provider. " + " | ".join(errors)
+        preferred_version = _azure_api_version_candidates()[0]
+        _llm = _build_azure_llm(api_version=preferred_version)
+        _llm_provider = "azure"
+        info = _build_azure_runtime_info(api_version=preferred_version)
+        _llm_model = info.get("deployment")
+        _llm_api_version = info.get("api_version")
+        logger.info(
+            "LangGraph LLM ready: provider=azure deployment=%s api_version=%s endpoint=%s",
+            _llm_model,
+            _llm_api_version,
+            info.get("endpoint"),
         )
+        return _llm
     except Exception as exc:
         raise RuntimeError(f"Failed to initialize LangGraph LLM: {exc}") from exc
 
@@ -677,9 +620,7 @@ Recent Tasks:
                         return {
                             "success": False,
                             "error": _content_filter_fallback_error(retry_exc),
-                            "model": _llm_model
-                            or AZURE_OPENAI_DEPLOYMENT
-                            or GROQ_MODEL,
+                            "model": _llm_model or AZURE_OPENAI_DEPLOYMENT,
                             "provider": _llm_provider,
                         }
                     raise retry_exc
@@ -690,7 +631,7 @@ Recent Tasks:
                 return {
                     "success": False,
                     "error": _content_filter_fallback_error(exc),
-                    "model": _llm_model or AZURE_OPENAI_DEPLOYMENT or GROQ_MODEL,
+                    "model": _llm_model or AZURE_OPENAI_DEPLOYMENT,
                     "provider": _llm_provider,
                 }
             else:
@@ -755,14 +696,14 @@ Recent Tasks:
             return {
                 "success": False,
                 "error": _content_filter_fallback_error(exc),
-                "model": _llm_model or AZURE_OPENAI_DEPLOYMENT or GROQ_MODEL,
+                "model": _llm_model or AZURE_OPENAI_DEPLOYMENT,
                 "provider": _llm_provider,
             }
         logger.error(f"LangGraph agent error: {exc}", exc_info=True)
         return {
             "success": False,
             "error": str(exc),
-            "model": _llm_model or AZURE_OPENAI_DEPLOYMENT or GROQ_MODEL,
+            "model": _llm_model or AZURE_OPENAI_DEPLOYMENT,
             "provider": _llm_provider,
         }
 
@@ -771,50 +712,29 @@ Recent Tasks:
 
 
 def check_langgraph_agent_health() -> Dict[str, Any]:
-    """Return quick, non-blocking config health for LangGraph provider."""
+    """Return quick, non-blocking config health for LangGraph Azure provider."""
     try:
-        # Ensure provider is initialized, but do not make network calls here.
         get_llm()
-
-        if _llm_provider == "azure":
-            info = _build_azure_runtime_info(api_version=_llm_api_version)
-            endpoint = info.get("endpoint")
-            deployment = _llm_model or info.get("deployment")
-            api_version = _llm_api_version or info.get("api_version")
-        else:
-            endpoint = None
-            deployment = _llm_model or GROQ_MODEL
-            api_version = None
-
+        info = _build_azure_runtime_info(api_version=_llm_api_version)
         return {
             "healthy": True,
-            "provider": _llm_provider,
-            "model": _llm_model,
-            "endpoint": endpoint,
-            "deployment": deployment,
-            "api_version": api_version,
+            "provider": "azure",
+            "model": _llm_model or info.get("deployment"),
+            "endpoint": info.get("endpoint"),
+            "deployment": _llm_model or info.get("deployment"),
+            "api_version": _llm_api_version or info.get("api_version"),
             "connectivity_checked": False,
             "error": None,
         }
-
     except Exception as exc:
+        info = _build_azure_runtime_info()
         return {
             "healthy": False,
-            "provider": _llm_provider,
-            "model": _llm_model or AZURE_OPENAI_DEPLOYMENT or GROQ_MODEL,
-            "endpoint": _build_azure_runtime_info(api_version=_llm_api_version).get(
-                "endpoint"
-            )
-            if LANGGRAPH_LLM_PROVIDER != "groq"
-            else None,
-            "deployment": AZURE_OPENAI_DEPLOYMENT
-            if LANGGRAPH_LLM_PROVIDER != "groq"
-            else GROQ_MODEL,
-            "api_version": (
-                _llm_api_version or _build_azure_runtime_info().get("api_version")
-            )
-            if LANGGRAPH_LLM_PROVIDER != "groq"
-            else None,
+            "provider": "azure",
+            "model": _llm_model or AZURE_OPENAI_DEPLOYMENT,
+            "endpoint": info.get("endpoint"),
+            "deployment": AZURE_OPENAI_DEPLOYMENT,
+            "api_version": _llm_api_version or info.get("api_version"),
             "connectivity_checked": False,
             "error": f"LangGraph provider config invalid: {exc}",
         }

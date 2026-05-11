@@ -51,7 +51,9 @@ from document_intelligence import (
     analyze_document_from_file,
     analyze_document_from_url,
     generate_pdf_report,
+    extract_insights_azure,
 )
+from database import db
 from utils.response import success_response, error_response
 from celery_app import celery_app
 
@@ -243,6 +245,12 @@ class SendReportEmailRequest(BaseModel):
     message: Optional[str] = "Please find your generated report at the link below."
 
 
+class GenerateReportRequest(BaseModel):
+    requesting_user: EmailStr
+    project_id: Optional[str] = None
+    report_type: Optional[str] = "full"  # summary | sprint | team | full
+
+
 # ---------------------------------------------------------------------------
 # Pydantic request models — data viz
 # ---------------------------------------------------------------------------
@@ -372,9 +380,17 @@ def _send_report_email_sync(
     email_message.set_content(body)
 
     socket.setdefaulttimeout(15)
-    with smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=15) as smtp:
-        smtp.login(smtp_user, smtp_password)
-        smtp.send_message(email_message)
+    if smtp_port == 465:
+        with smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=15) as smtp:
+            smtp.login(smtp_user, smtp_password)
+            smtp.send_message(email_message)
+    else:
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as smtp:
+            smtp.ehlo()
+            smtp.starttls()
+            smtp.ehlo()
+            smtp.login(smtp_user, smtp_password)
+            smtp.send_message(email_message)
 
     return {
         "to_email": to_email,
@@ -1185,6 +1201,160 @@ async def agent_export_pdf(
                 "Content-Disposition": 'attachment; filename="agent_insights.pdf"'
             },
         )
+    except Exception as e:
+        return error_response(str(e), 500)
+
+
+@router.post("/generate-report")
+async def agent_generate_report(
+    request: GenerateReportRequest,
+    http_request: Request,
+    agent_user_id: Optional[str] = Depends(verify_agent_token_optional),
+):
+    """
+    Fetch live MongoDB data, run Azure OpenAI insight extraction,
+    generate a branded PDF, save it, and return the download URL.
+    """
+    _resolve_requesting_user_id(str(request.requesting_user))
+
+    try:
+        # ── 1. Fetch data from MongoDB ──────────────────────────────────────
+        proj_filter = {}
+        if request.project_id:
+            from bson import ObjectId
+            try:
+                proj_filter["_id"] = ObjectId(request.project_id)
+            except Exception:
+                proj_filter["_id"] = request.project_id
+
+        projects = list(db.projects.find(proj_filter, {
+            "name": 1, "status": 1, "description": 1,
+            "total_tasks": 1, "completed_tasks": 1, "progress_percentage": 1
+        }).limit(50))
+
+        task_filter = {}
+        if request.project_id:
+            task_filter["project_id"] = request.project_id
+        tasks = list(db.tasks.find(task_filter, {
+            "title": 1, "status": 1, "priority": 1,
+            "assignee_name": 1, "due_date": 1, "issue_type": 1
+        }).limit(500))
+
+        sprint_filter = {}
+        if request.project_id:
+            sprint_filter["project_id"] = request.project_id
+        sprints = list(db.sprints.find(sprint_filter, {
+            "name": 1, "status": 1, "start_date": 1, "end_date": 1, "goal": 1
+        }).limit(50))
+
+        users = list(db.users.find({}, {
+            "name": 1, "email": 1, "role": 1
+        }).limit(100))
+
+        # ── 2. Format as structured text for AI ────────────────────────────
+        from collections import Counter
+        from datetime import datetime as dt
+
+        task_statuses = Counter(t.get("status", "Unknown") for t in tasks)
+        task_priorities = Counter(t.get("priority", "Unknown") for t in tasks)
+        task_types = Counter(t.get("issue_type", "task") for t in tasks)
+        user_roles = Counter(u.get("role", "Unknown") for u in users)
+        sprint_statuses = Counter(s.get("status", "Unknown") for s in sprints)
+
+        today = dt.utcnow().date()
+        overdue = [
+            t for t in tasks
+            if t.get("due_date") and t.get("status") not in ("Done", "Closed")
+            and str(t.get("due_date", ""))[:10] < str(today)
+        ]
+
+        assignee_task_counts = Counter(
+            t.get("assignee_name", "Unassigned") for t in tasks
+            if t.get("assignee_name")
+        )
+
+        doc_text = f"""
+# DOIT Project Management Report
+Generated: {dt.utcnow().strftime("%B %d, %Y")}
+Report Type: {request.report_type or "full"}
+
+## PROJECTS ({len(projects)} total)
+Status breakdown: {dict(Counter(p.get("status", "Unknown") for p in projects))}
+Projects: {", ".join(p.get("name", "Unnamed") for p in projects[:20])}
+
+## TASKS ({len(tasks)} total)
+Status breakdown: {dict(task_statuses)}
+Priority breakdown: {dict(task_priorities)}
+Issue type breakdown: {dict(task_types)}
+Overdue tasks: {len(overdue)} tasks past due date
+
+## TEAM WORKLOAD
+Total users: {len(users)}
+Roles: {dict(user_roles)}
+Top assignees by task count:
+{chr(10).join(f"  {name}: {count} tasks" for name, count in assignee_task_counts.most_common(10))}
+
+## SPRINTS ({len(sprints)} total)
+Status breakdown: {dict(sprint_statuses)}
+Sprints: {", ".join(s.get("name", "Unnamed") + " (" + str(s.get("status","?")) + ")" for s in sprints[:15])}
+
+## KEY METRICS
+- Completion rate: {round(task_statuses.get("Done", 0) / max(len(tasks), 1) * 100, 1)}%
+- In Progress: {task_statuses.get("In Progress", 0)} tasks
+- High/Critical tasks: {task_priorities.get("High", 0) + task_priorities.get("Critical", 0)} tasks
+- Active sprints: {sprint_statuses.get("active", 0) + sprint_statuses.get("Active", 0)}
+- Unassigned tasks: {sum(1 for t in tasks if not t.get("assignee_name"))}
+
+## OVERDUE TASKS (sample)
+{chr(10).join(f"  - {t.get('title','?')} [{t.get('priority','?')}] due {str(t.get('due_date','?'))[:10]}" for t in overdue[:15])}
+"""
+
+        # ── 3. Run Azure OpenAI insight extraction ─────────────────────────
+        question = (
+            "Provide a comprehensive project management health analysis. "
+            "Identify bottlenecks, workload imbalances, sprint risks, "
+            "overdue task patterns, and actionable recommendations."
+        )
+        raw_insights = extract_insights_azure(doc_text, question)
+
+        # ── 4. Build InsightReport and generate PDF ─────────────────────────
+        from document_intelligence import (
+            KPI, Insight, Performer, ScoreDistribution, _build_report
+        )
+        report = _build_report(
+            filename=f"DOIT Report — {dt.utcnow().strftime('%B %d, %Y')}",
+            question=question,
+            raw=raw_insights,
+            parser_used="DOIT MongoDB + Azure OpenAI",
+        )
+
+        pdf_bytes = generate_pdf_report(report)
+
+        # ── 5. Save PDF and return URL ──────────────────────────────────────
+        reports_dir = Path("uploads") / "ai_attachments"
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        file_name = f"doit_report_{int(time.time())}_{uuid4().hex[:8]}.pdf"
+        (reports_dir / file_name).write_bytes(pdf_bytes)
+
+        base_url = str(http_request.base_url).rstrip("/")
+        download_url = f"{base_url}/uploads/ai_attachments/{file_name}"
+
+        return {
+            "status": "success",
+            "report_url": download_url,
+            "file_name": file_name,
+            "pdf_size_bytes": len(pdf_bytes),
+            "generated_at": dt.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "download_markdown": f"[Download Report]({download_url})",
+            "stats": {
+                "projects": len(projects),
+                "tasks": len(tasks),
+                "sprints": len(sprints),
+                "users": len(users),
+                "overdue": len(overdue),
+            },
+        }
+
     except Exception as e:
         return error_response(str(e), 500)
 

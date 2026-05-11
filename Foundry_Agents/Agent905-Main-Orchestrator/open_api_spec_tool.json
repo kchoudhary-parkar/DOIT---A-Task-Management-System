@@ -7,7 +7,7 @@
   },
   "servers": [
     {
-      "url": "https://keaton-hyte-nonincidentally.ngrok-free.dev",
+      "url": "https://nontransferable-semineurotically-homer.ngrok-free.dev",
       "description": "Public tunnel to development server via ngrok"
     }
   ],
@@ -357,7 +357,7 @@
               "example": {
                 "requesting_user": "anage@parkar.in",
                 "to_email": "kchoudhary@parkar.in",
-                "report_url": "https://keaton-hyte-nonincidentally.ngrok-free.dev/uploads/ai_attachments/report_123.pdf",
+                "report_url": "https://nontransferable-semineurotically-homer.ngrok-free.dev/uploads/ai_attachments/report_123.pdf",
                 "subject": "Intern Toastmaster Report",
                 "message": "Please find your generated report below."
               }
@@ -2148,6 +2148,70 @@
           },
           "403": {
             "description": "Only Admin users can add project members"
+          }
+        }
+      }
+    },
+    "/api/agent/automation/generate-report": {
+      "post": {
+        "operationId": "generateInsightReport",
+        "summary": "Generate an AI-powered PDF report from live MongoDB data",
+        "description": "Fetches live project, task, sprint, and user data from MongoDB, runs Azure OpenAI insight extraction, and generates a branded PDF. Returns a download URL. WORKFLOW: Call this FIRST, then pass the returned report_url to sendReportEmailAutomation. Do NOT call getStatistics separately — this endpoint fetches all data internally.",
+        "security": [
+          {
+            "AgentAPIKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "LX5HETBWgbO0IqOaWVu5Cs__B2ovKG_yfFu70dqpQy_mLjL0YIAfTBR-7570Q_tf"
+            },
+            "description": "API authentication key"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["requesting_user"],
+                "properties": {
+                  "requesting_user": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Email from Context.user_email"
+                  },
+                  "project_id": {
+                    "type": "string",
+                    "description": "Optional: scope report to a single project. Omit for org-wide report."
+                  },
+                  "report_type": {
+                    "type": "string",
+                    "enum": ["summary", "sprint", "team", "full"],
+                    "default": "full",
+                    "description": "Type of report to generate"
+                  }
+                }
+              },
+              "example": {
+                "requesting_user": "ap@parkar.digital",
+                "report_type": "full"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Returns { report_url, file_name, pdf_size_bytes, stats, download_markdown }"
+          },
+          "500": {
+            "description": "Report generation failed"
           }
         }
       }

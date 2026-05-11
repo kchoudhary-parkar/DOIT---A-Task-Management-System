@@ -11,6 +11,7 @@ Flow:
 
 from __future__ import annotations
 
+import json
 import re
 from datetime import datetime
 from typing import Any, Dict, Optional
@@ -30,6 +31,23 @@ from utils.mcp_client_utils import (
 )
 
 
+_MONGO_READ_ACTIONS = {
+    "mongo_list_databases",
+    "mongo_list_collections",
+    "mongo_count",
+    "mongo_db_stats",
+    "mongo_collection_schema",
+}
+_MONGO_RAW_ACTION = {"mongo_raw"}  # admin-only escape hatch (any of the 22 tools)
+
+_GITHUB_READ_ACTIONS = {
+    "list_git_activity",
+    "list_project_prs",
+    "list_project_commits",
+    "list_project_branches",
+}
+
+
 ROLE_ALLOWED_ACTIONS = {
     "member": {
         "create_task",
@@ -42,6 +60,8 @@ ROLE_ALLOWED_ACTIONS = {
         "generate_status_summary",
         "send_email_with_attachments",
         "send_status_summary_email",
+        *_MONGO_READ_ACTIONS,
+        *_GITHUB_READ_ACTIONS,
     },
     "admin": {
         "create_task",
@@ -62,6 +82,9 @@ ROLE_ALLOWED_ACTIONS = {
         "generate_status_summary",
         "send_email_with_attachments",
         "send_status_summary_email",
+        *_MONGO_READ_ACTIONS,
+        *_MONGO_RAW_ACTION,
+        *_GITHUB_READ_ACTIONS,
     },
     "super-admin": {
         "create_task",
@@ -82,6 +105,9 @@ ROLE_ALLOWED_ACTIONS = {
         "generate_status_summary",
         "send_email_with_attachments",
         "send_status_summary_email",
+        *_MONGO_READ_ACTIONS,
+        *_MONGO_RAW_ACTION,
+        *_GITHUB_READ_ACTIONS,
     },
 }
 
@@ -314,6 +340,301 @@ def _parse_email_command(command: str) -> Dict[str, Any]:
     }
 
 
+MONGO_SLASH_PATTERN = re.compile(
+    r"^\s*/mongo\s+([\w\-]+)\s*(.*)$", flags=re.IGNORECASE | re.DOTALL
+)
+MONGO_DOTTED_REF_PATTERN = re.compile(r"\b[\w\-]+\.[\w\-]+\b")
+GITHUB_SLASH_PATTERN = re.compile(
+    r"^\s*/gh\s+([\w\-]+)\s*(.*)$", flags=re.IGNORECASE | re.DOTALL
+)
+GITHUB_TICKET_PATTERN = re.compile(r"\b([A-Z]+-\d+)\b")
+NATOMA_UNTRUSTED_BLOCK_PATTERN = re.compile(
+    r"^<untrusted-user-data-([^>]+)>\s*\n(.*?)\n</untrusted-user-data-\1>",
+    flags=re.DOTALL | re.IGNORECASE | re.MULTILINE,
+)
+
+
+def _detect_mongo_command(message: str) -> bool:
+    text = (message or "").strip()
+    if not text:
+        return False
+    if MONGO_SLASH_PATTERN.match(text):
+        return True
+
+    lowered = text.lower()
+    mongo_terms = (
+        "database",
+        "databases",
+        "collection",
+        "collections",
+        "mongodb",
+        "mongo",
+        "db stats",
+        "db-stats",
+    )
+    action_terms = ("list", "show", "count", "stats", "schema", "how many", "what")
+    has_mongo_term = any(t in lowered for t in mongo_terms)
+    has_action_term = any(t in lowered for t in action_terms)
+    has_dotted_ref = bool(MONGO_DOTTED_REF_PATTERN.search(text))
+
+    if has_mongo_term and has_action_term:
+        return True
+    # "count taskdb.users" / "schema of taskdb.users" — db.collection refs are clearly Mongo
+    if has_dotted_ref and has_action_term:
+        return True
+    return False
+
+
+def _clean_natoma_output(text: str) -> str:
+    """
+    Strip Natoma's <untrusted-user-data-...> prompt-injection guard wrapping.
+
+    Natoma wraps tool payloads in untrusted-user-data tags with surrounding
+    LLM-targeted warnings. Preserve any leading summary line + the raw data,
+    drop the warnings.
+    """
+    if not text:
+        return text or ""
+    match = NATOMA_UNTRUSTED_BLOCK_PATTERN.search(text)
+    if not match:
+        return text
+
+    data = match.group(2).strip()
+    leading = text.split("\nThe following section contains unverified", 1)[0].rstrip()
+    if leading and leading != data:
+        return f"{leading}\n\n{data}"
+    return data
+
+
+def _parse_mongo_command(message: str) -> Dict[str, Any]:
+    text = (message or "").strip()
+
+    # 1. Slash escape hatch: /mongo <tool> [json-args]
+    slash_match = MONGO_SLASH_PATTERN.match(text)
+    if slash_match:
+        tool_name = slash_match.group(1).strip().lower()
+        args_str = slash_match.group(2).strip()
+        args: Dict[str, Any] = {}
+        if args_str:
+            try:
+                parsed_args = json.loads(args_str)
+                if not isinstance(parsed_args, dict):
+                    return {
+                        "success": False,
+                        "error": "/mongo args must be a JSON object, e.g. /mongo find {\"database\":\"taskdb\",\"collection\":\"users\"}",
+                    }
+                args = parsed_args
+            except json.JSONDecodeError as exc:
+                return {
+                    "success": False,
+                    "error": f"Could not parse JSON args for /mongo: {exc.msg}",
+                }
+        return {
+            "success": True,
+            "action": "mongo_raw",
+            "params": {"tool": tool_name, "args": args},
+        }
+
+    lowered = text.lower()
+
+    # 2. List databases
+    if re.search(r"\b(?:list|show|what(?:'s| is| are)?)\b.*\b(?:databases?|dbs?)\b", lowered):
+        return {"success": True, "action": "mongo_list_databases", "params": {}}
+
+    # 3. Stats for <db>  — require an explicit "db" or "database" qualifier
+    stats_match = re.search(
+        r"\b(?:db[- ]?stats?|database\s+stats?|stats?\s+(?:for|of|on)\s+(?:the\s+)?database)\s+([\w\-]+)\b",
+        lowered,
+    )
+    if not stats_match:
+        # Also allow "stats for <db>" only when <db> isn't a generic word
+        stats_match = re.search(
+            r"\bstats?\s+(?:for|of|on)\s+([\w\-]+)\b", lowered
+        )
+    if stats_match:
+        return {
+            "success": True,
+            "action": "mongo_db_stats",
+            "params": {"database": stats_match.group(1)},
+        }
+
+    # 4. Schema of <db>.<coll>
+    schema_match = re.search(
+        r"\bschema\b\s*(?:of|for)?\s+([\w\-]+)\.([\w\-]+)", lowered
+    )
+    if schema_match:
+        return {
+            "success": True,
+            "action": "mongo_collection_schema",
+            "params": {
+                "database": schema_match.group(1),
+                "collection": schema_match.group(2),
+            },
+        }
+
+    # 5. Count <db>.<coll>  /  count documents in <db>.<coll>  /  how many <db>.<coll>
+    count_match = re.search(
+        r"\b(?:count|how many)\b[^a-z0-9]*(?:documents?|docs?)?\s*(?:in|from|of)?\s*([\w\-]+)\.([\w\-]+)",
+        lowered,
+    )
+    if count_match:
+        return {
+            "success": True,
+            "action": "mongo_count",
+            "params": {
+                "database": count_match.group(1),
+                "collection": count_match.group(2),
+            },
+        }
+
+    # 6. List collections in <db>
+    coll_match = re.search(
+        r"\b(?:list|show)\b[^a-z]*\bcollections?\b[^a-z]*(?:in|of|from|for)\s+([\w\-]+)",
+        lowered,
+    )
+    if coll_match:
+        return {
+            "success": True,
+            "action": "mongo_list_collections",
+            "params": {"database": coll_match.group(1)},
+        }
+
+    return {
+        "success": False,
+        "error": (
+            "Could not parse Mongo command. Try: 'list databases', "
+            "'list collections in <db>', 'count <db>.<coll>', "
+            "'stats for <db>', 'schema of <db>.<coll>', "
+            "or '/mongo <tool> {<json-args>}' for any of the 22 Natoma tools."
+        ),
+    }
+
+
+def _detect_github_command(message: str) -> bool:
+    text = (message or "").strip()
+    if not text:
+        return False
+    if GITHUB_SLASH_PATTERN.match(text):
+        return True
+    lowered = text.lower()
+    github_terms = (
+        "github", "git activity", "pull request", " pr ", " prs",
+        "open prs", "merged pr", "branch", "branches", "commit", "commits",
+        "git commit", "git branch", "merge", "merged", "repo activity",
+    )
+    action_terms = ("list", "show", "get", "find", "what", "how many", "open", "recent", "latest", "activity")
+    has_github_term = any(t in lowered for t in github_terms)
+    has_action_term = any(t in lowered for t in action_terms)
+    return has_github_term and has_action_term
+
+
+def _parse_github_command(message: str) -> Dict[str, Any]:
+    text = (message or "").strip()
+    lowered = text.lower()
+
+    # /gh <action> [project_or_identifier]
+    slash_match = GITHUB_SLASH_PATTERN.match(text)
+    if slash_match:
+        action_str = slash_match.group(1).strip().lower()
+        rest = slash_match.group(2).strip()
+        action_map = {
+            "activity": "list_git_activity",
+            "prs": "list_project_prs",
+            "commits": "list_project_commits",
+            "branches": "list_project_branches",
+        }
+        mapped_action = action_map.get(action_str)
+        if not mapped_action:
+            return {
+                "success": False,
+                "error": (
+                    f"Unknown /gh action '{action_str}'. "
+                    "Available: activity <ticket>, prs [project], commits [project], branches [project]"
+                ),
+            }
+        params: Dict[str, Any] = {}
+        if rest:
+            try:
+                parsed_args = json.loads(rest)
+                if isinstance(parsed_args, dict):
+                    params = parsed_args
+            except Exception:
+                if mapped_action == "list_git_activity":
+                    params["task_identifier"] = rest
+                else:
+                    params["project_name"] = rest
+        return {"success": True, "action": mapped_action, "params": params}
+
+    def _extract_project(text_lower: str) -> Optional[str]:
+        m = re.search(
+            r"\bfor\s+([A-Za-z0-9 _\-]{2,60}?)\s+project\b"
+            r"|\bproject\s+([A-Za-z0-9 _\-]{2,60}?)(?:\s+(?:to|with|and|commits?|prs?|branches?)\b|$)",
+            text_lower,
+            flags=re.IGNORECASE,
+        )
+        if m:
+            candidate = (m.group(1) or m.group(2) or "").strip(" .,:;\"'")
+            if candidate.lower() not in {"to", "all", "all project", "all projects"}:
+                return candidate
+        return None
+
+    # PR listing
+    if re.search(r"\b(?:list|show|get|find|what|open|closed|merged)\b.*\b(?:pull\s*requests?|prs?)\b"
+                 r"|\b(?:pull\s*requests?|prs?)\b.*\b(?:list|show|open|closed|merged|all|pending)\b", lowered):
+        params = {}
+        status_m = re.search(r"\b(open|closed|merged|all)\b", lowered)
+        if status_m:
+            params["status"] = status_m.group(1)
+        proj = _extract_project(lowered)
+        if proj:
+            params["project_name"] = proj
+        return {"success": True, "action": "list_project_prs", "params": params}
+
+    # Commit listing
+    if re.search(r"\b(?:list|show|get|recent|latest)\b.*\bcommits?\b"
+                 r"|\bcommits?\b.*\b(?:for|in|on)\b", lowered):
+        params = {}
+        proj = _extract_project(lowered)
+        if proj:
+            params["project_name"] = proj
+        return {"success": True, "action": "list_project_commits", "params": params}
+
+    # Branch listing
+    if re.search(r"\b(?:list|show|get)\b.*\bbranches?\b"
+                 r"|\bbranches?\b.*\b(?:for|in)\b", lowered):
+        params = {}
+        status_m = re.search(r"\b(active|merged|deleted|all)\b", lowered)
+        if status_m:
+            params["status"] = status_m.group(1)
+        proj = _extract_project(lowered)
+        if proj:
+            params["project_name"] = proj
+        return {"success": True, "action": "list_project_branches", "params": params}
+
+    # Git activity for a specific task / ticket
+    if re.search(r"\bgit\s+activity\b|\b(?:branches?|commits?|pull\s*requests?|prs?)\b.*\b(?:ticket|task)\b"
+                 r"|\b(?:ticket|task)\b.*\b(?:git|github|branch|commit|pr|pull\s*request)\b", lowered):
+        params = {}
+        ticket_m = GITHUB_TICKET_PATTERN.search(text)
+        if ticket_m:
+            params["task_identifier"] = ticket_m.group(1)
+        else:
+            task_m = re.search(r"\b(?:task|ticket|issue)\s+([A-Za-z0-9\-_]+)\b", lowered)
+            if task_m:
+                params["task_identifier"] = task_m.group(1)
+        return {"success": True, "action": "list_git_activity", "params": params}
+
+    return {
+        "success": False,
+        "error": (
+            "Could not parse GitHub command. "
+            "Try: 'list open PRs', 'show commits for Parkar project', "
+            "'git activity for ticket CDW-5', 'list active branches', "
+            "or '/gh <activity|prs|commits|branches> [project/ticket]'."
+        ),
+    }
+
+
 def _normalize_action_params(
     action: str,
     params: Dict[str, Any],
@@ -532,6 +853,74 @@ def _render_action_success(
         project_name = _resolve_project_name(params.get("project_id"), params)
         verb = "added to" if action == "add_member" else "removed from"
         return f"✅ {member} was {verb} {project_name} successfully."
+
+    if action.startswith("mongo_"):
+        formatted = result.get("formatted") or ""
+        raw = result.get("raw_text") or ""
+        body = formatted or raw or json.dumps(payload, indent=2, default=str)
+        body = _clean_natoma_output(body)
+        label = action.replace("_", " ")
+        return f"✅ {label}:\n\n{body}"
+
+    if action == "list_git_activity":
+        ticket = params.get("task_identifier", "task")
+        b_count = payload.get("branches_count", 0)
+        c_count = payload.get("commits_count", 0)
+        pr_count = payload.get("pull_requests_count", 0)
+        lines = [f"✅ Git activity for {ticket}:  Branches: {b_count}  |  Commits: {c_count}  |  PRs: {pr_count}"]
+        commits = payload.get("latest_commits") or payload.get("commits") or []
+        if commits:
+            lines.append("\nRecent Commits:")
+            for c in commits[:5]:
+                lines.append(
+                    f"  [{c.get('sha', '')}] {str(c.get('message', ''))[:60]}"
+                    f" — {c.get('author', '')} ({c.get('time_ago', '')})"
+                )
+        prs = payload.get("latest_pull_requests") or payload.get("pull_requests") or []
+        if prs:
+            lines.append("\nPull Requests:")
+            for pr in prs[:5]:
+                lines.append(
+                    f"  #{pr.get('pr_number', '')} {str(pr.get('title', ''))[:60]}"
+                    f" [{pr.get('status', 'open')}] by {pr.get('author', '')}"
+                )
+        return "\n".join(lines)
+
+    if action == "list_project_prs":
+        prs = payload.get("pull_requests") or []
+        count = payload.get("count", len(prs))
+        if not prs:
+            return "✅ No pull requests found."
+        lines = [f"✅ {count} pull request(s):"]
+        for pr in prs[:15]:
+            lines.append(
+                f"  #{pr.get('pr_number', '')} {str(pr.get('title', ''))[:60]}"
+                f" [{pr.get('status', 'open')}] by {pr.get('author', '')} ({pr.get('time_ago', '')})"
+            )
+        return "\n".join(lines)
+
+    if action == "list_project_commits":
+        commits = payload.get("commits") or []
+        count = payload.get("count", len(commits))
+        if not commits:
+            return "✅ No commits found."
+        lines = [f"✅ {count} commit(s):"]
+        for c in commits[:15]:
+            lines.append(
+                f"  [{c.get('sha', '')}] {str(c.get('message', ''))[:60]}"
+                f" — {c.get('author', '')} ({c.get('time_ago', '')})"
+            )
+        return "\n".join(lines)
+
+    if action == "list_project_branches":
+        branches = payload.get("branches") or []
+        count = payload.get("count", len(branches))
+        if not branches:
+            return "✅ No branches found."
+        lines = [f"✅ {count} branch(es):"]
+        for b in branches[:20]:
+            lines.append(f"  {b.get('branch_name', '')} [{b.get('status', 'active')}]")
+        return "\n".join(lines)
 
     if action.startswith("list_"):
         count = payload.get("count")
@@ -884,6 +1273,115 @@ async def _execute_mcp_action(
             },
         )
 
+    if action == "mongo_list_databases":
+        return await call_mcp_tool("mongodb", "list-databases", {})
+
+    if action == "mongo_list_collections":
+        database = params.get("database")
+        if not database:
+            return {"success": False, "error": "Database name is required."}
+        return await call_mcp_tool(
+            "mongodb", "list-collections", {"database": database}
+        )
+
+    if action == "mongo_count":
+        database = params.get("database")
+        collection = params.get("collection")
+        if not database or not collection:
+            return {
+                "success": False,
+                "error": "Both database and collection are required (e.g. 'count taskdb.users').",
+            }
+        return await call_mcp_tool(
+            "mongodb",
+            "count",
+            {
+                "database": database,
+                "collection": collection,
+                "filter": params.get("filter") or {},
+            },
+        )
+
+    if action == "mongo_db_stats":
+        database = params.get("database")
+        if not database:
+            return {"success": False, "error": "Database name is required."}
+        return await call_mcp_tool("mongodb", "db-stats", {"database": database})
+
+    if action == "mongo_collection_schema":
+        database = params.get("database")
+        collection = params.get("collection")
+        if not database or not collection:
+            return {
+                "success": False,
+                "error": "Both database and collection are required (e.g. 'schema of taskdb.users').",
+            }
+        return await call_mcp_tool(
+            "mongodb",
+            "collection-schema",
+            {"database": database, "collection": collection},
+        )
+
+    if action == "mongo_raw":
+        tool_name = params.get("tool")
+        tool_args = params.get("args") or {}
+        if not tool_name:
+            return {
+                "success": False,
+                "error": "Mongo tool name is required for /mongo.",
+            }
+        return await call_mcp_tool("mongodb", tool_name, tool_args)
+
+    if action == "list_git_activity":
+        task_identifier = params.get("task_identifier")
+        if not task_identifier:
+            return {
+                "success": False,
+                "error": "Task identifier (ticket ID or task title) is required for git activity.",
+            }
+        return await call_mcp_tool(
+            "github",
+            "get_task_git_activity_tool",
+            {
+                "requesting_user_id": user_id,
+                "task_identifier": task_identifier,
+            },
+        )
+
+    if action == "list_project_prs":
+        return await call_mcp_tool(
+            "github",
+            "list_project_prs",
+            {
+                "requesting_user_id": user_id,
+                "project_name": params.get("project_name"),
+                "status": params.get("status"),
+                "limit": params.get("limit", 20),
+            },
+        )
+
+    if action == "list_project_commits":
+        return await call_mcp_tool(
+            "github",
+            "list_project_commits",
+            {
+                "requesting_user_id": user_id,
+                "project_name": params.get("project_name"),
+                "limit": params.get("limit", 15),
+            },
+        )
+
+    if action == "list_project_branches":
+        return await call_mcp_tool(
+            "github",
+            "list_project_branches",
+            {
+                "requesting_user_id": user_id,
+                "project_name": params.get("project_name"),
+                "status": params.get("status"),
+            },
+        )
+
     return {
         "success": False,
         "error": f"Action '{action}' is not mapped to MCP tools yet.",
@@ -961,10 +1459,16 @@ async def send_message_to_mcp(
         mcp_result: Optional[Dict[str, Any]] = None
 
         is_email_command = _detect_email_command(content)
+        is_mongo_command = _detect_mongo_command(content)
+        is_github_command = _detect_github_command(content)
 
-        if is_email_command or detect_task_command(content):
-            if is_email_command:
+        if is_email_command or is_mongo_command or is_github_command or detect_task_command(content):
+            if is_mongo_command:
+                parsed = _parse_mongo_command(content)
+            elif is_email_command:
                 parsed = _parse_email_command(content)
+            elif is_github_command:
+                parsed = _parse_github_command(content)
             else:
                 parsed = parse_task_command(
                     command=content,

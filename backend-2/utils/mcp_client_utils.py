@@ -3,9 +3,11 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import shutil
 import sys
+from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, AsyncIterator, Dict, Optional
 from dotenv import load_dotenv
 
 load_dotenv(override=True)
@@ -32,7 +34,42 @@ MCP_SERVER_SCRIPTS: Dict[str, Path] = {
     "email": Path(__file__).resolve().parents[1]
     / "mcp_servers"
     / "email_mcp_server.py",
+    "github": Path(__file__).resolve().parents[1]
+    / "mcp_servers"
+    / "github_mcp_server.py",
 }
+
+
+def _build_stdio_commands() -> Dict[str, Dict[str, Any]]:
+    """
+    External MCP servers launched as local stdio subprocesses (e.g. Natoma via npx).
+
+    Each entry: {"command": str, "args": list[str], "env_overrides": dict[str, str],
+                 "required_env": list[str]}
+    A server is "configured" only if all required_env values are non-empty.
+    """
+    natoma_api_key = os.getenv("NATOMA_MCP_API_KEY", "").strip()
+    natoma_installation_id = os.getenv(
+        "NATOMA_MCP_SERVER_INSTALLATION_ID", ""
+    ).strip()
+
+    return {
+        "mongodb": {
+            "command": "npx",
+            "args": ["-y", "@natomalabs/natoma-mcp-gateway@latest", "--enterprise"],
+            "env_overrides": {
+                "NATOMA_MCP_API_KEY": natoma_api_key,
+                "NATOMA_MCP_SERVER_INSTALLATION_ID": natoma_installation_id,
+            },
+            "required_env": [
+                "NATOMA_MCP_API_KEY",
+                "NATOMA_MCP_SERVER_INSTALLATION_ID",
+            ],
+        },
+    }
+
+
+MCP_STDIO_COMMANDS: Dict[str, Dict[str, Any]] = _build_stdio_commands()
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 
@@ -45,12 +82,37 @@ def _mcp_available() -> bool:
     )
 
 
+def _stdio_command_config(server_name: str) -> Optional[Dict[str, Any]]:
+    """Return stdio-command config if the server is configured (all required env present)."""
+    config = MCP_STDIO_COMMANDS.get(server_name)
+    if not config:
+        return None
+    overrides = config.get("env_overrides") or {}
+    for key in config.get("required_env", []):
+        if not overrides.get(key):
+            return None
+    return config
+
+
 def get_mcp_runtime_diagnostics() -> Dict[str, Any]:
+    command_servers_status = {}
+    for name, cfg in MCP_STDIO_COMMANDS.items():
+        overrides = cfg.get("env_overrides") or {}
+        missing = [
+            key for key in cfg.get("required_env", []) if not overrides.get(key)
+        ]
+        command_servers_status[name] = {
+            "command": cfg.get("command"),
+            "configured": not missing,
+            "missing_env": missing,
+            "command_resolved": bool(shutil.which(cfg.get("command", ""))),
+        }
     return {
         "mcp_sdk_available": _mcp_available(),
         "python_executable": sys.executable,
         "backend_root": str(BACKEND_ROOT),
         "mcp_python_executable_override": os.getenv("MCP_PYTHON_EXECUTABLE"),
+        "command_servers": command_servers_status,
     }
 
 
@@ -72,6 +134,70 @@ def _build_server_params(script_path: Path):
         args=[str(script_path)],
         env=env,
     )
+
+
+def _build_command_params(server_name: str, config: Dict[str, Any]):
+    """
+    Build StdioServerParameters for an external command-based MCP server (e.g. npx).
+
+    Resolves the command via shutil.which to handle Windows .cmd shims.
+    Inherits the parent process env, then layers config["env_overrides"] on top.
+    """
+    raw_command = config["command"]
+    resolved = shutil.which(raw_command)
+    if not resolved:
+        raise RuntimeError(
+            f"MCP server '{server_name}': command '{raw_command}' not found on PATH. "
+            "Install Node.js (which provides npx) and restart the backend."
+        )
+
+    env = {**os.environ}
+    env["PYTHONUNBUFFERED"] = "1"
+    for key, value in (config.get("env_overrides") or {}).items():
+        if value is not None:
+            env[key] = value
+
+    return StdioServerParameters(
+        command=resolved,
+        args=list(config.get("args") or []),
+        env=env,
+    )
+
+
+def _resolve_server(server_name: str):
+    """
+    Resolve a server name to ("command", config) or ("script", script_path).
+
+    Returns (None, None) if the server is not configured.
+    Command entries take precedence over local-script entries when both exist.
+    """
+    command_config = _stdio_command_config(server_name)
+    if command_config:
+        return "command", command_config
+
+    script_path = MCP_SERVER_SCRIPTS.get(server_name)
+    if script_path and script_path.exists():
+        return "script", script_path
+
+    return None, None
+
+
+@asynccontextmanager
+async def _open_mcp_session(server_name: str) -> AsyncIterator[ClientSession]:
+    """Open a ClientSession against any configured MCP server (script or command)."""
+    transport, target = _resolve_server(server_name)
+    if transport is None:
+        raise RuntimeError(f"MCP server '{server_name}' is not configured.")
+
+    if transport == "command":
+        server_params = _build_command_params(server_name, target)
+    else:
+        server_params = _build_server_params(target)
+
+    async with stdio_client(server_params) as (read_stream, write_stream):
+        async with ClientSession(read_stream, write_stream) as session:
+            await session.initialize()
+            yield session
 
 
 def _extract_text_from_tool_result(result: Any) -> Dict[str, Any]:
@@ -116,7 +242,7 @@ def _extract_text_from_tool_result(result: Any) -> Dict[str, Any]:
 
 
 async def list_mcp_tools(server_name: str) -> Dict[str, Any]:
-    """List tools exposed by a configured MCP server."""
+    """List tools exposed by a configured MCP server (stdio or HTTP)."""
     if not _mcp_available():
         return {
             "success": False,
@@ -127,33 +253,32 @@ async def list_mcp_tools(server_name: str) -> Dict[str, Any]:
             **get_mcp_runtime_diagnostics(),
         }
 
-    script_path = MCP_SERVER_SCRIPTS.get(server_name)
-    if not script_path or not script_path.exists():
+    transport, _target = _resolve_server(server_name)
+    if transport is None:
         return {
             "success": False,
+            "server": server_name,
             "error": f"MCP server '{server_name}' is not configured.",
         }
 
-    server_params = _build_server_params(script_path)
-
     try:
-        async with stdio_client(server_params) as (read_stream, write_stream):
-            async with ClientSession(read_stream, write_stream) as session:
-                await session.initialize()
-                tools_response = await session.list_tools()
+        async with _open_mcp_session(server_name) as session:
+            tools_response = await session.list_tools()
 
-                tools = getattr(tools_response, "tools", []) or []
-                tool_names = [getattr(tool, "name", str(tool)) for tool in tools]
+            tools = getattr(tools_response, "tools", []) or []
+            tool_names = [getattr(tool, "name", str(tool)) for tool in tools]
 
-                return {
-                    "success": True,
-                    "server": server_name,
-                    "tools": tool_names,
-                }
+            return {
+                "success": True,
+                "server": server_name,
+                "transport": transport,
+                "tools": tool_names,
+            }
     except Exception as exc:
         return {
             "success": False,
             "server": server_name,
+            "transport": transport,
             "error": str(exc),
         }
 
@@ -163,7 +288,7 @@ async def call_mcp_tool(
     tool_name: str,
     arguments: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    """Call one MCP tool over stdio and normalize the response payload."""
+    """Call one MCP tool (stdio or HTTP) and normalize the response payload."""
     if not _mcp_available():
         return {
             "success": False,
@@ -176,8 +301,8 @@ async def call_mcp_tool(
             **get_mcp_runtime_diagnostics(),
         }
 
-    script_path = MCP_SERVER_SCRIPTS.get(server_name)
-    if not script_path or not script_path.exists():
+    transport, _target = _resolve_server(server_name)
+    if transport is None:
         return {
             "success": False,
             "server": server_name,
@@ -185,58 +310,56 @@ async def call_mcp_tool(
             "error": f"MCP server '{server_name}' is not configured.",
         }
 
-    server_params = _build_server_params(script_path)
-
     try:
-        async with stdio_client(server_params) as (read_stream, write_stream):
-            async with ClientSession(read_stream, write_stream) as session:
-                await session.initialize()
-                raw_result = await session.call_tool(tool_name, arguments or {})
+        async with _open_mcp_session(server_name) as session:
+            raw_result = await session.call_tool(tool_name, arguments or {})
 
-                extracted = _extract_text_from_tool_result(raw_result)
-                text_output = extracted["text"]
-                structured_data = extracted["data"]
-                parsed: Dict[str, Any] = {}
+            extracted = _extract_text_from_tool_result(raw_result)
+            text_output = extracted["text"]
+            structured_data = extracted["data"]
+            parsed: Dict[str, Any] = {}
 
-                # Prefer structured data
-                if structured_data:
-                    parsed = {
-                        "success": True,
-                        "data": structured_data,
-                        "summary": text_output,
-                    }
-
-                else:
-                    try:
-                        maybe_json = json.loads(text_output) if text_output else {}
-                        parsed = (
-                            maybe_json
-                            if isinstance(maybe_json, dict)
-                            else {"data": maybe_json}
-                        )
-                    except Exception:
-                        parsed = {"output": text_output}
-
-                if "success" not in parsed:
-                    parsed["success"] = True
-
-                formatted_output = _format_mcp_result(parsed)
-                tool_success = bool(parsed.get("success", True))
-                tool_error = parsed.get("error") if isinstance(parsed, dict) else None
-
-                return {
-                    "success": tool_success,
-                    "server": server_name,
-                    "tool": tool_name,
-                    "result": parsed,
-                    "formatted": formatted_output,
-                    "raw_text": text_output,
-                    "error": tool_error,
+            # Prefer structured data
+            if structured_data:
+                parsed = {
+                    "success": True,
+                    "data": structured_data,
+                    "summary": text_output,
                 }
+
+            else:
+                try:
+                    maybe_json = json.loads(text_output) if text_output else {}
+                    parsed = (
+                        maybe_json
+                        if isinstance(maybe_json, dict)
+                        else {"data": maybe_json}
+                    )
+                except Exception:
+                    parsed = {"output": text_output}
+
+            if "success" not in parsed:
+                parsed["success"] = True
+
+            formatted_output = _format_mcp_result(parsed)
+            tool_success = bool(parsed.get("success", True))
+            tool_error = parsed.get("error") if isinstance(parsed, dict) else None
+
+            return {
+                "success": tool_success,
+                "server": server_name,
+                "transport": transport,
+                "tool": tool_name,
+                "result": parsed,
+                "formatted": formatted_output,
+                "raw_text": text_output,
+                "error": tool_error,
+            }
     except Exception as exc:
         return {
             "success": False,
             "server": server_name,
+            "transport": transport,
             "tool": tool_name,
             "error": str(exc),
         }
@@ -269,9 +392,13 @@ def _format_mcp_result(result: Dict[str, Any]) -> str:
 
 async def get_mcp_servers_health() -> Dict[str, Any]:
     """Check if all configured MCP servers are reachable and list their tools."""
-    checks = await asyncio.gather(
-        *(list_mcp_tools(name) for name in MCP_SERVER_SCRIPTS.keys())
-    )
+    script_names = list(MCP_SERVER_SCRIPTS.keys())
+    command_names = [
+        name for name in MCP_STDIO_COMMANDS if _stdio_command_config(name)
+    ]
+    all_names = script_names + command_names
+
+    checks = await asyncio.gather(*(list_mcp_tools(name) for name in all_names))
 
     healthy = all(check.get("success") for check in checks)
     return {

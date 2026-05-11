@@ -193,8 +193,8 @@ def chat_completion(
             "stream": stream,
         }
 
-        # Use standard chat-completions token limit parameter for broad model compatibility.
-        request_kwargs["max_tokens"] = max_tokens
+        # gpt-5.4-mini requires max_completion_tokens instead of max_tokens.
+        request_kwargs["max_completion_tokens"] = max_tokens
 
         response = _chat_completions_create(request_kwargs)
         
@@ -262,7 +262,7 @@ def chat_completion_gpt4_mini(
                 response = client.chat.completions.create(
                     model=deployment,
                     messages=messages,
-                    max_tokens=max_tokens,
+                    max_completion_tokens=max_tokens,
                     stream=stream,
                 )
 
@@ -347,7 +347,7 @@ def chat_completion_gpt4_mini(
                 response = client.chat.completions.create(
                     model=deployment,
                     messages=messages,
-                    max_tokens=max_tokens,
+                    max_completion_tokens=max_tokens,
                     stream=stream,
                 )
 
@@ -399,7 +399,7 @@ def chat_completion_streaming(
             {
                 "model": AZURE_OPENAI_DEPLOYMENT,
                 "messages": messages,
-                "max_tokens": max_tokens,
+                "max_completion_tokens": max_tokens,
                 "stream": True,
             }
         )
