@@ -32,8 +32,9 @@ from init_db import initialize_super_admin, initialize_default_channels
 from routers.langgraph_agent_router import router as langgraph_agent_router
 from routers.mcp_agent_router import router as mcp_agent_router
 # from routers.global_insights_router import router as global_insights_router
-
 from routers.document_intelligence_router import router as document_intelligence_router
+from routers.meeting_router        import meeting_router
+from routers.schedule_agent_router import schedule_agent_router
 
 
 @asynccontextmanager
@@ -123,7 +124,8 @@ app.include_router(
     langgraph_agent_router, prefix="/api/langgraph-agent", tags=["LangGraph Agent"]
 )
 app.include_router(voice_chat_router, prefix="/api/voice-chat", tags=["Voice Chat"])
-
+app.include_router(meeting_router)
+app.include_router(schedule_agent_router)
 # app.include_router(global_insights_router, tags=["Global Insights"])
 
 
@@ -227,8 +229,8 @@ if __name__ == "__main__":
     print("  ✓ LangGraph AI Agent (Azure OpenAI + LangChain Tools)")
     print("  ✓ MCP Agent (MCP Servers + Automation)")
     print("=" * 60)
-    print("🌐 Server starting on http://0.0.0.0:8000")
-    print("📖 API Docs: http://localhost:8000/docs")
+    print("🌐 Server starting on http://0.0.0.0:5000")
+    print("📖 API Docs: http://localhost:5000/docs")
     print("=" * 60 + "\n")
 
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True, log_level="info")
+    uvicorn.run("main:app", host="0.0.0.0", port=5000, reload=True, log_level="info")

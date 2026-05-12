@@ -173,3 +173,48 @@ class SuccessResponse(BaseModel):
 class ErrorResponse(BaseModel):
     success: bool = False
     error: str
+
+# ── Requests ──────────────────────────────────────────────────────────────────
+
+class CreateMeetingRequest(BaseModel):
+    title:            str
+    start_time:       str           # ISO 8601 string; controller converts to datetime
+    duration: int
+    participants:     List[str]     = []
+    description:      str           = ""
+
+
+class UpdateMeetingRequest(BaseModel):
+    title:            Optional[str] = None
+    start_time:       Optional[str] = None
+    duration: Optional[int] = None
+    description:      Optional[str] = None
+    participants:     Optional[List[str]] = None
+
+
+class UpdateParticipantsRequest(BaseModel):
+    participants: List[str]
+
+
+class AddNotesRequest(BaseModel):
+    notes: str
+
+
+class UpdatePreferencesRequest(BaseModel):
+    preferences: dict
+
+
+class CheckAvailabilityRequest(BaseModel):
+    date:             str           # YYYY-MM-DD
+    duration: int           = 60
+
+
+class CheckConflictsRequest(BaseModel):
+    start_time:       str           # ISO 8601
+    duration: int
+
+
+class SuggestTimesRequest(BaseModel):
+    duration: int           = 60
+    preferred_days:   List[str]     = []   # ["monday", "wednesday"]
+    days_ahead:       int           = 7
