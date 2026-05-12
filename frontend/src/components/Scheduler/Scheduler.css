@@ -1,0 +1,260 @@
+.calendar-container {
+  height: 100%;
+  padding: 24px;
+  width: 100%;
+}
+
+.calendar-container .fc {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.calendar-container .fc-toolbar-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #323130;
+}
+
+.calendar-container .fc-toolbar-chunk {
+  margin-bottom: 16px;
+}
+
+.calendar-container .fc-button {
+  background: #f3f2f1;
+  border: 1px solid #edebe9;
+  color: #323130;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.calendar-container .fc-button:hover {
+  background: #edebe9;
+  border-color: #d2d0ce;
+}
+
+.calendar-container .fc-button-active {
+  background: #0078d4;
+  border-color: #0078d4;
+  color: white;
+}
+
+.calendar-container .fc-button-primary {
+  background: #0078d4;
+  border-color: #0078d4;
+}
+
+.calendar-container .fc-daygrid-day-number {
+  color: #323130;
+  font-weight: 500;
+}
+
+.calendar-container .fc-day-today {
+  background: rgba(0, 120, 212, 0.1) !important;
+  border-color: #0078d4 !important;
+}
+
+.calendar-container .fc-daygrid-day:hover {
+  background: rgba(0, 120, 212, 0.05);
+}
+
+.calendar-container .fc-event {
+  border: none;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  background: linear-gradient(135deg, #0078d4, #106ebe) !important;
+  color: white !important;
+  box-shadow: 0 2px 4px rgba(0, 120, 212, 0.3);
+  margin: 2px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.calendar-container .fc-event:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 120, 212, 0.4);
+}
+
+.calendar-container .fc-event-time {
+  font-size: 0.8rem;
+  opacity: 0.9;
+}
+
+.calendar-container .fc-daygrid-event {
+  margin: 1px 0;
+}
+
+.calendar-container .fc-timegrid-col-header-cell {
+  border-color: #edebe9;
+}
+
+.calendar-container .fc-timegrid-slot {
+  border-color: #f3f2f1;
+}
+
+.calendar-container .fc-timegrid-now-indicator-arrow {
+  margin-top: 1px;
+}
+
+.calendar-container .fc-timegrid-col.fc-timegrid-now-indicator-container {
+  background: rgba(0, 120, 212, 0.1);
+}
+
+.calendar-container .fc-popover {
+  border: none;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+}
+
+.calendar-container .fc-popover-header {
+  background: #0078d4;
+  color: white;
+  padding: 12px 16px;
+  font-weight: 600;
+}
+
+.calendar-container .fc-popover-body {
+  padding: 16px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* Custom scrollbar */
+.calendar-container .fc-scroller::-webkit-scrollbar {
+  width: 8px;
+}
+
+.calendar-container .fc-scroller::-webkit-scrollbar-track {
+  background: #f3f2f1;
+  border-radius: 4px;
+}
+
+.calendar-container .fc-scroller::-webkit-scrollbar-thumb {
+  background: #d2d0ce;
+  border-radius: 4px;
+}
+
+.calendar-container .fc-scroller::-webkit-scrollbar-thumb:hover {
+  background: #a19f9d;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .calendar-container {
+    padding: 16px;
+  }
+  
+  .calendar-container .fc-toolbar-title {
+    font-size: 1.25rem;
+  }
+  
+  .calendar-container .fc-button {
+    padding: 6px 12px;
+    font-size: 0.9rem;
+  }
+}
+
+/* Modal Overlay - Modern Light Theme */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(240, 242, 245, 0.85); /* Light gray background */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  backdrop-filter: blur(4px);
+}
+
+/* Modal Content - Soft White Card */
+.modal-content {
+  background: #ffffff;
+  padding: 32px;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e1e4e8;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Typography */
+.modal-content h3 {
+  margin: 0;
+  color: #1a1a1a;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.modal-content p {
+  margin: -10px 0 0 0;
+  font-size: 0.9rem;
+  color: #717171;
+}
+
+/* Form Inputs */
+.modal-content input, 
+.modal-content textarea {
+  width: 100%;
+  padding: 14px;
+  border: 1.5px solid #e1e4e8;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  background: #f9f9fb;
+  color: #333;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+}
+
+.modal-content input:focus, 
+.modal-content textarea:focus {
+  border-color: #0078d4;
+  background: #ffffff;
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(0, 120, 212, 0.1);
+}
+
+/* Modern Button Group */
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.modal-actions button {
+  padding: 12px 24px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 0.95rem;
+  transition: all 0.2s ease;
+}
+
+.modal-actions button[type="submit"] {
+  background: #0078d4;
+  color: #ffffff;
+}
+
+.modal-actions button[type="submit"]:hover {
+  background: #005a9e;
+}
+
+.modal-actions button[type="button"] {
+  background: transparent;
+  color: #555;
+}
+
+.modal-actions button[type="button"]:hover {
+  background: #f0f0f0;
+  color: #1a1a1a;
+}
