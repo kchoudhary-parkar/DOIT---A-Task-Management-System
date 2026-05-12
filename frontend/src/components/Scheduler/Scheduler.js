@@ -3,8 +3,10 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
-import { API_BASE_URL, getAuthHeaders } from '../../services/api';
+import { getAuthHeaders } from '../../services/api';
 import './Scheduler.css';
+
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://doit-a-task-management-system-j593.onrender.com';
 
 // Modal Component for scheduling
 const MeetingModal = ({ onClose, onSubmit, startTime }) => {

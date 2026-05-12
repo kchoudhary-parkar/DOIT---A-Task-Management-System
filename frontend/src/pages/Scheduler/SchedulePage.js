@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { API_BASE_URL, getAuthHeaders } from "../../services/api";
+import { getAuthHeaders } from "../../services/api";
 import Scheduler from "../../components/Scheduler/Scheduler";
 import SchedulerBot from "../../components/Scheduler/ScheduleBot";
 import "./SchedulePage.css";
+
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://doit-a-task-management-system-j593.onrender.com';
 
 const SchedulerPage = () => {
   const [meetings, setMeetings] = useState([]);

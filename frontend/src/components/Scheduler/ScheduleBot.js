@@ -4,6 +4,8 @@ import remarkGfm from 'remark-gfm';
 import { getAuthHeaders } from '../../services/api';
 import './ScheduleBot.css';
 
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://doit-a-task-management-system-j593.onrender.com';
+
 const SchedulerBot = ({ meetings, onMeetingsUpdate, selectedDate }) => {
   const [messages, setMessages] = useState([
     { 
