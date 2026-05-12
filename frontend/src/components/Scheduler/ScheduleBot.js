@@ -32,7 +32,7 @@ const SchedulerBot = ({ meetings, onMeetingsUpdate, selectedDate }) => {
     setLoading(true);
 
     try {
-      const response = await fetch(`http://localhost:5000/api/schedule-agent/chat`, {
+      const response = await fetch(`${API_BASE_URL}/api/schedule-agent/chat`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({

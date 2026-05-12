@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { getAuthHeaders } from "../../services/api";
+import { API_BASE_URL, getAuthHeaders } from "../../services/api";
 import Scheduler from "../../components/Scheduler/Scheduler";
 import SchedulerBot from "../../components/Scheduler/ScheduleBot";
 import "./SchedulePage.css";
@@ -16,7 +16,7 @@ const SchedulerPage = () => {
 
   const fetchMeetings = async () => {
     try {
-      const response = await fetch(`http://localhost:5000/api/meetings`, {
+      const response = await fetch(`${API_BASE_URL}/api/meetings`, {
         headers: getAuthHeaders(),
       });
 

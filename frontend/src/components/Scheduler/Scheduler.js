@@ -3,7 +3,7 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
-import { getAuthHeaders } from '../../services/api';
+import { API_BASE_URL, getAuthHeaders } from '../../services/api';
 import './Scheduler.css';
 
 // Modal Component for scheduling
@@ -73,7 +73,7 @@ const Scheduler = ({ meetings = [], propView = 'dayGridMonth', onMeetingUpdate }
     };
 
     try {
-      const response = await fetch(`http://localhost:5000/api/meetings`, {
+      const response = await fetch(`${API_BASE_URL}/api/meetings`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify(payload)
