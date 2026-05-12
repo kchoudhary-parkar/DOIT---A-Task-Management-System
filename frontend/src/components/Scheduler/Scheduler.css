@@ -258,3 +258,135 @@
   background: #f0f0f0;
   color: #1a1a1a;
 }
+
+/* Meeting Details Modal */
+
+.meeting-details-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.meeting-details-modal {
+  width: 100%;
+  max-width: 520px;
+  background: white;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 20px 45px rgba(0,0,0,0.18);
+  animation: modalFade 0.2s ease;
+}
+
+@keyframes modalFade {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.meeting-details-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 22px 24px;
+  background: linear-gradient(135deg, #0078d4, #106ebe);
+  color: white;
+}
+
+.meeting-details-header h2 {
+  margin: 0;
+  font-size: 1.3rem;
+}
+
+.meeting-details-header button {
+  border: none;
+  background: rgba(255,255,255,0.15);
+  color: white;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+.meeting-details-body {
+  padding: 24px;
+}
+
+.meeting-detail-item {
+  margin-bottom: 20px;
+}
+
+.meeting-detail-item label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.meeting-detail-item p {
+  margin: 0;
+  color: #222;
+  line-height: 1.5;
+}
+
+.participants-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.participant-chip {
+  background: #eef5ff;
+  color: #0078d4;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.meeting-details-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 20px 24px;
+  border-top: 1px solid #eee;
+}
+
+.edit-btn,
+.delete-btn {
+  border: none;
+  padding: 12px 20px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.edit-btn {
+  background: #0078d4;
+  color: white;
+}
+
+.edit-btn:hover {
+  background: #005fa3;
+}
+
+.delete-btn {
+  background: #ffe7e7;
+  color: #d13438;
+}
+
+.delete-btn:hover {
+  background: #ffd2d2;
+}
