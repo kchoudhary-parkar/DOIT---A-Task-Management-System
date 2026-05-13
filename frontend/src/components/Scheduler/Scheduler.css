@@ -158,7 +158,7 @@
 }
 
 /* Modal Overlay - Modern Light Theme */
-.modal-overlay {
+.modal2-overlay {
   position: fixed;
   top: 0;
   left: 0;
@@ -173,7 +173,7 @@
 }
 
 /* Modal Content - Soft White Card */
-.modal-content {
+.modal2-content {
   background: #ffffff;
   padding: 32px;
   border-radius: 16px;
@@ -187,22 +187,22 @@
 }
 
 /* Typography */
-.modal-content h3 {
+.modal2-content h3 {
   margin: 0;
   color: #1a1a1a;
   font-size: 1.5rem;
   font-weight: 600;
 }
 
-.modal-content p {
+.modal2-content p {
   margin: -10px 0 0 0;
   font-size: 0.9rem;
   color: #717171;
 }
 
 /* Form Inputs */
-.modal-content input, 
-.modal-content textarea {
+.modal2-content input, 
+.modal2-content textarea {
   width: 100%;
   padding: 14px;
   border: 1.5px solid #e1e4e8;
@@ -214,8 +214,8 @@
   transition: all 0.2s ease;
 }
 
-.modal-content input:focus, 
-.modal-content textarea:focus {
+.modal2-content input:focus, 
+.modal2-content textarea:focus {
   border-color: #0078d4;
   background: #ffffff;
   outline: none;
@@ -363,7 +363,7 @@
   padding: 20px 24px;
   border-top: 1px solid #eee;
 }
-
+/* 
 .edit-btn,
 .delete-btn {
   border: none;
@@ -375,7 +375,7 @@
 
 .edit-btn {
   background: #0078d4;
-  color: white;
+  color: white !important;
 }
 
 .edit-btn:hover {
@@ -384,9 +384,9 @@
 
 .delete-btn {
   background: #ffe7e7;
-  color: #d13438;
+  color: black !important;
 }
 
 .delete-btn:hover {
   background: #ffd2d2;
-}
+} */

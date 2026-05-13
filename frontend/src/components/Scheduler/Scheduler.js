@@ -76,8 +76,8 @@ const initialDateTime = existingMeeting?.start
   };
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-content">
+    <div className="modal2-overlay">
+      <div className="modal2-content">
 
         <h3>
           {isEdit
